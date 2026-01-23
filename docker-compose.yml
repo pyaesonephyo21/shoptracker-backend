@@ -1,0 +1,57 @@
+services:
+  # 1. The Application (PHP + Laravel)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: inventory-app
+    container_name: inventory-app
+    restart: unless-stopped
+    working_dir: /var/www
+    volumes:
+      - ./:/var/www
+    networks:
+      - inventory-network
+
+  # 2. The Web Server (Nginx)
+  web:
+    image: nginx:alpine
+    container_name: inventory-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80" # We use port 8080 locally to avoid conflicts
+    volumes:
+      - ./:/var/www
+      - ./docker-compose/nginx/default.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - app
+    networks:
+      - inventory-network
+
+  # 3. The Database (MySQL)
+  db:
+    image: mysql:8.0
+    container_name: inventory-db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+      MYSQL_USER: ${DB_USERNAME}
+      SERVICE_TAGS: dev
+      SERVICE_NAME: mysql
+    volumes:
+      - dbdata:/var/lib/mysql
+    networks:
+      - inventory-network
+    ports:
+      - "3309:3306"
+
+# Define the network and volume
+networks:
+  inventory-network:
+    driver: bridge
+
+volumes:
+  dbdata:
+    driver: local

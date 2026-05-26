@@ -14,7 +14,7 @@ export default function AddProduct({ categories = [], isForeignMode = false }: {
         base_cost: '',
         retail_price: '',
         category_id: '',
-        type: 'Local Stock',
+        type: 'local',
     });
 
     const categoryOptions = categories.map((c) => ({

@@ -22,12 +22,12 @@ class CourierController extends Controller
         $validated = $request->validate([
             'name' => 'required|string|max:255',
             'contact' => 'nullable|string|max:255',
-            'default_fee' => 'required|numeric|min:0',
+            'default_fee' => 'nullable|numeric|min:0',
         ]);
 
         // Map fields
         $validated['contact_info'] = $validated['contact'] ?? null;
-        $validated['default_service_fee'] = $validated['default_fee'];
+        $validated['default_service_fee'] = $validated['default_fee'] ?? 0;
         unset($validated['contact'], $validated['default_fee']);
 
         Courier::create($validated);

@@ -15,7 +15,7 @@ interface Supplier {
 }
 
 export default function AddPurchaseOrder({ products = [], suppliers = [], currencyLabel = "CNY", isForeignOrder = true }: { products: Product[], suppliers: Supplier[], currencyLabel: string, isForeignOrder: boolean }) {
-    const [orderType, setOrderType] = useState<'local' | 'global'>('global');
+    const [orderType, setOrderType] = useState<'local' | 'global'>('local');
 
     const { data, setData, post, transform, processing, errors } = useForm({
         batch_name: '',

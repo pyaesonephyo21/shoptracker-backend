@@ -23,20 +23,11 @@ class ShopSeeder extends Seeder
         $retroOwner = User::create([
             'shop_id' => $retroBites->id,
             'name' => 'Retro Bites',
-            'email' => 'retrobites@test.com',
+            'email' => 'retrobites@gmail.com',
             'password' => bcrypt('password'),
             'role' => 'owner'
         ]);
         $retroOwner->shops()->attach($retroBites->id);
-
-        $retroAdmin = User::create([
-            'shop_id' => $retroBites->id,
-            'name' => 'Pyae (Admin)',
-            'email' => 'pyae@retrobites.com',
-            'password' => bcrypt('password'),
-            'role' => 'admin'
-        ]);
-        $retroAdmin->shops()->attach($retroBites->id);
 
         // 2. YOUR WORLD (Complex)
         $trendyNest = Shop::create([
@@ -47,11 +38,20 @@ class ShopSeeder extends Seeder
         $trendyOwner = User::create([
             'shop_id' => $trendyNest->id,
             'name' => 'Trendy Nest',
-            'email' => 'trendynest@test.com',
+            'email' => 'trendynest@gmail.com',
             'password' => bcrypt('password'),
             'role' => 'owner'
         ]);
         $trendyOwner->shops()->attach($trendyNest->id);
+
+        $pan = User::create([
+            'shop_id' => $trendyNest->id,
+            'name' => 'Pan Ywe Phu',
+            'email' => 'panywephu@gmail.com',
+            'password' => bcrypt('password'),
+            'role' => 'owner'
+        ]);
+        $pan->shops()->attach($trendyNest->id);
 
         // 3. SUPERADMIN
         $superAdmin = User::create([
@@ -65,12 +65,12 @@ class ShopSeeder extends Seeder
 
         $pyaeOwner = User::create([
             'shop_id' => $trendyNest->id,
-            'name' => 'Pyae Owner',
-            'email' => 'pyae@trendynest.com',
+            'name' => 'Pyae Sone',
+            'email' => 'pyaesone@gmail.com',
             'password' => bcrypt('password'),
             'role' => 'owner'
         ]);
-        $pyaeOwner->shops()->attach($trendyNest->id);
+        $pyaeOwner->shops()->attach([$retroBites->id, $trendyNest->id]);
 
         // 4. REGIONAL MANAGER
         $regionalManager = User::create([

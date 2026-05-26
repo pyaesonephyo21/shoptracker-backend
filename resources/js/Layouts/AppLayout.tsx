@@ -1,0 +1,162 @@
+import React from 'react';
+import { Link, usePage, router } from '@inertiajs/react';
+import clsx from 'clsx';
+import { twMerge } from 'tailwind-merge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+
+interface NavItem {
+    name: string;
+    href: string;
+    icon: React.ReactNode;
+}
+
+const HomeIcon = () => (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" /></svg>
+);
+const SalesIcon = () => (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 0 0 2.25-2.25V6.75A2.25 2.25 0 0 0 19.5 4.5h-15a2.25 2.25 0 0 0-2.25 2.25v10.5A2.25 2.25 0 0 0 4.5 19.5Z" /></svg>
+);
+const InventoryIcon = () => (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="m21 7.5-9-5.25L3 7.5m18 0-9 5.25m9-5.25v9l-9 5.25M3 7.5l9 5.25M3 7.5v9l9 5.25m0-9v9" /></svg>
+);
+const ManagementIcon = () => (
+    <svg fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6"><path strokeLinecap="round" strokeLinejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.325.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 0 1 1.37.49l1.296 2.247a1.125 1.125 0 0 1-.26 1.431l-1.003.827c-.293.241-.438.613-.43.992a7.723 7.723 0 0 1 0 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.955.26 1.43l-1.298 2.247a1.125 1.125 0 0 1-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.47 6.47 0 0 1-.22.128c-.331.183-.581.495-.644.869l-.213 1.281c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.019-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 0 1-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 0 1-1.369-.49l-1.297-2.247a1.125 1.125 0 0 1 .26-1.431l1.004-.827c.292-.24.437-.613.43-.991a6.932 6.932 0 0 1 0-.255c.007-.38-.138-.751-.43-.992l-1.004-.827a1.125 1.125 0 0 1-.26-1.43l1.297-2.247a1.125 1.125 0 0 1 1.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.086.22-.128.332-.183.582-.495.644-.869l.214-1.28Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" /></svg>
+);
+
+const NAV_ITEMS: NavItem[] = [
+    { name: 'Dashboard', href: '/', icon: <HomeIcon /> },
+    { name: 'Sales', href: '/sales', icon: <SalesIcon /> },
+    { name: 'Inventory', href: '/inventory', icon: <InventoryIcon /> },
+    { name: 'Management', href: '/management', icon: <ManagementIcon /> },
+];
+
+export default function AppLayout({ children, title }: { children: React.ReactNode; title?: string }) {
+    const { url, props } = usePage<any>();
+    const { auth } = props;
+
+    return (
+        <div className="flex h-screen w-full bg-white text-black selection:bg-black selection:text-white dark:bg-black dark:text-white dark:selection:bg-white dark:selection:text-black font-sans antialiased">
+            {/* Desktop / Tablet Sidebar */}
+            <aside className="hidden md:flex flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 h-full p-4 shrink-0 bg-zinc-50 dark:bg-zinc-950">
+                <div className="mb-8 px-4 flex flex-col gap-1">
+                    {auth?.all_shops?.length > 1 ? (
+                        <div className="mt-1 mb-2">
+                            <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
+                                <SelectTrigger className="font-black text-2xl sm:text-3xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent uppercase tracking-tight shadow-none flex items-center gap-2 w-full truncate">
+                                    <span className="truncate">{auth.shop?.name}</span>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {auth.all_shops?.map((s: any) => (
+                                        <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {auth.user.role === 'superadmin' && <span className="text-[10px] uppercase font-bold text-red-500 tracking-widest bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Super Admin</span>}
+                            {auth.user.role !== 'superadmin' && <span className="text-[10px] uppercase font-bold text-blue-500 tracking-widest bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Multi-Shop Access</span>}
+                        </div>
+                    ) : (
+                        <>
+                            <h1 className="text-xl font-black tracking-tight">{auth?.shop?.name || 'ShopTracker'}</h1>
+                            {auth?.user && <span className="text-xs text-zinc-500 font-medium">Logged in as {auth.user.name}</span>}
+                        </>
+                    )}
+                </div>
+                <nav className="flex flex-col gap-2 flex-1">
+                    {NAV_ITEMS.map((item) => {
+                        const isActive = url === item.href || (item.href !== '/' && url.startsWith(item.href));
+                        return (
+                            <Link
+                                key={item.name}
+                                href={item.href}
+                                className={twMerge(
+                                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group active:scale-[0.98]',
+                                    isActive
+                                        ? 'bg-black text-white dark:bg-white dark:text-black font-medium'
+                                        : 'text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white'
+                                )}
+                            >
+                                <span className={clsx("transition-transform group-active:scale-95", isActive ? "" : "opacity-70")}>{item.icon}</span>
+                                <span>{item.name}</span>
+                            </Link>
+                        );
+                    })}
+                </nav>
+                {auth?.user && (
+                    <div className="mt-auto border-t border-zinc-200 dark:border-zinc-800 pt-4">
+                        <Link href="/logout" method="post" as="button" className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-colors group">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100 transition-opacity"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></svg>
+                            <span className="font-medium">Logout</span>
+                        </Link>
+                    </div>
+                )}
+            </aside>
+
+            {/* Main Content Area */}
+            <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-white dark:bg-black">
+                {/* Mobile Header */}
+                <header className="md:hidden flex items-center justify-between h-16 px-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 sticky top-0 bg-white/80 dark:bg-black/80 backdrop-blur-md z-10">
+                    <div>
+                        {auth?.all_shops?.length > 1 ? (
+                            <div className="flex flex-col">
+                                <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
+                                    <SelectTrigger className="font-black text-2xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent tracking-tight shadow-none flex items-center gap-2 max-w-[200px] sm:max-w-[300px]">
+                                        <span className="truncate">{auth.shop?.name}</span>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {auth.all_shops?.map((s: any) => (
+                                            <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <div className="flex flex-col gap-0.5 mt-0.5 ml-1">
+                                    <span className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 leading-none">{auth.user?.name}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex flex-col">
+                                <h1 className="text-lg font-bold tracking-tight">{title || auth?.shop?.name || 'ShopTracker'}</h1>
+                                {auth?.user && <span className="text-[10px] font-medium text-zinc-500 mt-0.5">Logged in as {auth.user.name}</span>}
+                            </div>
+                        )}
+                    </div>
+                    {auth?.user && (
+                        <Link href="/logout" method="post" as="button" className="text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-black dark:hover:text-white shrink-0 ml-4">
+                            Logout
+                        </Link>
+                    )}
+                </header>
+
+                <div className="flex-1 overflow-y-auto pb-20 md:pb-0 scroll-smooth">
+                    {/* Page Content */}
+                    <div className="max-w-5xl mx-auto w-full p-4 md:p-8">
+                        {children}
+                    </div>
+                </div>
+            </main>
+
+            {/* Mobile Bottom Tab Bar */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 z-20 pb-safe">
+                {NAV_ITEMS.map((item) => {
+                    const isActive = url === item.href || (item.href !== '/' && url.startsWith(item.href));
+                    return (
+                        <Link
+                            key={item.name}
+                            href={item.href}
+                            className={twMerge(
+                                'flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all',
+                                isActive ? 'text-black dark:text-white' : 'text-zinc-500 dark:text-zinc-500'
+                            )}
+                        >
+                            <span className={clsx("transition-all duration-300", isActive ? "scale-110" : "")}>
+                                {item.icon}
+                            </span>
+                            <span className="text-[10px] font-medium tracking-wide">
+                                {item.name}
+                            </span>
+                        </Link>
+                    );
+                })}
+            </nav>
+        </div>
+    );
+}

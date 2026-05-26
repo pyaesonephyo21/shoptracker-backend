@@ -1,0 +1,310 @@
+{
+  "_AppLayout-Bnrbw2Q-.js": {
+    "file": "assets/AppLayout-Bnrbw2Q-.js",
+    "name": "AppLayout",
+    "imports": [
+      "resources/js/app.tsx",
+      "_createBaseUIEventDetails-CxI2ZExO.js"
+    ]
+  },
+  "_button-4rL_iKq1.js": {
+    "file": "assets/button-4rL_iKq1.js",
+    "name": "button",
+    "imports": [
+      "resources/js/app.tsx",
+      "_createBaseUIEventDetails-CxI2ZExO.js"
+    ]
+  },
+  "_createBaseUIEventDetails-CxI2ZExO.js": {
+    "file": "assets/createBaseUIEventDetails-CxI2ZExO.js",
+    "name": "createBaseUIEventDetails",
+    "imports": [
+      "resources/js/app.tsx"
+    ]
+  },
+  "_dialog-DFsgTgil.js": {
+    "file": "assets/dialog-DFsgTgil.js",
+    "name": "dialog",
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "_label-Cir18Pga.js": {
+    "file": "assets/label-Cir18Pga.js",
+    "name": "label",
+    "imports": [
+      "resources/js/app.tsx",
+      "_createBaseUIEventDetails-CxI2ZExO.js"
+    ]
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-cyrillic-ext-wght-normal.woff2": {
+    "file": "assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-cyrillic-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-cyrillic-wght-normal.woff2": {
+    "file": "assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-cyrillic-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2": {
+    "file": "assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-latin-ext-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2": {
+    "file": "assets/geist-latin-wght-normal-BgDaEnEv.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2"
+  },
+  "node_modules/@fontsource-variable/geist/files/geist-vietnamese-wght-normal.woff2": {
+    "file": "assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+    "src": "node_modules/@fontsource-variable/geist/files/geist-vietnamese-wght-normal.woff2"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-wzjPRCUl.css",
+    "name": "app",
+    "names": [
+      "app.css"
+    ],
+    "src": "resources/css/app.css",
+    "isEntry": true,
+    "assets": [
+      "assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+      "assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+      "assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+      "assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+      "assets/geist-latin-wght-normal-BgDaEnEv.woff2"
+    ]
+  },
+  "resources/js/Pages/Auth/Login.tsx": {
+    "file": "assets/Login-DC3Ma8Gc.js",
+    "name": "Login",
+    "src": "resources/js/Pages/Auth/Login.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js"
+    ]
+  },
+  "resources/js/Pages/Dashboard.tsx": {
+    "file": "assets/Dashboard-cx_42AU6.js",
+    "name": "Dashboard",
+    "src": "resources/js/Pages/Dashboard.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Inventory/AddProduct.tsx": {
+    "file": "assets/AddProduct-BVqJmiy7.js",
+    "name": "AddProduct",
+    "src": "resources/js/Pages/Inventory/AddProduct.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Inventory/AddPurchaseOrder.tsx": {
+    "file": "assets/AddPurchaseOrder-DWJ2nnM5.js",
+    "name": "AddPurchaseOrder",
+    "src": "resources/js/Pages/Inventory/AddPurchaseOrder.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Inventory/InventoryList.tsx": {
+    "file": "assets/InventoryList-DmGHC7Nv.js",
+    "name": "InventoryList",
+    "src": "resources/js/Pages/Inventory/InventoryList.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Inventory/ProductDetail.tsx": {
+    "file": "assets/ProductDetail-Bv-CKIOY.js",
+    "name": "ProductDetail",
+    "src": "resources/js/Pages/Inventory/ProductDetail.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Inventory/PurchaseOrderDetail.tsx": {
+    "file": "assets/PurchaseOrderDetail-BhnhzfSy.js",
+    "name": "PurchaseOrderDetail",
+    "src": "resources/js/Pages/Inventory/PurchaseOrderDetail.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Inventory/PurchaseOrderList.tsx": {
+    "file": "assets/PurchaseOrderList-B907-slx.js",
+    "name": "PurchaseOrderList",
+    "src": "resources/js/Pages/Inventory/PurchaseOrderList.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Inventory/StockAdjustment.tsx": {
+    "file": "assets/StockAdjustment-Dj3A6upN.js",
+    "name": "StockAdjustment",
+    "src": "resources/js/Pages/Inventory/StockAdjustment.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Management/Categories.tsx": {
+    "file": "assets/Categories-WcqswNHb.js",
+    "name": "Categories",
+    "src": "resources/js/Pages/Management/Categories.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_dialog-DFsgTgil.js",
+      "_label-Cir18Pga.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Management/Couriers.tsx": {
+    "file": "assets/Couriers-B02yYPDV.js",
+    "name": "Couriers",
+    "src": "resources/js/Pages/Management/Couriers.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_dialog-DFsgTgil.js",
+      "_label-Cir18Pga.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Management/Suppliers.tsx": {
+    "file": "assets/Suppliers-BYHERkEj.js",
+    "name": "Suppliers",
+    "src": "resources/js/Pages/Management/Suppliers.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_dialog-DFsgTgil.js",
+      "_label-Cir18Pga.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Sales/AddSale.tsx": {
+    "file": "assets/AddSale-UNy_171A.js",
+    "name": "AddSale",
+    "src": "resources/js/Pages/Sales/AddSale.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Sales/FulfillOrder.tsx": {
+    "file": "assets/FulfillOrder-Bw78HbKS.js",
+    "name": "FulfillOrder",
+    "src": "resources/js/Pages/Sales/FulfillOrder.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_label-Cir18Pga.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Sales/SalesDetail.tsx": {
+    "file": "assets/SalesDetail-9BiGUz4u.js",
+    "name": "SalesDetail",
+    "src": "resources/js/Pages/Sales/SalesDetail.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_button-4rL_iKq1.js",
+      "_dialog-DFsgTgil.js",
+      "_label-Cir18Pga.js",
+      "_createBaseUIEventDetails-CxI2ZExO.js",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/Pages/Sales/SalesList.tsx": {
+    "file": "assets/SalesList-BidVIvNv.js",
+    "name": "SalesList",
+    "src": "resources/js/Pages/Sales/SalesList.tsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "resources/js/app.tsx",
+      "_AppLayout-Bnrbw2Q-.js"
+    ]
+  },
+  "resources/js/app.tsx": {
+    "file": "assets/app-CXrANDGo.js",
+    "name": "app",
+    "src": "resources/js/app.tsx",
+    "isEntry": true,
+    "dynamicImports": [
+      "resources/js/Pages/Auth/Login.tsx",
+      "resources/js/Pages/Dashboard.tsx",
+      "resources/js/Pages/Inventory/AddProduct.tsx",
+      "resources/js/Pages/Inventory/AddPurchaseOrder.tsx",
+      "resources/js/Pages/Inventory/InventoryList.tsx",
+      "resources/js/Pages/Inventory/ProductDetail.tsx",
+      "resources/js/Pages/Inventory/PurchaseOrderDetail.tsx",
+      "resources/js/Pages/Inventory/PurchaseOrderList.tsx",
+      "resources/js/Pages/Inventory/StockAdjustment.tsx",
+      "resources/js/Pages/Management/Categories.tsx",
+      "resources/js/Pages/Management/Couriers.tsx",
+      "resources/js/Pages/Management/Suppliers.tsx",
+      "resources/js/Pages/Sales/AddSale.tsx",
+      "resources/js/Pages/Sales/FulfillOrder.tsx",
+      "resources/js/Pages/Sales/SalesDetail.tsx",
+      "resources/js/Pages/Sales/SalesList.tsx"
+    ],
+    "css": [
+      "assets/app-wzjPRCUl.css"
+    ],
+    "assets": [
+      "assets/geist-cyrillic-ext-wght-normal-DjL33-gN.woff2",
+      "assets/geist-cyrillic-wght-normal-BEAKL7Jp.woff2",
+      "assets/geist-vietnamese-wght-normal-6IgcOCM7.woff2",
+      "assets/geist-latin-ext-wght-normal-DC-KSUi6.woff2",
+      "assets/geist-latin-wght-normal-BgDaEnEv.woff2"
+    ]
+  }
+}

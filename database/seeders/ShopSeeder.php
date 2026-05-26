@@ -2,10 +2,10 @@
 
 namespace Database\Seeders;
 
+use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use Illuminate\Database\Seeder;
 use App\Models\Shop;
 use App\Models\User;
-use Illuminate\Database\Seeder;
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 
 class ShopSeeder extends Seeder
 {
@@ -14,27 +14,29 @@ class ShopSeeder extends Seeder
      */
     public function run(): void
     {
-        // 1. HER WORLD (Simple)
+        // 1. SIMPLE WORLD
         $retroBites = Shop::create([
             'name' => "Retro Bites",
             'settings' => ['foreign_mode' => false]
         ]);
 
-        User::create([
+        $retroOwner = User::create([
             'shop_id' => $retroBites->id,
             'name' => 'Retro Bites',
             'email' => 'retrobites@test.com',
             'password' => bcrypt('password'),
             'role' => 'owner'
         ]);
+        $retroOwner->shops()->attach($retroBites->id);
 
-        User::create([
+        $retroAdmin = User::create([
             'shop_id' => $retroBites->id,
             'name' => 'Pyae (Admin)',
-            'email' => 'pyae@retrobites.com', // <--- Distinct Email
+            'email' => 'pyae@retrobites.com',
             'password' => bcrypt('password'),
             'role' => 'admin'
         ]);
+        $retroAdmin->shops()->attach($retroBites->id);
 
         // 2. YOUR WORLD (Complex)
         $trendyNest = Shop::create([
@@ -42,20 +44,42 @@ class ShopSeeder extends Seeder
             'settings' => ['foreign_mode' => true]
         ]);
 
-        User::create([
+        $trendyOwner = User::create([
             'shop_id' => $trendyNest->id,
             'name' => 'Trendy Nest',
             'email' => 'trendynest@test.com',
             'password' => bcrypt('password'),
             'role' => 'owner'
         ]);
+        $trendyOwner->shops()->attach($trendyNest->id);
 
-        User::create([
+        // 3. SUPERADMIN
+        $superAdmin = User::create([
+            'shop_id' => $retroBites->id,
+            'name' => 'Super Admin',
+            'email' => 'admin@shoptracker.com',
+            'password' => bcrypt('password'),
+            'role' => 'superadmin'
+        ]);
+        $superAdmin->shops()->attach([$retroBites->id, $trendyNest->id]);
+
+        $pyaeOwner = User::create([
             'shop_id' => $trendyNest->id,
             'name' => 'Pyae Owner',
-            'email' => 'pyae@trendynest.com', // <--- Your Main Email
+            'email' => 'pyae@trendynest.com',
             'password' => bcrypt('password'),
             'role' => 'owner'
         ]);
+        $pyaeOwner->shops()->attach($trendyNest->id);
+
+        // 4. REGIONAL MANAGER
+        $regionalManager = User::create([
+            'shop_id' => $trendyNest->id,
+            'name' => 'Regional Manager',
+            'email' => 'manager@test.com',
+            'password' => bcrypt('password'),
+            'role' => 'admin'
+        ]);
+        $regionalManager->shops()->attach([$retroBites->id, $trendyNest->id]);
     }
 }

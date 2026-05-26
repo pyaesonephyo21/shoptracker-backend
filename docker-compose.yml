@@ -4,10 +4,12 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      network: host
     image: inventory-app
     container_name: inventory-app
     restart: unless-stopped
     working_dir: /var/www
+    command: sh -c "chmod -R 777 /var/www/storage /var/www/bootstrap/cache /var/www/database && php-fpm"
     volumes:
       - ./:/var/www
     networks:
@@ -28,30 +30,27 @@ services:
     networks:
       - inventory-network
 
-  # 3. The Database (MySQL)
-  db:
-    image: mysql:8.0
-    container_name: inventory-db
+
+
+  # 4. The Frontend Asset Bundler (Vite)
+  vite:
+    image: inventory-app
+    container_name: inventory-vite
     restart: unless-stopped
-    environment:
-      MYSQL_DATABASE: ${DB_DATABASE}
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
-      MYSQL_PASSWORD: ${DB_PASSWORD}
-      MYSQL_USER: ${DB_USERNAME}
-      SERVICE_TAGS: dev
-      SERVICE_NAME: mysql
+    working_dir: /var/www
+    command: npm run dev
     volumes:
-      - dbdata:/var/lib/mysql
+      - ./:/var/www
+    ports:
+      - "5173:5173"
+    depends_on:
+      - app
     networks:
       - inventory-network
-    ports:
-      - "3309:3306"
 
 # Define the network and volume
 networks:
   inventory-network:
     driver: bridge
 
-volumes:
-  dbdata:
-    driver: local
+

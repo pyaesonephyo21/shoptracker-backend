@@ -40,15 +40,26 @@ class SalesOrderService
                 'audit_log' => [['action' => 'created', 'by' => auth()->user()->name, 'at' => now()->toIso8601String()]]
             ]);
 
+            $isPreorder = false;
+
             foreach ($items as $item) {
                 // Pass item-level discount data if available
-                $this->processAddItem(
+                $wasPreorder = $this->processAddItem(
                     $order,
                     $item['product_id'],
                     $item['quantity'],
                     null, // No price override, use retail
                     $item // Pass full item array for discount logic
                 );
+                
+                if ($wasPreorder) {
+                    $isPreorder = true;
+                }
+            }
+            
+            if ($isPreorder) {
+                $order->is_preorder = true;
+                $order->save();
             }
 
             $this->recalculateTotals($order);
@@ -132,11 +143,30 @@ class SalesOrderService
             if (isset($data['is_deli_prepaid'])) $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
             if (isset($data['money_collected_by'])) $order->money_collected_by = $data['money_collected_by'];
 
-            $order->status = 'processing';
+            $order->status = 'delivery added';
 
             $this->recalculateTotals($order);
             $order->logAction('fulfillment_details_updated');
 
+            return $order;
+        });
+    }
+
+    public function markAsDelivered($id)
+    {
+        return DB::transaction(function () use ($id) {
+            $order = SalesOrder::findOrFail($id);
+            if ($order->status !== 'delivery added') {
+                throw new Exception("Order must have delivery arranged before it can be marked as delivered.");
+            }
+
+            $order->status = 'delivered';
+
+            // If it's fully prepaid (deli prepaid and grand total paid), we might consider it complete, but user said prepaid ends at 'delivered'.
+            // For now, just set to delivered.
+            $order->save();
+
+            $order->logAction('delivered');
             return $order;
         });
     }
@@ -249,9 +279,11 @@ class SalesOrderService
     {
         $product = Product::lockForUpdate()->find($productId);
 
-        if (!$product || $product->stock_quantity < $qty) {
-            throw new Exception("Stock error: {$product->name}");
+        if (!$product || ($product->stock_quantity + $product->pending_stock) < $qty) {
+            throw new Exception("Stock limit exceeded for: {$product->name}");
         }
+
+        $isPreorder = $qty > $product->stock_quantity;
 
         $product->decrement('stock_quantity', $qty);
 
@@ -292,6 +324,8 @@ class SalesOrderService
         ]);
 
         $this->createLog($order, $product, $qty, 'sale_sold');
+        
+        return $isPreorder;
     }
 
     private function recalculateTotals(SalesOrder $order)
@@ -342,6 +376,7 @@ class SalesOrderService
         $order->discount_total = $discountAmount;
         $order->customer_grand_total = $customerGrandTotal;
         $order->net_revenue = $netRevenue;
+        $order->net_profit = $netRevenue - $totalCost - $order->return_cost;
         $order->save();
     }
 

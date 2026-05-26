@@ -55,6 +55,11 @@ class User extends Authenticatable
         return $this->belongsTo(Shop::class);
     }
 
+    public function shops()
+    {
+        return $this->belongsToMany(Shop::class, 'shop_user');
+    }
+
     public function isOwner()
     {
         return true;

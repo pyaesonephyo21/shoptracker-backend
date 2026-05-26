@@ -1,0 +1,190 @@
+import React from 'react';
+import AppLayout from '../../Layouts/AppLayout';
+import { Head, router, useForm } from '@inertiajs/react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SalesOrder } from '@/types/sales';
+import { twMerge } from 'tailwind-merge';
+
+interface Courier {
+    id: number;
+    name: string;
+    contact_info?: string;
+    default_service_fee: number;
+}
+
+export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrder, couriers: Courier[] }) {
+    const { data, setData, post, processing, errors } = useForm({
+        courier_id: '',
+        tracking_number: '',
+        delivery_fee: '',
+        courier_service_fee: '',
+        delivery_note: '',
+        money_collected_by: 'courier' as 'seller' | 'courier',
+        is_deli_prepaid: false
+    });
+
+    const selectedCourier = couriers.find(c => c.id === Number(data.courier_id));
+    const isPickup = false; // Add logic if needed later
+    const isSelfManaged = false; // Add logic if needed later
+
+    const handleSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        post(`/sales/${order.id}/fulfill`, {
+            onError: () => alert('Failed to fulfill order')
+        });
+    };
+
+    return (
+        <AppLayout title={`Fulfill #${order.id}`}>
+            <Head title={`Fulfill Order #${order.id}`} />
+
+            <div className="flex flex-col max-w-2xl mx-auto w-full pb-20">
+                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
+                    <div className="flex items-center gap-4">
+                        <button type="button" onClick={() => router.visit(`/sales/${order.id}`)} className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</button>
+                        <div>
+                            <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Arrange Delivery</h1>
+                            <p className="text-sm font-medium text-zinc-500">Order #{order.id}</p>
+                        </div>
+                    </div>
+                </div>
+
+                <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+                    
+                    {/* 1. SELECT COURIER */}
+                    <div className="flex flex-col gap-2">
+                        <Label>Select Method / Courier *</Label>
+                        <Select value={data.courier_id} onValueChange={(val) => {
+                            if (!val) return;
+                            const selected = couriers.find(c => c.id === Number(val));
+                            setData(data => ({
+                                ...data,
+                                courier_id: val,
+                                courier_service_fee: selected ? String(Number(selected.default_service_fee)) : data.courier_service_fee
+                            }));
+                        }} required>
+                            <SelectTrigger>
+                                <SelectValue placeholder="Choose a courier...">
+                                    {selectedCourier ? selectedCourier.name : "Choose a courier..."}
+                                </SelectValue>
+                            </SelectTrigger>
+                            <SelectContent>
+                                {couriers.map(c => (
+                                    <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.courier_id && <span className="text-red-500 text-xs">{errors.courier_id}</span>}
+                    </div>
+
+                    {data.courier_id && (
+                        <div className="flex flex-col gap-8 animate-in fade-in slide-in-from-top-4 duration-300">
+                            
+                            {/* 2. FEES */}
+                            {!isPickup && (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div className="flex flex-col gap-2">
+                                        <Label>Deli Fee (Charge to Customer)</Label>
+                                        <Input
+                                            type="number"
+                                            value={data.delivery_fee}
+                                            onChange={(e) => setData('delivery_fee', e.target.value)}
+                                            placeholder="0"
+                                        />
+                                        {errors.delivery_fee && <span className="text-red-500 text-xs">{errors.delivery_fee}</span>}
+                                    </div>
+
+                                    {!isSelfManaged && (
+                                        <div className="flex flex-col gap-2">
+                                            <Label>Service Fee (Cost to us)</Label>
+                                            <Input
+                                                type="number"
+                                                value={data.courier_service_fee}
+                                                onChange={(e) => setData('courier_service_fee', e.target.value)}
+                                                placeholder="e.g. 200"
+                                            />
+                                            {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 3. TRACKING */}
+                            {!isSelfManaged && (
+                                <div className="flex flex-col gap-2">
+                                    <Label>Tracking No.</Label>
+                                    <Input
+                                        value={data.tracking_number}
+                                        onChange={(e) => setData('tracking_number', e.target.value)}
+                                        placeholder="Optional"
+                                    />
+                                </div>
+                            )}
+
+                            {/* 4. COLLECTION RULES */}
+                            {!isSelfManaged && (
+                                <div className="flex flex-col gap-4">
+                                    <Label className="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 pb-2">
+                                        Money Collection
+                                    </Label>
+                                    
+                                    <div className="flex gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('money_collected_by', 'seller')}
+                                            className={twMerge("flex-1 py-4 rounded-xl border-2 font-bold text-xs uppercase tracking-wider transition-all", 
+                                                data.money_collected_by === 'seller' ? "border-black bg-black text-white dark:bg-white dark:border-white dark:text-black" : "border-zinc-200 bg-transparent text-zinc-400 dark:border-zinc-800")}
+                                        >
+                                            I Collect
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('money_collected_by', 'courier')}
+                                            className={twMerge("flex-1 py-4 rounded-xl border-2 font-bold text-xs uppercase tracking-wider transition-all", 
+                                                data.money_collected_by === 'courier' ? "border-black bg-black text-white dark:bg-white dark:border-white dark:text-black" : "border-zinc-200 bg-transparent text-zinc-400 dark:border-zinc-800")}
+                                        >
+                                            Courier Collects
+                                        </button>
+                                    </div>
+
+                                    {data.money_collected_by === 'seller' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('is_deli_prepaid', !data.is_deli_prepaid)}
+                                            className={twMerge("p-4 rounded-xl border-2 text-left transition-colors flex justify-between items-center", 
+                                                data.is_deli_prepaid ? "border-green-500 bg-green-50 dark:bg-green-900/20" : "border-zinc-200 dark:border-zinc-800 bg-transparent")}
+                                        >
+                                            <span className={twMerge("font-bold text-sm", data.is_deli_prepaid ? "text-green-700 dark:text-green-500" : "text-zinc-500")}>
+                                                {data.is_deli_prepaid ? "✓ Deli Fee Included in Payment" : "Deli Fee is Separate (COD)"}
+                                            </span>
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* 5. NOTE */}
+                            <div className="flex flex-col gap-2">
+                                <Label>Delivery Instructions</Label>
+                                <Input
+                                    value={data.delivery_note}
+                                    onChange={(e) => setData('delivery_note', e.target.value)}
+                                    placeholder="e.g. Call before arrival..."
+                                />
+                            </div>
+
+                            <div className="pt-4 mt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                <Button type="submit" disabled={processing} className="w-full h-14 text-sm tracking-widest font-bold">
+                                    {processing ? "PROCESSING..." : "CONFIRM & SHIP"}
+                                </Button>
+                            </div>
+
+                        </div>
+                    )}
+                </form>
+            </div>
+        </AppLayout>
+    );
+}

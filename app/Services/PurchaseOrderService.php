@@ -2,170 +2,154 @@
 
 namespace App\Services;
 
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use App\Models\Product;
 use App\Models\InventoryLog;
-use App\Models\PurchaseOrder;
 use Illuminate\Support\Facades\DB;
+use Exception;
 
 class PurchaseOrderService
 {
-    public function createBatch(array $data, array $items)
+    /**
+     * Create a new pending Purchase Order
+     */
+    public function createOrder(array $data): PurchaseOrder
     {
-        return DB::transaction(function () use ($data, $items) {
-            // 1. Setup Defaults
-            $rate = $data['exchange_rate'] ?? 1; // Default to 1 (Local)
-            $supplierFee = $data['supplier_fee'] ?? 0;
-            $cargoFee = $data['cargo_fee'] ?? 0;
-            $localDeli = $data['local_deli_fee'] ?? 0;
-            $paidAmount = $data['paid_amount'] ?? 0;
+        return DB::transaction(function () use ($data) {
+            $exchangeRate = (float) ($data['exchange_rate'] ?: 1.0);
+            
+            // Calculate total goods cost in foreign currency (or local if exchange_rate is 1)
+            $totalGoodsCost = 0;
+            foreach ($data['items'] as $item) {
+                $totalGoodsCost += ($item['quantity'] * $item['unit_cost']);
+            }
+            
+            $supplierFee = (float) ($data['supplier_fee'] ?: 0);
+            $paidAmount = (float) ($data['paid_amount'] ?: 0);
+            
+            // Grand Total (in MMK)
+            $grandTotal = ($totalGoodsCost + $supplierFee) * $exchangeRate;
+            
+            // Payment Status
+            $paymentStatus = 'unpaid';
+            if ($paidAmount > 0) {
+                $paymentStatus = $paidAmount >= $grandTotal ? 'paid' : 'partial';
+            }
 
-            // 2. Create the PO Shell (We fill totals later)
+            // Create the main PO
             $po = PurchaseOrder::create([
                 'batch_name' => $data['batch_name'],
-                'supplier_id' => $data['supplier_id'] ?? null,
+                'supplier_id' => $data['supplier_id'] ?: null,
+                'local_shop_name' => $data['shop_name'] ?: null,
                 'status' => 'pending',
-                'exchange_rate' => $rate,
+                'exchange_rate' => $exchangeRate,
+                'total_goods_cost' => $totalGoodsCost,
                 'supplier_fee' => $supplierFee,
-                'cargo_fee' => $cargoFee,
-                'local_deli_fee' => $localDeli,
-                'note' => $data['note'] ?? null,
+                'cargo_fee' => 0,
+                'local_deli_fee' => 0,
+                'grand_total' => $grandTotal,
+                'payment_status' => $paymentStatus,
                 'paid_amount' => $paidAmount,
-                // Determine Payment Status automatically
-                'payment_status' => $paidAmount > 0 ? 'partial' : 'unpaid'
+                'note' => $data['note'] ?? null,
             ]);
 
-            // 3. Process Items & Calculate Goods Cost
-            $totalGoodsCost = 0;
+            // Create the items
+            foreach ($data['items'] as $item) {
+                $originalCost = $item['unit_cost'];
+                $unitCostMmk = $originalCost * $exchangeRate;
+                $lineTotalMmk = $item['quantity'] * $unitCostMmk;
 
-            foreach ($items as $item) {
-                $product = Product::findOrFail($item['product_id']);
-
-                // CRITICAL FIX 1: Update Pending Stock immediately
-                // This tells the system "10 items are on the way"
-                $product->increment('pending_stock', $item['quantity']);
-
-                $originalCost = $item['unit_cost']; // 30 CNY
-
-                // Convert to MMK
-                $mmkCost = $originalCost * $rate; // 15,000 MMK
-
-                // Line Total (in MMK)
-                $lineTotal = $mmkCost * $item['quantity'];
-
-                $totalGoodsCost += $lineTotal;
-
-                $po->items()->create([
+                PurchaseOrderItem::create([
+                    'purchase_order_id' => $po->id,
                     'product_id' => $item['product_id'],
                     'quantity' => $item['quantity'],
-
-                    // Store BOTH
-                    'original_cost' => $originalCost, // 30
-                    'unit_cost' => $mmkCost,          // 15000
-
-                    'line_total' => $lineTotal,
+                    'original_cost' => $originalCost,
+                    'unit_cost' => $unitCostMmk,
+                    'line_total' => $lineTotalMmk,
                 ]);
+
+                // Increment pending_stock for the product
+                $product = Product::lockForUpdate()->findOrFail($item['product_id']);
+                $product->increment('pending_stock', $item['quantity']);
             }
 
-            $grandTotal = $totalGoodsCost + $po->supplier_fee;
-
-            $paymentStatus = 'unpaid';
-            if ($po->paid_amount >= $grandTotal) {
-                $paymentStatus = 'paid';
-            } elseif ($po->paid_amount > 0) {
-                $paymentStatus = 'partial';
-            }
-
-            $po->update([
-                'total_goods_cost' => $totalGoodsCost,
-                'grand_total' => $grandTotal,
-                'payment_status' => $paymentStatus
-            ]);
-
-            return $po->load('items');
+            return $po;
         });
     }
 
-    public function markAsArrived($id, array $data = [])
+    /**
+     * Mark a PO as arrived, finalize costs, and update inventory.
+     */
+    public function markAsArrived(PurchaseOrder $po, array $arrivalData): PurchaseOrder
     {
-        return DB::transaction(function () use ($id, $data) {
-            $po = PurchaseOrder::findOrFail($id);
-
+        return DB::transaction(function () use ($po, $arrivalData) {
             if ($po->status === 'arrived') {
-                return $po; // Prevent double execution
+                throw new Exception("This order has already arrived.");
             }
 
-            // 1. Update Fees (If provided)
-            $po->cargo_fee = $data['cargo_fee'] ?? $po->cargo_fee;
-            $po->local_deli_fee = $data['local_deli_fee'] ?? $po->local_deli_fee;
+            // Lock PO and items
+            $po = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
+            $items = $po->items()->lockForUpdate()->get();
 
-            // 2. Update Payment (Add the new payment to the old total)
-            if (isset($data['add_payment_amount'])) {
-                $po->paid_amount += $data['add_payment_amount'];
-            }
+            // Update PO final costs
+            $cargoFee = (float) ($arrivalData['cargo_fee'] ?? 0);
+            $localDeliFee = (float) ($arrivalData['local_deli_fee'] ?? 0);
+            $adjustmentAmount = (float) ($arrivalData['adjustment_amount'] ?? 0);
+            $adjustmentReason = $arrivalData['adjustment_reason'] ?? null;
+            
+            $po->cargo_fee = $cargoFee;
+            $po->local_deli_fee = $localDeliFee;
+            $po->adjustment_amount = $adjustmentAmount;
+            $po->adjustment_reason = $adjustmentReason;
+            
+            // Add to grand total
+            $po->grand_total = $po->grand_total + $cargoFee + $localDeliFee + $adjustmentAmount;
+            
+            // Automatically mark as fully paid
+            $po->paid_amount = $po->grand_total;
+            $po->payment_status = 'paid';
 
-            // 3. Recalculate Grand Total
-            // (Goods Cost + Supplier Fee + Cargo + Deli)
-            $grandTotal = $po->total_goods_cost + $po->supplier_fee + $po->cargo_fee + $po->local_deli_fee;
-            $po->grand_total = $grandTotal;
-
-            $totalBatchQuantity = $po->items->sum('quantity');
-
-            $feePerItem = 0;
-            if ($totalBatchQuantity > 0) {
-                // (SupplierFee + Cargo + Deli) / Total Items
-                $totalFees = $po->supplier_fee + $po->cargo_fee + $po->local_deli_fee;
-                $feePerItem = $totalFees / $totalBatchQuantity;
-            }
-
-            // 4. Update Payment Status automatically
-            // If Paid >= Total, then status is 'paid'.
-            if ($po->paid_amount >= $grandTotal) {
-                $po->payment_status = 'paid';
-            } elseif ($po->paid_amount > 0) {
-                $po->payment_status = 'partial';
-            } else {
-                $po->payment_status = 'unpaid';
-            }
-
-            // 5. Update Status & Stock
             $po->status = 'arrived';
-            $po->save(); // Save the PO changes
+            $po->save();
 
-            foreach ($po->items as $item) {
+            // Distribute shipping costs to products to update their base_cost
+            $totalQuantity = $items->sum('quantity');
+            $shippingCostPerItem = $totalQuantity > 0 ? (($cargoFee + $localDeliFee) / $totalQuantity) : 0;
 
-                $product = $item->product;
+            foreach ($items as $item) {
+                $product = Product::lockForUpdate()->findOrFail($item->product_id);
+                
+                // Final unit cost includes the original unit cost (converted to MMK) + shipping cost per item
+                // + supplier fee proportion if you want to be extremely exact, but usually shipping is the main extra cost.
+                $supplierFeePerItem = $totalQuantity > 0 ? (($po->supplier_fee * $po->exchange_rate) / $totalQuantity) : 0;
+                
+                $finalUnitCostMmk = $item->unit_cost + $shippingCostPerItem + $supplierFeePerItem;
 
-                // A. Calculate the REAL cost of this specific item in this batch
-                // Real Cost = (Buying Price in MMK) + (Share of Fees)
-                // Note: item->unit_cost is the Source Price (e.g. 10 CNY).
-                // We need to convert it to MMK first using the PO's rate.
-                $finalBatchUnitCost = $item->unit_cost + $feePerItem;
+                // Update product stock, decrement pending stock, and update base cost
+                $newStockLevel = $product->stock_quantity + $item->quantity;
+                $newPendingStock = max(0, $product->pending_stock - $item->quantity);
+                
+                // Usually base cost is a weighted average of old stock vs new stock, 
+                // but for simplicity we'll just set it to the latest landed cost, 
+                // or you can implement weighted average here.
+                // Let's use latest landed cost for now.
+                $product->update([
+                    'stock_quantity' => $newStockLevel,
+                    'pending_stock' => $newPendingStock,
+                    'base_cost' => $finalUnitCostMmk,
+                ]);
 
-                // Weighted Average Formula
-                // ((OldQty * OldCost) + (NewQty * NewBatchCost)) / TotalQty
-                $oldValue = $product->stock_quantity * $product->base_cost;
-                $newValue = $item->quantity * $finalBatchUnitCost;
-                $totalQty = $product->stock_quantity + $item->quantity;
-
-                // Handle division by zero edge case (first stock)
-                $newAverageCost = ($totalQty > 0) ? ($oldValue + $newValue) / $totalQty : $finalBatchUnitCost;
-
-                // C. Save to Product
-                $product->base_cost = $newAverageCost;
-                $product->stock_quantity += $item->quantity;
-                $product->pending_stock -= $item->quantity;
-                $product->save();
-
-                // D. Log it
+                // Create Inventory Log
                 InventoryLog::create([
                     'shop_id' => $po->shop_id,
                     'product_id' => $product->id,
                     'quantity_change' => $item->quantity,
-                    'new_stock_level' => $product->stock_quantity,
+                    'new_stock_level' => $newStockLevel,
                     'reason' => 'purchase_arrived',
                     'reference_type' => PurchaseOrder::class,
                     'reference_id' => $po->id,
-                    'note' => "Arrived. Cost updated to " . number_format($newAverageCost)
+                    'note' => "PO Arrived: {$po->batch_name}",
                 ]);
             }
 

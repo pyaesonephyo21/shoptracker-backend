@@ -11,4 +11,9 @@ class Shop extends Model
     protected $casts = [
         'settings' => 'array', // Auto-convert JSON to Array
     ];
+
+    public function users()
+    {
+        return $this->belongsToMany(User::class, 'shop_user');
+    }
 }

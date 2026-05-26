@@ -21,7 +21,7 @@ class StoreProductRequest extends FormRequest
             'name' => 'required|string|max:255',
             'sku' => 'nullable|string|max:100',
             'category_id' => 'nullable|exists:categories,id',
-            'type' => 'required|in:own_stock,consignment,preorder',
+            'type' => 'required|in:local,global',
             'base_cost' => 'required|numeric|min:0',
             'retail_price' => 'required|numeric|min:0',
             'image' => 'nullable|image|max:10240',

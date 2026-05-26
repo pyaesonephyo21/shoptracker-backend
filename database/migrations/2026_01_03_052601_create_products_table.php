@@ -18,10 +18,9 @@ return new class extends Migration
             $table->string('sku')->nullable()->index(); // Good for barcode scanning later
 
             // 3. THE LOGIC ROUTER
-            // 'own_stock' = Normal inventory
-            // 'virtual' = Sister's stock (Virtual)
-            // 'preorder' = China Batch items
-            $table->string('type')->default('own_stock');
+            // 'local' = Local stock
+            // 'global' = Foreign stock
+            $table->string('type')->default('local');
 
             // 4. MONEY (Always use Decimal for currency!)
             // base_cost: What you pay (or owe Sister).

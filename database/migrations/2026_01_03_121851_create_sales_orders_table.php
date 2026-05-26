@@ -57,8 +57,9 @@ return new class extends Migration
             $table->string('discount_type')->default('none');
             $table->decimal('discount_value', 10, 2)->default(0);
             $table->decimal('discount_total', 12, 2)->default(0);
-            $table->string('discount_reason')->nullable(); // <-- NEW: Added discount_reason
+            $table->string('discount_reason')->nullable();
 
+            $table->boolean('is_preorder')->default(false);
             $table->text('note')->nullable();
             $table->json('audit_log')->nullable();
             $table->timestamps();

@@ -20,6 +20,13 @@ class PurchaseOrder extends Model
         // 'created_at' casts are automatic
     ];
 
+    protected $appends = ['supplier_name'];
+
+    public function getSupplierNameAttribute()
+    {
+        return $this->supplier_id ? $this->supplier->name : $this->local_shop_name;
+    }
+
     /**
      * The "Magic" Boot Method
      * automatically adds shop_id when creating

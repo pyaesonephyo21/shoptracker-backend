@@ -18,10 +18,12 @@ return new class extends Migration
             $table->unsignedBigInteger('shop_id');
             $table->foreign('shop_id', 'po_shop_fk')->references('id')->on('shops')->onDelete('cascade');
 
-            // 2. Supplier Link (New!)
-            // It is nullable in case you buy something random without a saved supplier
+            // 2. Supplier Link
+            // It is nullable in case you buy something random without a saved supplier (Local Order)
             $table->unsignedBigInteger('supplier_id')->nullable();
             $table->foreign('supplier_id', 'po_supp_fk')->references('id')->on('suppliers')->onDelete('set null');
+
+            $table->string('local_shop_name')->nullable(); // For local orders without a saved supplier
 
             $table->string('batch_name');
             $table->string('status')->default('pending'); // pending, arrived, cancelled

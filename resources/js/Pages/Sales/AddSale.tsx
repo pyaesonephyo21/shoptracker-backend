@@ -18,16 +18,27 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         discount_type: 'none' as 'none' | 'fixed' | 'percent',
         discount_value: '',
         discount_reason: '',
+        overcharge: '',
         note: '',
         paid_amount: ''
     });
 
     const [selectedProduct, setSelectedProduct] = useState<string>('');
 
-    const productOptions = products.map(p => ({
-        label: `${p.name} (S: ${p.stock_quantity}, P: ${p.pending_stock})`,
-        value: String(p.id)
-    }));
+    const productOptions = products.map(p => {
+        let displayStock = p.stock_quantity;
+        let displayPending = p.pending_stock;
+        
+        if (displayStock < 0) {
+            displayPending = Math.max(0, displayPending + displayStock);
+            displayStock = 0;
+        }
+
+        return {
+            label: `${p.name} (S: ${displayStock}, P: ${displayPending})`,
+            value: String(p.id)
+        };
+    });
 
     const handleAddToCart = () => {
         if (!selectedProduct) return;
@@ -38,10 +49,10 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
             ...data.cart,
             {
                 product_id: product.id,
-                quantity: 1,
+                quantity: '',
                 unit_price_snapshot: product.retail_price || 0,
                 discount_type: 'none',
-                discount_value: 0,
+                discount_value: '',
                 discount_reason: ''
             }
         ]);
@@ -58,16 +69,57 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         setData('cart', data.cart.filter((_, i) => i !== index));
     };
 
+    const calculateFifoRetailPrice = (product: Product, requestedQty: number) => {
+        if (!product || !product.batches || product.batches.length === 0) {
+            return { 
+                total: requestedQty * (product.retail_price || 0), 
+                average: product.retail_price || 0,
+                isMultiple: false
+            };
+        }
+
+        let remaining = requestedQty;
+        let total = 0;
+        let pricesUsed = new Set<number>();
+
+        for (const batch of product.batches) {
+            if (remaining <= 0) break;
+            const take = Math.min(batch.remaining_quantity, remaining);
+            const price = batch.retail_price !== null && batch.retail_price !== undefined ? batch.retail_price : (product.retail_price || 0);
+            total += take * price;
+            pricesUsed.add(price);
+            remaining -= take;
+        }
+
+        if (remaining > 0) {
+            const lastBatch = product.batches[product.batches.length - 1];
+            const price = lastBatch && lastBatch.retail_price !== null && lastBatch.retail_price !== undefined ? lastBatch.retail_price : (product.retail_price || 0);
+            total += remaining * price;
+            pricesUsed.add(price);
+        }
+
+        return {
+            total,
+            average: requestedQty > 0 ? (total / requestedQty) : 0,
+            isMultiple: pricesUsed.size > 1
+        };
+    };
+
     // Derived State Calculations
     const subtotal = useMemo(() => {
         return data.cart.reduce((sum, item) => {
-            let effectivePrice = item.unit_price_snapshot;
+            const product = products.find(p => p.id === item.product_id);
+            const qty = Number(item.quantity) || 0;
+            const discountVal = Number(item.discount_value) || 0;
+            const basePrice = product ? calculateFifoRetailPrice(product, qty).average : (item.unit_price_snapshot || 0);
+
+            let effectivePrice = basePrice;
             if (item.discount_type === 'fixed') {
-                effectivePrice = Math.max(0, effectivePrice - item.discount_value);
+                effectivePrice = Math.max(0, effectivePrice - discountVal);
             } else if (item.discount_type === 'percent') {
-                effectivePrice = Math.max(0, effectivePrice * (1 - item.discount_value / 100));
+                effectivePrice = Math.max(0, effectivePrice * (1 - discountVal / 100));
             }
-            return sum + (effectivePrice * item.quantity);
+            return sum + (effectivePrice * qty);
         }, 0);
     }, [data.cart]);
 
@@ -78,7 +130,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         return 0;
     }, [subtotal, data.discount_type, data.discount_value]);
 
-    const grandTotal = Math.max(0, subtotal - orderDiscountAmount);
+    const grandTotal = Math.max(0, subtotal - orderDiscountAmount + Number(data.overcharge || 0));
     const paidNum = Number(data.paid_amount) || 0;
     const remaining = grandTotal - paidNum;
     const isOverpaid = paidNum > grandTotal + 0.1;
@@ -193,7 +245,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                 let maxAllowed = 1;
 
                                 if (product) {
-                                    const previousQty = data.cart.slice(0, index).filter(i => i.product_id === product.id).reduce((sum, i) => sum + i.quantity, 0);
+                                    const previousQty = data.cart.slice(0, index).filter(i => i.product_id === product.id).reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
                                     let remainingStock = product.stock_quantity - previousQty;
                                     let remainingPending = product.pending_stock;
 
@@ -211,9 +263,9 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
 
                                 const hasDiscount = item.discount_type !== 'none';
 
-                                let effectivePrice = item.unit_price_snapshot;
-                                if (item.discount_type === 'fixed') effectivePrice = Math.max(0, effectivePrice - item.discount_value);
-                                if (item.discount_type === 'percent') effectivePrice = Math.max(0, effectivePrice * (1 - item.discount_value / 100));
+                                let effectivePrice = Number(item.unit_price_snapshot) || 0;
+                                if (item.discount_type === 'fixed') effectivePrice = Math.max(0, effectivePrice - (Number(item.discount_value) || 0));
+                                if (item.discount_type === 'percent') effectivePrice = Math.max(0, effectivePrice * (1 - (Number(item.discount_value) || 0) / 100));
 
                                 return (
                                     <div key={index} className="p-5 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
@@ -234,10 +286,10 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                                 <Label>Qty</Label>
                                                 <Input
                                                     type="number"
-                                                    value={String(item.quantity)}
+                                                    value={item.quantity === '' ? '' : String(item.quantity)}
                                                     onChange={(e) => {
-                                                        const val = Number(e.target.value);
-                                                        if (val > maxAllowed) {
+                                                        const val = e.target.value === '' ? '' : Number(e.target.value);
+                                                        if (val !== '' && val > maxAllowed) {
                                                             handleUpdateItem(index, 'quantity', maxAllowed);
                                                         } else {
                                                             handleUpdateItem(index, 'quantity', val);
@@ -251,15 +303,23 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                             <div className="flex-1 flex flex-col justify-center">
                                                 <span className="text-xs text-zinc-500 font-medium mb-1">Unit Price</span>
                                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                                                    <span className={twMerge("font-bold text-lg", hasDiscount ? "text-zinc-400 line-through text-sm" : "text-black dark:text-white")}>
-                                                        {item.unit_price_snapshot.toLocaleString()}
-                                                    </span>
-                                                    {hasDiscount && (
-                                                        <span className="text-black dark:text-white font-bold text-lg">
-                                                            → {effectivePrice.toLocaleString()} <span className="text-xs">MMK</span>
+                                                    {product && calculateFifoRetailPrice(product, Number(item.quantity) || 0).isMultiple ? (
+                                                        <span className="font-bold text-lg text-orange-500 dark:text-orange-400">
+                                                            Varies (Diff Batches)
                                                         </span>
+                                                    ) : (
+                                                        <>
+                                                            <span className={twMerge("font-bold text-lg", hasDiscount ? "text-zinc-400 line-through text-sm" : "text-black dark:text-white")}>
+                                                                {(product ? calculateFifoRetailPrice(product, Number(item.quantity) || 0).average : (item.unit_price_snapshot || 0)).toLocaleString()}
+                                                            </span>
+                                                            {hasDiscount && (
+                                                                <span className="text-black dark:text-white font-bold text-lg">
+                                                                    → {effectivePrice.toLocaleString()} <span className="text-xs">MMK</span>
+                                                                </span>
+                                                            )}
+                                                            {!hasDiscount && <span className="text-xs font-bold text-black dark:text-white">MMK</span>}
+                                                        </>
                                                     )}
-                                                    {!hasDiscount && <span className="text-xs font-bold text-black dark:text-white">MMK</span>}
                                                 </div>
                                             </div>
                                         </div>
@@ -279,8 +339,8 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                                         <Input
                                                             type="number"
                                                             placeholder="Value"
-                                                            value={item.discount_value === 0 ? '' : String(item.discount_value)}
-                                                            onChange={(e) => handleUpdateItem(index, 'discount_value', Number(e.target.value))}
+                                                            value={item.discount_value === '' ? '' : String(item.discount_value)}
+                                                            onChange={(e) => handleUpdateItem(index, 'discount_value', e.target.value === '' ? '' : Number(e.target.value))}
                                                         />
                                                     </div>
                                                     <div className="col-span-2">
@@ -342,6 +402,17 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                     />
                                 </div>
                             )}
+
+                            <div className="flex justify-between items-center mt-4 mb-2">
+                                <span className="text-zinc-500 text-sm font-medium">Overcharge</span>
+                                <Input
+                                    type="number"
+                                    placeholder="0"
+                                    value={data.overcharge}
+                                    onChange={(e) => setData('overcharge', e.target.value)}
+                                    className="w-32 h-8 text-right font-bold"
+                                />
+                            </div>
 
                             <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
 

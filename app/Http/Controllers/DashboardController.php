@@ -22,31 +22,38 @@ class DashboardController extends Controller
             : Carbon::now()->endOfDay();
 
         // 2. Financial Metrics within date range
-        // Only count completed or delivered orders for actual revenue/profit
+        // Only count completed or money_collected orders for actual revenue/profit
         $ordersInRange = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
-            ->whereIn('status', ['delivered', 'completed', 'money_collected'])
+            ->whereIn('status', ['completed', 'money_collected'])
             ->get();
 
         $netRevenue = $ordersInRange->sum('net_revenue');
         $netProfit = $ordersInRange->sum('net_profit');
 
+        // Orders needing delivery (status = pending)
+        $ordersNeedingDeliveryCount = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', 'pending')
+            ->count();
+
         // 3. Inventory Value (All Time Active)
         $products = Product::all();
         $totalStockCost = 0;
         $totalStockRetail = 0;
-        $lowStockProducts = [];
+        $batches = \App\Models\ProductBatch::where('remaining_quantity', '>', 0)->get();
+        foreach ($batches as $batch) {
+            $totalStockCost += ($batch->unit_cost * $batch->remaining_quantity);
+            $totalStockRetail += ($batch->retail_price * $batch->remaining_quantity);
+        }
 
+        $lowStockProducts = [];
         foreach ($products as $product) {
             $qty = $product->stock_quantity;
-            if ($qty > 0) {
-                $totalStockCost += ($product->base_cost * $qty);
-                $totalStockRetail += ($product->retail_price * $qty);
-            }
             if ($qty <= 5) { // Low stock threshold
                 $lowStockProducts[] = [
                     'id' => $product->id,
                     'name' => $product->name,
                     'stock_quantity' => $qty,
+                    'pending_stock' => $product->pending_stock,
                     'retail_price' => $product->retail_price,
                 ];
             }
@@ -61,11 +68,15 @@ class DashboardController extends Controller
         // Or if the user wants it bounded by date, we will apply the date range.
         // User said: "I also wanna see delivered orders that are not settled. lets also add date range filter so that I can check however I want."
         // Let's bind it to the date range so it filters alongside everything else.
-        $unsettledDeliveries = SalesOrder::with(['courier'])
+        $unsettledDeliveriesQuery = SalesOrder::with(['courier'])
             ->whereBetween('created_at', [$startDate, $endDate])
             ->where('status', 'delivered')
             ->where('settlement_status', 'unpaid')
-            ->orderBy('created_at', 'desc')
+            ->orderBy('created_at', 'desc');
+
+        $totalUnsettledCount = $unsettledDeliveriesQuery->count();
+        $unsettledDeliveries = $unsettledDeliveriesQuery
+            ->take(5)
             ->get()
             ->map(function ($order) {
                 return [
@@ -85,11 +96,15 @@ class DashboardController extends Controller
             'metrics' => [
                 'net_revenue' => $netRevenue,
                 'net_profit' => $netProfit,
+                'pending_orders_count' => $ordersNeedingDeliveryCount,
                 'inventory_cost' => $totalStockCost,
                 'inventory_retail' => $totalStockRetail,
             ],
             'lowStockProducts' => array_slice($lowStockProducts, 0, 10), // Top 10 lowest
-            'unsettledDeliveries' => $unsettledDeliveries,
+            'unsettledDeliveries' => [
+                'items' => $unsettledDeliveries,
+                'total_count' => $totalUnsettledCount,
+            ],
         ]);
     }
 }

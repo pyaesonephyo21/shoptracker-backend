@@ -14,10 +14,13 @@ class ShopSeeder extends Seeder
      */
     public function run(): void
     {
+        $testShop = Shop::create([
+            'name' => "Test Shop",
+        ]);
+
         // 1. SIMPLE WORLD
         $retroBites = Shop::create([
             'name' => "Retro Bites",
-            'settings' => ['foreign_mode' => false]
         ]);
 
         $retroOwner = User::create([
@@ -32,7 +35,6 @@ class ShopSeeder extends Seeder
         // 2. YOUR WORLD (Complex)
         $trendyNest = Shop::create([
             'name' => "Trendy Nest",
-            'settings' => ['foreign_mode' => true]
         ]);
 
         $trendyOwner = User::create([
@@ -61,7 +63,7 @@ class ShopSeeder extends Seeder
             'password' => bcrypt('password'),
             'role' => 'superadmin'
         ]);
-        $superAdmin->shops()->attach([$retroBites->id, $trendyNest->id]);
+        $superAdmin->shops()->attach([$retroBites->id, $trendyNest->id, $testShop->id]);
 
         $pyaeOwner = User::create([
             'shop_id' => $trendyNest->id,
@@ -70,7 +72,7 @@ class ShopSeeder extends Seeder
             'password' => bcrypt('password'),
             'role' => 'owner'
         ]);
-        $pyaeOwner->shops()->attach([$retroBites->id, $trendyNest->id]);
+        $pyaeOwner->shops()->attach([$retroBites->id, $trendyNest->id, $testShop->id]);
 
         // 4. REGIONAL MANAGER
         $regionalManager = User::create([
@@ -81,5 +83,14 @@ class ShopSeeder extends Seeder
             'role' => 'admin'
         ]);
         $regionalManager->shops()->attach([$retroBites->id, $trendyNest->id]);
+
+        $testUser = User::create([
+            'shop_id' => $testShop->id,
+            'name' => 'Test User',
+            'email' => 'test@gmail.com',
+            'password' => bcrypt('password'),
+            'role' => 'owner'
+        ]);
+        $testUser->shops()->attach([$testShop->id]);
     }
 }

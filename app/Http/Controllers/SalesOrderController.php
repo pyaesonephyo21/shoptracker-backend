@@ -18,9 +18,29 @@ class SalesOrderController extends Controller
         $this->service = $service;
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $orders = SalesOrder::with(['items'])->latest()->get()->map(function ($order) {
+        $query = SalesOrder::with(['items']);
+        if ($request->has('status') && $request->status !== '')
+            $query->where('status', $request->status);
+
+
+        if ($request->has('settlement_status') && $request->settlement_status !== '') {
+            $query->where('payment_status', $request->settlement_status);
+        }
+
+        if ($request->has('search') && $request->search !== '') {
+            $search = $request->search;
+            $query->where(function ($q) use ($search) {
+                $q->where('customer_name', 'like', "%{$search}%")
+                    ->orWhere('customer_phone', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%");
+            });
+        }
+
+        $paginatedOrders = $query->latest()->paginate(15)->withQueryString();
+
+        $paginatedOrders->getCollection()->transform(function ($order) {
             // Map the data structure to what SalesList.tsx expects
             return [
                 'id' => $order->id,
@@ -36,12 +56,21 @@ class SalesOrderController extends Controller
             ];
         });
 
-        return Inertia::render('Sales/SalesList', ['orders' => $orders]);
+        return Inertia::render('Sales/SalesList', [
+            'orders' => $paginatedOrders,
+            'filters' => [
+                'status' => $request->status ?? '',
+                'settlement_status' => $request->settlement_status ?? '',
+                'search' => $request->search ?? '',
+            ]
+        ]);
     }
 
     public function create()
     {
-        $products = Product::whereRaw('(stock_quantity + pending_stock) > 0')->get();
+        $products = Product::with(['batches' => function ($q) {
+            $q->where('remaining_quantity', '>', 0)->orderBy('created_at', 'asc');
+        }])->whereRaw('(stock_quantity + pending_stock) > 0')->get();
         return Inertia::render('Sales/AddSale', ['products' => $products]);
     }
 
@@ -62,6 +91,7 @@ class SalesOrderController extends Controller
             'discount_reason' => 'nullable|string',
             'note' => 'nullable|string',
             'paid_amount' => 'nullable|numeric|min:0',
+            'overcharge' => 'nullable|numeric|min:0',
         ]);
 
         // Map frontend structure to what the service expects
@@ -74,6 +104,7 @@ class SalesOrderController extends Controller
             'discount_reason' => $validated['discount_reason'] ?? '',
             'note' => $validated['note'] ?? '',
             'paid_amount' => $validated['paid_amount'] ?? 0,
+            'overcharge' => $validated['overcharge'] ?? 0,
         ];
 
         $this->service->createOrder($orderData, $validated['cart']);
@@ -110,6 +141,7 @@ class SalesOrderController extends Controller
                 'total_cost' => (float)$orderModel->total_cost,
                 'return_cost' => (float)$orderModel->return_cost,
                 'profit' => (float)$orderModel->net_profit,
+                'overcharge' => (float)$orderModel->overcharge,
             ],
             'delivery' => [
                 'courier_name' => $orderModel->courier ? $orderModel->courier->name : ($orderModel->courier_id ? 'Unknown Courier' : 'None'),
@@ -120,7 +152,7 @@ class SalesOrderController extends Controller
                 'collected_by' => $orderModel->money_collected_by,
                 'settlement_status' => $orderModel->settlement_status,
             ],
-            'items' => $orderModel->items->map(function ($item) {
+            'items' => collect($orderModel->items)->map(function ($item) {
                 return [
                     'id' => $item->id,
                     'product_name' => $item->product ? $item->product->name : 'Unknown Product',
@@ -137,6 +169,45 @@ class SalesOrderController extends Controller
         ];
 
         return Inertia::render('Sales/SalesDetail', ['order' => $order]);
+    }
+
+    public function edit($id)
+    {
+        $orderModel = SalesOrder::with(['items.product'])->findOrFail($id);
+
+        if (!in_array($orderModel->status, ['pending', 'delivery_added'])) {
+            return redirect("/sales/{$id}")->with('error', 'Only pending or delivery added orders can be edited.');
+        }
+
+        // We can just pass the same payload structure as 'show' or the raw model, 
+        // since we are writing a specific EditSale component.
+        return Inertia::render('Sales/EditSale', [
+            'order' => $orderModel->load('items.product'),
+            'couriers' => Courier::all()
+        ]);
+    }
+
+    public function update(Request $request, $id)
+    {
+        $validated = $request->validate([
+            'customer_name' => 'nullable|string',
+            'customer_phone' => 'nullable|string',
+            'delivery_address' => 'nullable|string',
+            'discount_type' => 'nullable|in:none,fixed,percent',
+            'discount_value' => 'nullable|numeric|min:0',
+            'discount_reason' => 'nullable|string',
+            'note' => 'nullable|string',
+            'paid_amount' => 'nullable|numeric|min:0',
+            'overcharge' => 'nullable|numeric|min:0',
+            'courier_id' => 'nullable|exists:couriers,id',
+            'tracking_number' => 'nullable|string',
+            'delivery_fee' => 'nullable|numeric|min:0',
+            'courier_service_fee' => 'nullable|numeric|min:0',
+        ]);
+
+        $this->service->updateOrder($id, $validated);
+
+        return redirect("/sales/{$id}")->with('success', 'Order updated successfully.');
     }
 
     public function fulfillView($id)
@@ -197,7 +268,10 @@ class SalesOrderController extends Controller
 
     public function cancel(Request $request, $id)
     {
-        $this->service->cancelOrder($id, 'Manual Cancellation');
+        $validated = $request->validate([
+            'cancel_reason' => 'nullable|string|max:255'
+        ]);
+        $this->service->cancelOrder($id, $validated['cancel_reason'] ?: 'Manual Cancellation');
         return back()->with('success', 'Order cancelled successfully.');
     }
 }

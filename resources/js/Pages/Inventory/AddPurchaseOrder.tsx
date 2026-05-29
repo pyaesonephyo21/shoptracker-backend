@@ -39,7 +39,7 @@ export default function AddPurchaseOrder({ products = [], suppliers = [], curren
 
         setData('items', [
             ...data.items,
-            { product_id: Number(selectedProduct), quantity: 1, unit_cost: 0 }
+            { product_id: Number(selectedProduct), quantity: '', unit_cost: '' }
         ]);
         setSelectedProduct('');
     };
@@ -48,7 +48,7 @@ export default function AddPurchaseOrder({ products = [], suppliers = [], curren
         setData('items', data.items.filter((_, i) => i !== index));
     };
 
-    const handleUpdateItem = (index: number, field: keyof PurchaseOrderItemInput, value: number) => {
+    const handleUpdateItem = (index: number, field: keyof PurchaseOrderItemInput, value: number | '') => {
         const newItems = [...data.items];
         newItems[index] = { ...newItems[index], [field]: value };
         setData('items', newItems);
@@ -57,13 +57,20 @@ export default function AddPurchaseOrder({ products = [], suppliers = [], curren
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        transform((data) => ({
-            ...data,
-            exchange_rate: !showExchangeRate ? '1' : data.exchange_rate,
+        transform((currentData) => ({
+            ...currentData,
+            order_type: orderType,
+            exchange_rate: !showExchangeRate ? '1' : currentData.exchange_rate,
+            supplier_id: orderType === 'local' ? null : (currentData.supplier_id || null),
+            shop_name: orderType === 'global' ? null : (currentData.shop_name || null),
         }));
 
         post('/inventory/purchase-orders', {
-            onError: () => alert('Failed to create purchase order')
+            onError: (err) => {
+                if (Object.keys(err).length === 0) {
+                    alert('Failed to create purchase order');
+                }
+            }
         });
     };
 
@@ -215,17 +222,27 @@ export default function AddPurchaseOrder({ products = [], suppliers = [], curren
                                                     <Label>Qty</Label>
                                                     <Input
                                                         type="number"
-                                                        value={item.quantity === 0 ? '' : item.quantity}
-                                                        onChange={(e) => handleUpdateItem(index, 'quantity', Number(e.target.value))}
+                                                        value={item.quantity}
+                                                        onChange={(e) => handleUpdateItem(index, 'quantity', e.target.value === '' ? '' : Number(e.target.value))}
                                                         min="1"
                                                     />
                                                 </div>
                                                 <div className="flex-1 flex flex-col gap-2">
-                                                    <Label>Cost ({dynamicCurrency})</Label>
+                                                    <Label>Unit Cost ({dynamicCurrency})</Label>
                                                     <Input
                                                         type="number"
-                                                        value={item.unit_cost === 0 ? '' : item.unit_cost}
-                                                        onChange={(e) => handleUpdateItem(index, 'unit_cost', Number(e.target.value))}
+                                                        value={item.unit_cost}
+                                                        onChange={(e) => handleUpdateItem(index, 'unit_cost', e.target.value === '' ? '' : Number(e.target.value))}
+                                                        min="0"
+                                                        step="0.01"
+                                                    />
+                                                </div>
+                                                <div className="flex-1 flex flex-col gap-2">
+                                                    <Label className="truncate whitespace-nowrap">Retail Price <span className="text-[10px] text-zinc-400 font-normal ml-0.5">(Opt)</span></Label>
+                                                    <Input
+                                                        type="number"
+                                                        value={item.retail_price}
+                                                        onChange={(e) => handleUpdateItem(index, 'retail_price', e.target.value === '' ? '' : Number(e.target.value))}
                                                         min="0"
                                                         step="0.01"
                                                     />

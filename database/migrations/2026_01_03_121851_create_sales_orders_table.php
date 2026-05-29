@@ -29,6 +29,8 @@ return new class extends Migration
 
             // Logic Change: Default to 'pending' as discussed
             $table->string('status')->default('pending');
+            $table->string('delivery_note')->nullable();
+            $table->string('cancel_reason')->nullable();
             $table->string('payment_method')->default('kpay');
 
             // Financials
@@ -49,6 +51,7 @@ return new class extends Migration
             $table->string('settlement_status')->default('unpaid');
 
             // Profit & Cost
+            $table->decimal('overcharge', 12, 2)->default(0);
             $table->decimal('total_cost', 12, 2)->default(0);
             $table->decimal('net_profit', 12, 2)->default(0);
             $table->decimal('return_cost', 12, 2)->default(0);
@@ -73,9 +76,14 @@ return new class extends Migration
             $table->unsignedBigInteger('product_id');
             $table->foreign('product_id', 'so_items_prod_fk')->references('id')->on('products')->onDelete('cascade');
             $table->integer('quantity');
+            $table->string('discount_type')->default('none');
+            $table->decimal('discount_value', 12, 2)->default(0);
+            $table->decimal('discount_amount', 12, 2)->default(0);
+            $table->string('discount_reason')->nullable();
             $table->decimal('unit_price', 12, 2);
             $table->decimal('line_total', 12, 2);
             $table->decimal('unit_cost', 12, 2);
+            $table->json('batch_breakdown')->nullable();
             $table->timestamps();
         });
     }

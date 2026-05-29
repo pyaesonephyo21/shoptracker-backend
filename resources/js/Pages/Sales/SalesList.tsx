@@ -1,9 +1,37 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
-import { Head, Link } from '@inertiajs/react';
-import { SalesOrder } from '../../types/sales';
+import { Head, Link, router } from '@inertiajs/react';
+import { SalesOrder } from '@/types/sales';
+import { PaginatedData } from '@/types/pagination';
+import Pagination from '@/components/Pagination';
 
-export default function SalesList({ orders = [] }: { orders: SalesOrder[] }) {
+export default function SalesList({ orders, filters = { status: '', settlement_status: '', search: '' } }: { orders: PaginatedData<SalesOrder>, filters: { status: string, settlement_status: string, search: string } }) {
+    const [searchVal, setSearchVal] = useState(filters.search || '');
+    const [activeStatus, setActiveStatus] = useState(filters.status || '');
+    const [activeSettlement, setActiveSettlement] = useState(filters.settlement_status || '');
+
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            // Only trigger if local search differs from current URL search
+            if (searchVal !== (filters.search || '')) {
+                handleFilterChange(activeStatus, searchVal, activeSettlement);
+            }
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [searchVal]); // Only trigger on searchVal change
+
+    const handleFilterChange = (status: string, search: string, settlement: string) => {
+        router.get('/sales', {
+            status: status || undefined,
+            search: search || undefined,
+            settlement_status: settlement || undefined
+        }, { preserveState: true, replace: true });
+    };
+
+    const handleSearchSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        handleFilterChange(activeStatus, searchVal, activeSettlement);
+    };
     const getStatusStyle = (order: SalesOrder) => {
         if (order.status.toUpperCase() === "CANCELLED") {
             return { color: "text-red-500", text: "CANCELLED" };
@@ -45,13 +73,86 @@ export default function SalesList({ orders = [] }: { orders: SalesOrder[] }) {
                     </Link>
                 </div>
 
+                {/* SEARCH AND FILTERS */}
+                <div className="flex flex-col gap-3">
+                    <form onSubmit={handleSearchSubmit} className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 h-11 flex items-center transition-all duration-200 focus-within:bg-white dark:focus-within:bg-black focus-within:border-black dark:focus-within:border-white">
+                        <input
+                            className="flex-1 bg-transparent text-sm font-medium text-black dark:text-white outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+                            placeholder="Search"
+                            value={searchVal}
+                            onChange={(e) => setSearchVal(e.target.value)}
+                        />
+                        <button type="submit" className="text-xs font-bold uppercase text-zinc-400 hover:text-black dark:hover:text-white">Search</button>
+                    </form>
+
+                    <div className="flex flex-col gap-2">
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Status:</span>
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
+                                {[
+                                    { key: '', label: 'All' },
+                                    { key: 'pending', label: 'Pending' },
+                                    { key: 'delivery_added', label: 'Deli Added' },
+                                    { key: 'delivered', label: 'Delivered' },
+                                    { key: 'completed', label: 'Completed' },
+                                    { key: 'cancelled', label: 'Cancelled' }
+                                ].map(item => {
+                                    const active = activeStatus === item.key;
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            onClick={() => {
+                                                const nextStatus = activeStatus === item.key ? '' : item.key;
+                                                setActiveStatus(nextStatus);
+                                                handleFilterChange(nextStatus, searchVal, activeSettlement);
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Settlement Filter */}
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Payment:</span>
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
+                                {[
+                                    { key: '', label: 'All' },
+                                    { key: 'unpaid', label: 'Unpaid' },
+                                    { key: 'partial', label: 'Partial' },
+                                    { key: 'paid', label: 'Paid' }
+                                ].map(item => {
+                                    const active = activeSettlement === item.key;
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            onClick={() => {
+                                                const nextSettlement = activeSettlement === item.key ? '' : item.key;
+                                                setActiveSettlement(nextSettlement);
+                                                handleFilterChange(activeStatus, searchVal, nextSettlement);
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <div className="flex flex-col">
-                    {orders.length === 0 ? (
+                    {orders.data.length === 0 ? (
                         <div className="mt-10 flex justify-center items-center">
                             <span className="text-zinc-400 font-medium">No sales found.</span>
                         </div>
                     ) : (
-                        orders.map((item) => {
+                        orders.data.map((item) => {
                             const statusStyle = getStatusStyle(item);
                             return (
                                 <Link
@@ -91,6 +192,8 @@ export default function SalesList({ orders = [] }: { orders: SalesOrder[] }) {
                         })
                     )}
                 </div>
+
+                <Pagination meta={orders} />
             </div>
         </AppLayout>
     );

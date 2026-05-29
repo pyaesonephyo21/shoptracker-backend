@@ -20,15 +20,18 @@ class StockAdjustmentController extends Controller
     public function store(Request $request, $id, StockAdjustmentService $service)
     {
         $validated = $request->validate([
-            'quantity' => 'required|integer|not_in:0',
+            'quantity' => 'required|integer|min:1',
+            'action_type' => 'required|in:add,remove',
             'reason' => 'required|string',
             'note' => 'nullable|string'
         ]);
 
+        $finalQuantity = $validated['action_type'] === 'remove' ? -$validated['quantity'] : $validated['quantity'];
+
         try {
             $service->adjustStock(
                 $id,
-                $validated['quantity'],
+                $finalQuantity,
                 $validated['reason'],
                 $validated['note']
             );

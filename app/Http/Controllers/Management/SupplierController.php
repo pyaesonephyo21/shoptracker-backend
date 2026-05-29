@@ -11,7 +11,7 @@ class SupplierController extends Controller
 {
     public function index()
     {
-        $suppliers = Supplier::latest()->get();
+        $suppliers = Supplier::latest()->paginate(15)->withQueryString();
         return Inertia::render('Management/Suppliers', [
             'suppliers' => $suppliers,
             'showForeignOptions' => true // Or derive from shop settings later
@@ -34,5 +34,40 @@ class SupplierController extends Controller
         Supplier::create($validated);
 
         return redirect()->back()->with('success', 'Supplier created successfully.');
+    }
+    public function update(Request $request, $id)
+    {
+        $supplier = Supplier::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'type' => 'required|in:local,foreign',
+            'currency' => 'required|string',
+            'contact' => 'nullable|string|max:255',
+        ]);
+
+        $updateData = [
+            'name' => $validated['name'],
+            'type' => $validated['type'],
+            'currency' => $validated['currency'],
+            'contact_info' => $validated['contact'] ?? null,
+        ];
+
+        $supplier->update($updateData);
+
+        return redirect()->back()->with('success', 'Supplier updated successfully.');
+    }
+
+    public function destroy($id)
+    {
+        $supplier = Supplier::findOrFail($id);
+
+        if (\App\Models\PurchaseOrder::where('supplier_id', $supplier->id)->exists()) {
+            return redirect()->back()->withErrors(['error' => 'Cannot delete this supplier because it is linked to existing purchase orders.']);
+        }
+
+        $supplier->delete();
+
+        return redirect()->back()->with('success', 'Supplier deleted successfully.');
     }
 }

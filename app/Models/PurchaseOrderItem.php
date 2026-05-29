@@ -12,6 +12,13 @@ class PurchaseOrderItem extends Model
     // Allow everything to be filled (controlled by Controller validation)
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'original_cost' => 'float',
+        'unit_cost' => 'float',
+        'line_total' => 'float',
+        'retail_price' => 'float',
+    ];
+
     // ==========================
     // RELATIONSHIPS
     // ==========================

@@ -2,12 +2,13 @@
 
 namespace App\Services;
 
-use App\Models\SalesOrder;
-use App\Models\SalesOrderItem;
 use App\Models\InventoryLog;
 use App\Models\Product;
-use Illuminate\Support\Facades\DB;
+use App\Models\SalesOrder;
+use App\Models\SalesOrderItem;
 use Exception;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 class SalesOrderService
 {
@@ -25,6 +26,7 @@ class SalesOrderService
                 // Defaults
                 'money_collected_by' => 'seller',
                 'is_deli_prepaid' => false,
+                'overcharge' => (float) ($data['overcharge'] ?? 0),
                 'delivery_fee' => 0,
                 'courier_service_fee' => 0,
 
@@ -37,7 +39,7 @@ class SalesOrderService
                 'paid_amount' => (float) ($data['paid_amount'] ?? 0),
 
                 // Audit
-                'audit_log' => [['action' => 'created', 'by' => auth()->user()->name, 'at' => now()->toIso8601String()]]
+                'audit_log' => [['action' => 'created', 'by' => Auth::user()?->name ?? 'System', 'at' => now()->toIso8601String()]]
             ]);
 
             $isPreorder = false;
@@ -51,12 +53,12 @@ class SalesOrderService
                     null, // No price override, use retail
                     $item // Pass full item array for discount logic
                 );
-                
+
                 if ($wasPreorder) {
                     $isPreorder = true;
                 }
             }
-            
+
             if ($isPreorder) {
                 $order->is_preorder = true;
                 $order->save();
@@ -75,35 +77,53 @@ class SalesOrderService
         return DB::transaction(function () use ($id, $data) {
             $order = SalesOrder::findOrFail($id);
 
-            // Update basic fields
+            // Update simple scalar fields
             $order->fill(collect($data)->only([
                 'customer_name',
                 'customer_phone',
                 'delivery_address',
                 'note',
                 'tracking_number',
-                'discount_reason'
+                'discount_reason',
+                'discount_type',
+                'courier_id'
             ])->toArray());
 
-            // Check if financials need recalculation
-            $recalcNeeded = false;
+            // Handle numeric / financial fields
+            if (isset($data['delivery_fee'])) $order->delivery_fee = (float) $data['delivery_fee'];
+            if (isset($data['courier_service_fee'])) $order->courier_service_fee = (float) $data['courier_service_fee'];
+            if (isset($data['discount_value'])) $order->discount_value = (float) $data['discount_value'];
+            if (isset($data['overcharge'])) $order->overcharge = (float) $data['overcharge'];
+            if (isset($data['paid_amount'])) $order->paid_amount = (float) $data['paid_amount'];
 
-            if (isset($data['delivery_fee'])) {
-                $order->delivery_fee = (float) $data['delivery_fee'];
-                $recalcNeeded = true;
-            }
-            if (isset($data['discount_value'])) {
-                $order->discount_value = (float) $data['discount_value'];
-                $recalcNeeded = true;
+            // Calculate changes before saving
+            $changes = [];
+            foreach ($order->getDirty() as $key => $newValue) {
+                if ($key === 'audit_log' || $key === 'updated_at') continue;
+                $changes[$key] = [
+                    'old' => $order->getOriginal($key),
+                    'new' => $newValue
+                ];
             }
 
-            if ($recalcNeeded) {
-                $this->recalculateTotals($order);
+            // Always recalculate totals when editing to ensure consistency
+            $this->recalculateTotals($order);
+
+            // recalculated totals might add to getDirty()
+            foreach ($order->getDirty() as $key => $newValue) {
+                if ($key === 'audit_log' || $key === 'updated_at' || isset($changes[$key])) continue;
+                $changes[$key] = [
+                    'old' => $order->getOriginal($key),
+                    'new' => $newValue
+                ];
+            }
+
+            if (!empty($changes)) {
+                $order->logAction('updated', ['changes' => $changes]);
             } else {
                 $order->save();
             }
-
-            $order->logAction('updated', array_keys($data));
+            
             return $order;
         });
     }
@@ -143,7 +163,7 @@ class SalesOrderService
             if (isset($data['is_deli_prepaid'])) $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
             if (isset($data['money_collected_by'])) $order->money_collected_by = $data['money_collected_by'];
 
-            $order->status = 'delivery added';
+            $order->status = 'delivery_added';
 
             $this->recalculateTotals($order);
             $order->logAction('fulfillment_details_updated');
@@ -156,7 +176,7 @@ class SalesOrderService
     {
         return DB::transaction(function () use ($id) {
             $order = SalesOrder::findOrFail($id);
-            if ($order->status !== 'delivery added') {
+            if ($order->status !== 'delivery_added') {
                 throw new Exception("Order must have delivery arranged before it can be marked as delivered.");
             }
 
@@ -215,12 +235,18 @@ class SalesOrderService
             $order = SalesOrder::with('items')->findOrFail($id);
             if ($order->status === 'cancelled') throw new Exception("Order is already cancelled.");
 
+            /** @var \App\Models\SalesOrderItem $item */
             foreach ($order->items as $item) {
-                Product::find($item->product_id)->increment('stock_quantity', $item->quantity);
-                $this->createLog($order, Product::find($item->product_id), $item->quantity, 'sale_cancelled_return');
+                $product = Product::lockForUpdate()->find($item->product_id);
+                if ($product) {
+                    $product->increment('stock_quantity', $item->quantity);
+                    $this->createLog($order, $product, $item->quantity, 'sale_cancelled_return');
+                }
+                $this->restoreBatches($item);
             }
 
             $order->status = 'cancelled';
+            $order->cancel_reason = $reason;
             $order->logAction('cancelled', ['reason' => $reason]);
             $order->save();
             return $order;
@@ -238,7 +264,7 @@ class SalesOrderService
             }
 
             // 1. Restore Stock
-            $product = Product::find($item->product_id);
+            $product = Product::lockForUpdate()->find($item->product_id);
             if ($product) {
                 $product->increment('stock_quantity', $quantity);
 
@@ -246,6 +272,8 @@ class SalesOrderService
                 $logType = ($order->status === 'pending') ? 'sale_item_removed' : 'sale_return_partial';
                 $this->createLog($order, $product, $quantity, $logType);
             }
+
+            $this->restoreBatches($item, $quantity);
 
             // 2. Adjust Item (Price reduction proportional to quantity)
             // Note: unit_price accounts for item-level discounts already.
@@ -287,89 +315,224 @@ class SalesOrderService
 
         $product->decrement('stock_quantity', $qty);
 
-        $sellingPrice = $priceOverride !== null ? $priceOverride : $product->retail_price;
-        $buyingCost = $product->base_cost;
-
-        // 1. Calculate Item-Level Discount
         $discountType = $discountData['discount_type'] ?? 'none';
         $discountValue = (float) ($discountData['discount_value'] ?? 0);
         $discountReason = $discountData['discount_reason'] ?? null;
 
-        $itemDiscountPerUnit = 0;
-        if ($discountType === 'fixed') {
-            $itemDiscountPerUnit = $discountValue;
-        } elseif ($discountType === 'percent') {
-            $itemDiscountPerUnit = $sellingPrice * ($discountValue / 100);
+        // FIFO Batch Deduction Logic
+        $remainingQtyNeeded = $qty;
+
+        $activeBatches = \App\Models\ProductBatch::where('product_id', $product->id)
+            ->where('shop_id', $order->shop_id)
+            ->where('remaining_quantity', '>', 0)
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        foreach ($activeBatches as $batch) {
+            if ($remainingQtyNeeded <= 0) break;
+
+            $takeQty = min($batch->remaining_quantity, $remainingQtyNeeded);
+            $batchCost = $takeQty * $batch->unit_cost;
+
+            $sellingPrice = $priceOverride !== null ? $priceOverride : ($batch->retail_price ?? $product->retail_price);
+
+            $itemDiscountPerUnit = 0;
+            if ($discountType === 'fixed') {
+                $itemDiscountPerUnit = $discountValue;
+            } elseif ($discountType === 'percent') {
+                $itemDiscountPerUnit = $sellingPrice * ($discountValue / 100);
+            }
+            $itemDiscountPerUnit = min($itemDiscountPerUnit, $sellingPrice);
+
+            $lineTotal = ($sellingPrice - $itemDiscountPerUnit) * $takeQty;
+            $totalDiscountAmount = $itemDiscountPerUnit * $takeQty;
+
+            $order->items()->create([
+                'product_id' => $product->id,
+                'quantity' => $takeQty,
+                'unit_price' => $sellingPrice,
+                'unit_cost'  => $batch->unit_cost,
+                'line_total' => $lineTotal,
+                'discount_type' => $discountType,
+                'discount_value' => $discountValue,
+                'discount_amount' => $totalDiscountAmount,
+                'discount_reason' => $discountReason,
+                'batch_breakdown' => [['batch_id' => $batch->id, 'taken' => $takeQty, 'unit_cost' => (float)$batch->unit_cost, 'total_cost' => $batchCost]]
+            ]);
+
+            $remainingQtyNeeded -= $takeQty;
+            $batch->decrement('remaining_quantity', $takeQty);
         }
-        $itemDiscountPerUnit = min($itemDiscountPerUnit, $sellingPrice);
 
-        // 2. Calculate Totals
-        // Storing "unit_price" as the ORIGINAL selling price
-        // Discount is tracked separately
-        $lineTotal = ($sellingPrice - $itemDiscountPerUnit) * $qty;
-        $totalDiscountAmount = $itemDiscountPerUnit * $qty;
+        // Handle pre-orders using a "Virtual FIFO" across Pending POs
+        if ($remainingQtyNeeded > 0) {
+            $lastBatch = \App\Models\ProductBatch::where('product_id', $product->id)
+                ->where('shop_id', $order->shop_id)
+                ->latest('created_at')
+                ->first();
 
-        $order->items()->create([
-            'product_id' => $product->id,
-            'quantity' => $qty,
-            'unit_price' => $sellingPrice,
-            'unit_cost'  => $buyingCost,
-            'line_total' => $lineTotal,
+            // Fetch all pending PO items for this product
+            $pendingPoItems = \App\Models\PurchaseOrderItem::where('product_id', $product->id)
+                ->whereHas('purchaseOrder', function ($q) use ($order) {
+                    $q->where('shop_id', $order->shop_id)
+                        ->where('status', 'pending');
+                })
+                ->orderBy('created_at', 'asc')
+                ->get();
 
-            // New Columns
-            'discount_type' => $discountType,
-            'discount_value' => $discountValue,
-            'discount_amount' => $totalDiscountAmount,
-            'discount_reason' => $discountReason
-        ]);
+            // Calculate how many pending items were already spoken for (pre-ordered in past sales)
+            $originalStock = $product->stock_quantity + $qty; // Stock before this sale decremented it
+            $preorderedBeforeThisSale = $originalStock < 0 ? abs($originalStock) : 0;
+
+            $skippedQty = 0;
+
+            foreach ($pendingPoItems as $poItem) {
+                if ($remainingQtyNeeded <= 0) break;
+
+                $availableInThisPo = $poItem->quantity;
+
+                // Skip items that belong to older pre-orders
+                if ($skippedQty < $preorderedBeforeThisSale) {
+                    $toSkipHere = min($availableInThisPo, $preorderedBeforeThisSale - $skippedQty);
+                    $availableInThisPo -= $toSkipHere;
+                    $skippedQty += $toSkipHere;
+                }
+
+                if ($availableInThisPo <= 0) continue;
+
+                $takeQty = min($availableInThisPo, $remainingQtyNeeded);
+
+                $fallbackCost = $poItem->unit_cost;
+                $fallbackRetail = $poItem->retail_price ?? ($lastBatch ? $lastBatch->retail_price : $product->retail_price);
+
+                $sellingPrice = $priceOverride !== null ? $priceOverride : $fallbackRetail;
+
+                $itemDiscountPerUnit = 0;
+                if ($discountType === 'fixed') {
+                    $itemDiscountPerUnit = $discountValue;
+                } elseif ($discountType === 'percent') {
+                    $itemDiscountPerUnit = $sellingPrice * ($discountValue / 100);
+                }
+                $itemDiscountPerUnit = min($itemDiscountPerUnit, $sellingPrice);
+
+                $lineTotal = ($sellingPrice - $itemDiscountPerUnit) * $takeQty;
+                $totalDiscountAmount = $itemDiscountPerUnit * $takeQty;
+
+                $fallbackTotalCost = $takeQty * $fallbackCost;
+
+                $order->items()->create([
+                    'product_id' => $product->id,
+                    'quantity' => $takeQty,
+                    'unit_price' => $sellingPrice,
+                    'unit_cost'  => $fallbackCost,
+                    'line_total' => $lineTotal,
+                    'discount_type' => $discountType,
+                    'discount_value' => $discountValue,
+                    'discount_amount' => $totalDiscountAmount,
+                    'discount_reason' => $discountReason,
+                    'batch_breakdown' => [['batch_id' => null, 'note' => 'Pre-order / Pending PO #' . $poItem->purchase_order_id, 'taken' => $takeQty, 'unit_cost' => (float)$fallbackCost, 'total_cost' => $fallbackTotalCost]]
+                ]);
+
+                $remainingQtyNeeded -= $takeQty;
+            }
+
+            // If they still oversold beyond all pending POs, fallback to base cost
+            if ($remainingQtyNeeded > 0) {
+                $fallbackCost = $lastBatch ? $lastBatch->unit_cost : $product->base_cost;
+                $fallbackRetail = $lastBatch && $lastBatch->retail_price ? $lastBatch->retail_price : $product->retail_price;
+
+                $sellingPrice = $priceOverride !== null ? $priceOverride : $fallbackRetail;
+
+                $itemDiscountPerUnit = 0;
+                if ($discountType === 'fixed') {
+                    $itemDiscountPerUnit = $discountValue;
+                } elseif ($discountType === 'percent') {
+                    $itemDiscountPerUnit = $sellingPrice * ($discountValue / 100);
+                }
+                $itemDiscountPerUnit = min($itemDiscountPerUnit, $sellingPrice);
+
+                $lineTotal = ($sellingPrice - $itemDiscountPerUnit) * $remainingQtyNeeded;
+                $totalDiscountAmount = $itemDiscountPerUnit * $remainingQtyNeeded;
+                $fallbackTotalCost = $remainingQtyNeeded * $fallbackCost;
+
+                $order->items()->create([
+                    'product_id' => $product->id,
+                    'quantity' => $remainingQtyNeeded,
+                    'unit_price' => $sellingPrice,
+                    'unit_cost'  => $fallbackCost,
+                    'line_total' => $lineTotal,
+                    'discount_type' => $discountType,
+                    'discount_value' => $discountValue,
+                    'discount_amount' => $totalDiscountAmount,
+                    'discount_reason' => $discountReason,
+                    'batch_breakdown' => [['batch_id' => null, 'note' => 'Pre-order / Missing Batch', 'taken' => $remainingQtyNeeded, 'unit_cost' => (float)$fallbackCost, 'total_cost' => $fallbackTotalCost]]
+                ]);
+            }
+        }
 
         $this->createLog($order, $product, $qty, 'sale_sold');
-        
+
         return $isPreorder;
     }
 
-    private function recalculateTotals(SalesOrder $order)
+    private function calculateItemSubtotals(SalesOrder $order)
     {
-        // 1. Sum Items (Already includes item-level discounts in line_total)
         $subtotal = $order->items()->sum('line_total');
-
-        // 2. Total Cost
         $totalCost = $order->items->sum(function ($item) {
             return $item->quantity * $item->unit_cost;
         });
+        return [$subtotal, $totalCost];
+    }
 
-        // 3. Order-Level Discount (Applied on top of Item Discounts)
+    private function calculateOrderDiscount(SalesOrder $order, $subtotal)
+    {
         $discountAmount = 0;
         if ($order->discount_type === 'fixed') $discountAmount = $order->discount_value;
         elseif ($order->discount_type === 'percent') $discountAmount = $subtotal * ($order->discount_value / 100);
-        $discountAmount = min($discountAmount, $subtotal);
+        return min($discountAmount, $subtotal);
+    }
 
-        $afterDiscount = $subtotal - $discountAmount;
-
-        // 4. Logistics Math
+    private function calculateLogistics(SalesOrder $order, $afterDiscount)
+    {
         $customerGrandTotal = 0;
         $netRevenue = 0;
 
         if ($order->money_collected_by === 'courier') {
-            $customerGrandTotal = $afterDiscount + $order->delivery_fee;
-            $netRevenue = $afterDiscount - $order->courier_service_fee;
+            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge;
+            $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
             $order->settlement_status = 'unpaid';
         } elseif ($order->is_deli_prepaid) {
-            $customerGrandTotal = $afterDiscount + $order->delivery_fee;
-            $netRevenue = $afterDiscount + $order->delivery_fee - $order->courier_service_fee;
+            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge;
+            $netRevenue = $afterDiscount + $order->overcharge + $order->delivery_fee - $order->courier_service_fee;
         } else {
-            $customerGrandTotal = $afterDiscount;
-            $netRevenue = $afterDiscount - $order->courier_service_fee;
+            $customerGrandTotal = $afterDiscount + $order->overcharge;
+            $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
         }
 
-        // 5. Payment Status
+        return [$customerGrandTotal, $netRevenue];
+    }
+
+    private function determinePaymentStatus(SalesOrder $order, $customerGrandTotal)
+    {
         if ($order->paid_amount >= $customerGrandTotal) {
-            $order->payment_status = 'paid';
+            return 'paid';
         } elseif ($order->paid_amount > 0) {
-            $order->payment_status = 'partial';
+            return 'partial';
         } else {
-            $order->payment_status = 'unpaid';
+            return 'unpaid';
         }
+    }
+
+    private function recalculateTotals(SalesOrder $order)
+    {
+        [$subtotal, $totalCost] = $this->calculateItemSubtotals($order);
+
+        $discountAmount = $this->calculateOrderDiscount($order, $subtotal);
+        $afterDiscount = $subtotal - $discountAmount;
+
+        [$customerGrandTotal, $netRevenue] = $this->calculateLogistics($order, $afterDiscount);
+
+        $order->payment_status = $this->determinePaymentStatus($order, $customerGrandTotal);
 
         $order->subtotal = $subtotal;
         $order->total_cost = $totalCost;
@@ -393,5 +556,37 @@ class SalesOrderService
             'reference_id' => $order->id,
             'note' => "Order #{$order->id}"
         ]);
+    }
+
+    private function restoreBatches(SalesOrderItem $item, $returnQty = null)
+    {
+        $breakdown = $item->batch_breakdown;
+        if (!is_array($breakdown) || empty($breakdown)) return;
+
+        $qtyToRestore = $returnQty ?? $item->quantity;
+
+        // Reverse order so we put back into the newest batches first (LIFO restore)
+        for ($i = count($breakdown) - 1; $i >= 0; $i--) {
+            if ($qtyToRestore <= 0) break;
+
+            $b = &$breakdown[$i];
+
+            if ($b['batch_id'] === null) {
+                $restoreAmount = min($b['taken'], $qtyToRestore);
+                $b['taken'] -= $restoreAmount;
+                $qtyToRestore -= $restoreAmount;
+                continue;
+            }
+
+            $batch = \App\Models\ProductBatch::find($b['batch_id']);
+            if ($batch) {
+                $restoreAmount = min($b['taken'], $qtyToRestore);
+                $batch->increment('remaining_quantity', $restoreAmount);
+                $b['taken'] -= $restoreAmount;
+                $qtyToRestore -= $restoreAmount;
+            }
+        }
+
+        $item->batch_breakdown = $breakdown;
     }
 }

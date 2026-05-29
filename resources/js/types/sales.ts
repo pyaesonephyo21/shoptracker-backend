@@ -1,4 +1,5 @@
 export interface SalesOrder {
+    cancel_reason: boolean;
     id: number;
     date: string;
     customer: {
@@ -22,7 +23,8 @@ export interface SalesOrder {
         net_revenue: number;
         total_cost: number;
         return_cost: number;
-        profit?: number;
+        profit: number;
+        overcharge: number;
     };
 
     delivery: {
@@ -58,9 +60,9 @@ export interface SalesOrder {
 
 export interface SaleItemInput {
     product_id: number;
-    quantity: number;
+    quantity: number | '';
     discount_type: "none" | "fixed" | "percent";
-    discount_value: number;
+    discount_value: number | '';
     discount_reason?: string;
     unit_price_snapshot: number;
 }
@@ -83,6 +85,7 @@ export interface CreateSaleRequest {
     discount_type: "none" | "fixed" | "percent";
     discount_value: number;
     discount_reason?: string;
+    overcharge?: number | '';
 
     note?: string;
     items: SaleItemInput[];

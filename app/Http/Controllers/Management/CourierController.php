@@ -11,7 +11,7 @@ class CourierController extends Controller
 {
     public function index()
     {
-        $couriers = Courier::latest()->get();
+        $couriers = Courier::latest()->paginate(15)->withQueryString();
         return Inertia::render('Management/Couriers', [
             'couriers' => $couriers
         ]);
@@ -33,5 +33,38 @@ class CourierController extends Controller
         Courier::create($validated);
 
         return redirect()->back()->with('success', 'Courier created successfully.');
+    }
+    public function update(Request $request, $id)
+    {
+        $courier = Courier::findOrFail($id);
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'contact' => 'nullable|string|max:255',
+            'default_fee' => 'nullable|numeric|min:0',
+        ]);
+
+        $updateData = [
+            'name' => $validated['name'],
+            'contact_info' => $validated['contact'] ?? null,
+            'default_service_fee' => $validated['default_fee'] ?? 0,
+        ];
+
+        $courier->update($updateData);
+
+        return redirect()->back()->with('success', 'Courier updated successfully.');
+    }
+
+    public function destroy($id)
+    {
+        $courier = Courier::findOrFail($id);
+
+        if (\App\Models\SalesOrder::where('courier_id', $courier->id)->exists()) {
+            return redirect()->back()->withErrors(['error' => 'Cannot delete this courier because it is linked to existing sales orders.']);
+        }
+
+        $courier->delete();
+
+        return redirect()->back()->with('success', 'Courier deleted successfully.');
     }
 }

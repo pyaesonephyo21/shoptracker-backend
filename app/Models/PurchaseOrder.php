@@ -4,7 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Scopes\ShopScope; // Ensure you have this scope or use the closure method below
+use Illuminate\Support\Facades\Auth;
 
 class PurchaseOrder extends Model
 {
@@ -15,9 +15,15 @@ class PurchaseOrder extends Model
     protected $guarded = ['id'];
 
     protected $casts = [
-        'total_goods_cost' => 'decimal:2',
-        'grand_total' => 'decimal:2',
-        // 'created_at' casts are automatic
+        'exchange_rate' => 'float',
+        'total_goods_cost' => 'float',
+        'supplier_fee' => 'float',
+        'cargo_fee' => 'float',
+        'local_deli_fee' => 'float',
+        'grand_total' => 'float',
+        'paid_amount' => 'float',
+        'adjustment_amount' => 'float',
+        'audit_log' => 'array',
     ];
 
     protected $appends = ['supplier_name'];
@@ -35,14 +41,14 @@ class PurchaseOrder extends Model
     protected static function booted()
     {
         static::addGlobalScope('shop', function ($builder) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $builder->where('shop_id', auth()->user()->shop_id);
+            if (Auth::check() && Auth::user()->shop_id) {
+                $builder->where('shop_id', Auth::user()->shop_id);
             }
         });
 
         static::creating(function ($po) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $po->shop_id = auth()->user()->shop_id;
+            if (Auth::check() && Auth::user()->shop_id) {
+                $po->shop_id = Auth::user()->shop_id;
             }
         });
     }
@@ -55,6 +61,19 @@ class PurchaseOrder extends Model
     public function items()
     {
         return $this->hasMany(PurchaseOrderItem::class);
+    }
+
+    public function logAction($action, $details = [])
+    {
+        $log = $this->audit_log ?? [];
+        $log[] = [
+            'action' => $action,
+            'by' => Auth::user()->name ?? 'System',
+            'at' => now()->toIso8601String(),
+            'details' => $details
+        ];
+        $this->audit_log = $log;
+        $this->saveQuietly();
     }
 
     public function shop()

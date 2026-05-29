@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { GlobalToast } from '@/components/GlobalToast';
 
 interface NavItem {
     name: string;
@@ -34,34 +35,58 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
     const { url, props } = usePage<any>();
     const { auth } = props;
 
+    const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+
     return (
         <div className="flex h-screen w-full bg-white text-black selection:bg-black selection:text-white dark:bg-black dark:text-white dark:selection:bg-white dark:selection:text-black font-sans antialiased">
             {/* Desktop / Tablet Sidebar */}
-            <aside className="hidden md:flex flex-col w-64 border-r border-zinc-200 dark:border-zinc-800 h-full p-4 shrink-0 bg-zinc-50 dark:bg-zinc-950">
-                <div className="mb-8 px-4 flex flex-col gap-1">
-                    {auth?.all_shops?.length > 1 ? (
-                        <div className="mt-1 mb-2">
-                            <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
-                                <SelectTrigger className="font-black text-2xl sm:text-3xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent uppercase tracking-tight shadow-none flex items-center gap-2 w-full truncate">
-                                    <span className="truncate">{auth.shop?.name}</span>
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {auth.all_shops?.map((s: any) => (
-                                        <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {auth.user.role === 'superadmin' && <span className="text-[10px] uppercase font-bold text-red-500 tracking-widest bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Super Admin</span>}
-                            {auth.user.role !== 'superadmin' && <span className="text-[10px] uppercase font-bold text-blue-500 tracking-widest bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Multi-Shop Access</span>}
+            <aside className={twMerge(
+                "hidden md:flex flex-col border-r border-zinc-200 dark:border-zinc-800 h-full p-4 shrink-0 bg-zinc-50 dark:bg-zinc-950 transition-all duration-300 relative",
+                isSidebarCollapsed ? "w-20 items-center px-2" : "w-64"
+            )}>
+                {/* Floating Collapse Button */}
+                <button 
+                    onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)} 
+                    className="absolute -right-3 top-12 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-full w-6 h-6 flex items-center justify-center shadow-sm z-50 text-zinc-400 hover:text-black dark:hover:text-white hover:scale-110 transition-all"
+                    title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+                >
+                    {isSidebarCollapsed ? (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    ) : (
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+                    )}
+                </button>
+
+                <div className={twMerge("mb-8 flex flex-col gap-1", isSidebarCollapsed ? "px-0 items-center" : "px-4")}>
+                    {isSidebarCollapsed ? (
+                        <div className="w-12 h-12 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black rounded-xl font-black text-xl shadow-sm">
+                            {auth?.shop?.name?.[0]?.toUpperCase() || 'S'}
                         </div>
                     ) : (
-                        <>
-                            <h1 className="text-xl font-black tracking-tight">{auth?.shop?.name || 'ShopTracker'}</h1>
-                            {auth?.user && <span className="text-xs text-zinc-500 font-medium">Logged in as {auth.user.name}</span>}
-                        </>
+                        auth?.all_shops?.length > 1 ? (
+                            <div className="mt-1 mb-2 w-full">
+                                <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
+                                    <SelectTrigger className="font-black text-2xl sm:text-3xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent uppercase tracking-tight shadow-none flex items-center gap-2 w-full truncate">
+                                        <span className="truncate">{auth.shop?.name}</span>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {auth.all_shops?.map((s: any) => (
+                                            <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {auth.user.role === 'superadmin' && <span className="text-[10px] uppercase font-bold text-red-500 tracking-widest bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Super Admin</span>}
+                                {auth.user.role !== 'superadmin' && <span className="text-[10px] uppercase font-bold text-blue-500 tracking-widest bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Multi-Shop Access</span>}
+                            </div>
+                        ) : (
+                            <div className="w-full overflow-hidden">
+                                <h1 className="text-xl font-black tracking-tight truncate">{auth?.shop?.name || 'ShopTracker'}</h1>
+                                {auth?.user && <span className="text-xs text-zinc-500 font-medium truncate block">Logged in as {auth.user.name}</span>}
+                            </div>
+                        )
                     )}
                 </div>
-                <nav className="flex flex-col gap-2 flex-1">
+                <nav className={twMerge("flex flex-col gap-2 flex-1 w-full", isSidebarCollapsed ? "items-center" : "")}>
                     {NAV_ITEMS.map((item) => {
                         const isActive = url === item.href || (item.href !== '/' && url.startsWith(item.href));
                         return (
@@ -69,23 +94,34 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                                 key={item.name}
                                 href={item.href}
                                 className={twMerge(
-                                    'flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group active:scale-[0.98]',
+                                    'flex items-center rounded-xl transition-all duration-200 group active:scale-[0.98]',
+                                    isSidebarCollapsed ? 'p-3 justify-center w-12 h-12' : 'px-4 py-3 gap-3 w-full',
                                     isActive
                                         ? 'bg-black text-white dark:bg-white dark:text-black font-medium'
                                         : 'text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white'
                                 )}
+                                title={isSidebarCollapsed ? item.name : undefined}
                             >
                                 <span className={clsx("transition-transform group-active:scale-95", isActive ? "" : "opacity-70")}>{item.icon}</span>
-                                <span>{item.name}</span>
+                                {!isSidebarCollapsed && <span>{item.name}</span>}
                             </Link>
                         );
                     })}
                 </nav>
                 {auth?.user && (
-                    <div className="mt-auto border-t border-zinc-200 dark:border-zinc-800 pt-4">
-                        <Link href="/logout" method="post" as="button" className="flex items-center gap-3 px-4 py-3 rounded-xl w-full text-left text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-colors group">
+                    <div className={twMerge("mt-auto border-t border-zinc-200 dark:border-zinc-800 pt-4 flex flex-col gap-2 w-full", isSidebarCollapsed ? "items-center" : "")}>
+                        <Link 
+                            href="/logout" 
+                            method="post" 
+                            as="button" 
+                            className={twMerge(
+                                "flex items-center rounded-xl text-left text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-colors group",
+                                isSidebarCollapsed ? "w-12 h-12 p-3 justify-center" : "w-full px-4 py-3 gap-3"
+                            )}
+                            title={isSidebarCollapsed ? "Logout" : undefined}
+                        >
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100 transition-opacity"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></svg>
-                            <span className="font-medium">Logout</span>
+                            {!isSidebarCollapsed && <span className="font-medium">Logout</span>}
                         </Link>
                     </div>
                 )}
@@ -157,6 +193,9 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                     );
                 })}
             </nav>
+
+            {/* Global Toast Notification */}
+            <GlobalToast />
         </div>
     );
 }

@@ -7,6 +7,18 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { twMerge } from 'tailwind-merge';
+const formatLogValue = (val: any) => {
+    if (val === null || val === undefined || val === '') return 'none';
+    if (typeof val === 'number') return val.toLocaleString();
+    if (typeof val === 'string') {
+        if (/^(0|[1-9]\d*)(\.\d+)?$/.test(val)) {
+            return Number(val).toLocaleString();
+        }
+        return val;
+    }
+    if (typeof val === 'object') return JSON.stringify(val);
+    return String(val);
+};
 
 export default function SalesDetail({ order }: { order: SalesOrder }) {
     const [modalAction, setModalAction] = useState<{
@@ -14,9 +26,10 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
         itemId?: number;
         maxQty?: number;
     } | null>(null);
+    const [cancelReason, setCancelReason] = useState("");
 
     const { data: returnData, setData: setReturnData, post: postReturn, processing: returning } = useForm({
-        quantity: 1,
+        quantity: '',
         reason: ''
     });
 
@@ -49,10 +62,17 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
         settleButtonText = `COLLECT BALANCE (${balance.toLocaleString()})`;
     }
 
+    const isCourierUnpaid = order.delivery.collected_by === "courier" && order.delivery.settlement_status === "unpaid";
+    const canSettle = isRefundNeeded || (!isFullyPaid && (
+        isCourierUnpaid 
+            ? order.status.toLowerCase() === 'delivered' 
+            : ['pending', 'delivery_added', 'delivered'].includes(order.status.toLowerCase())
+    ));
+
     const formatMMK = (val: number) => Number(val).toLocaleString();
 
     const openReturnModal = (itemId: number, maxQty: number) => {
-        setReturnData({ quantity: 1, reason: '' });
+        setReturnData({ quantity: '', reason: '' });
         setModalAction({ type: "return", itemId, maxQty });
     };
 
@@ -76,8 +96,11 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
     };
 
     const handleCancel = () => {
-        router.post(`/sales/${order.id}/cancel`, {}, {
-            onSuccess: () => setModalAction(null)
+        router.post(`/sales/${order.id}/cancel`, { cancel_reason: cancelReason }, {
+            onSuccess: () => {
+                setModalAction(null);
+                setCancelReason("");
+            }
         });
     };
 
@@ -121,6 +144,15 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                             <p className="text-sm font-medium text-zinc-500">{order.date}</p>
                         </div>
                     </div>
+                    {['pending', 'delivery_added'].includes(order.status.toLowerCase()) && (
+                        <Button
+                            variant="outline"
+                            onClick={() => router.visit(`/sales/${order.id}/edit`)}
+                            className="text-xs font-bold uppercase tracking-widest h-9"
+                        >
+                            Edit
+                        </Button>
+                    )}
                 </div>
 
                 {/* 1. STATUS BANNER */}
@@ -132,6 +164,9 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                     <div>
                         <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Status</span>
                         <h2 className={twMerge("text-xl font-black", isCancelled ? "text-red-600 dark:text-red-500" : "text-black dark:text-white uppercase")}>{order.status.replace(/_/g, ' ')}</h2>
+                        {isCancelled && order.cancel_reason && (
+                            <p className="text-sm font-bold text-red-700 dark:text-red-400 mt-1">Reason: {order.cancel_reason}</p>
+                        )}
                     </div>
                     <div className="text-right">
                         <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Balance</span>
@@ -198,6 +233,8 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                     )}
                                 </div>
                             )}
+
+                            {order.financials.overcharge > 0 && <CostRow label="Overcharge" value={order.financials.overcharge} />}
 
                             {order.delivery.fee > 0 && <CostRow label="Delivery Fee" value={order.delivery.fee} />}
                         </div>
@@ -298,13 +335,13 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                 {/* 6. ACTION BUTTONS */}
                 {!isCancelled && (
                     <div className="flex flex-col gap-4">
-                        {order.status === "delivery added" && (
+                        {order.status.toLowerCase() === "delivery_added" && (
                             <Button onClick={() => router.post(`/sales/${order.id}/deliver`)} className="h-12 w-full font-bold bg-blue-600 hover:bg-blue-700 text-white">
                                 MARK AS DELIVERED
                             </Button>
                         )}
 
-                        {(isRefundNeeded || (!isFullyPaid && (order.status === 'delivered' || order.status === 'pending'))) && (
+                        {canSettle && (
                             <Button onClick={() => setModalAction({ type: "settle" })} variant={isRefundNeeded ? "destructive" : "default"} className="h-12 w-full font-bold">
                                 {settleButtonText}
                             </Button>
@@ -323,7 +360,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
             <div className="mt-12 mb-20 max-w-2xl mx-auto w-full">
                 <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-6">Order History</h3>
                 <div className="relative border-l-2 border-zinc-200 dark:border-zinc-800 ml-3 md:ml-4">
-                    {order.audit_log && order.audit_log.length > 0 ? (
+                    {Array.isArray(order.audit_log) && order.audit_log.length > 0 ? (
                         order.audit_log.map((log: any, idx: number) => (
                             <div key={idx} className="mb-8 ml-6 relative">
                                 <div className="absolute -left-[31px] top-1 h-3 w-3 rounded-full bg-blue-500 border-2 border-white dark:border-black"></div>
@@ -337,10 +374,22 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 </div>
                                 <p className="text-sm text-zinc-600 dark:text-zinc-400">By {log.by}</p>
                                 {log.details && Object.keys(log.details).length > 0 && (
-                                    <div className="mt-2 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg text-xs font-mono text-zinc-500 overflow-x-auto">
-                                        {Object.entries(log.details).map(([key, value]) => (
-                                            <div key={key}><span className="font-bold text-zinc-700 dark:text-zinc-300">{key}:</span> {String(value)}</div>
-                                        ))}
+                                    <div className="mt-2 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-lg text-xs font-mono text-zinc-500 overflow-x-auto flex flex-col gap-1">
+                                        {Object.entries(log.details).map(([key, value]) => {
+                                            if (key === 'changes' && typeof value === 'object' && value !== null) {
+                                                return Object.entries(value).map(([changeKey, changeVal]: [string, any]) => (
+                                                    <div key={changeKey}>
+                                                        <span className="font-bold text-zinc-700 dark:text-zinc-300">{changeKey}:</span>{' '}
+                                                        <span className="line-through text-red-400/70">{formatLogValue(changeVal?.old)}</span>{' '}
+                                                        <span className="text-zinc-400">→</span>{' '}
+                                                        <span className="text-green-600 dark:text-green-400">{formatLogValue(changeVal?.new)}</span>
+                                                    </div>
+                                                ));
+                                            }
+                                            return (
+                                                <div key={key}><span className="font-bold text-zinc-700 dark:text-zinc-300">{key}:</span> {formatLogValue(value)}</div>
+                                            );
+                                        })}
                                     </div>
                                 )}
                             </div>
@@ -379,6 +428,14 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 <DialogTitle>Cancel Order?</DialogTitle>
                                 <DialogDescription>This action cannot be undone.</DialogDescription>
                             </DialogHeader>
+                            <div className="flex flex-col gap-2 mt-4">
+                                <Label>Cancel Reason (Optional)</Label>
+                                <Input
+                                    placeholder="e.g. Customer changed mind"
+                                    value={cancelReason}
+                                    onChange={(e) => setCancelReason(e.target.value)}
+                                />
+                            </div>
                             <DialogFooter className="mt-4">
                                 <Button variant="destructive" onClick={handleCancel} className="w-full">
                                     YES, CANCEL ORDER
@@ -399,7 +456,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                     <Input
                                         type="number"
                                         value={returnData.quantity}
-                                        onChange={(e) => setReturnData('quantity', Number(e.target.value))}
+                                        onChange={(e) => setReturnData('quantity', e.target.value)}
                                         min="1"
                                         max={modalAction.maxQty}
                                     />

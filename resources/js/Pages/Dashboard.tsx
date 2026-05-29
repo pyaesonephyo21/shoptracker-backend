@@ -11,6 +11,7 @@ interface DashboardProps {
         end_date: string;
     };
     metrics: {
+        pending_orders_count: number;
         net_revenue: number;
         net_profit: number;
         inventory_cost: number;
@@ -20,15 +21,19 @@ interface DashboardProps {
         id: number;
         name: string;
         stock_quantity: number;
+        pending_stock: number;
         retail_price: number;
     }[];
     unsettledDeliveries: {
-        id: number;
-        date: string;
-        customer_name: string;
-        courier_name: string;
-        balance: number;
-    }[];
+        items: {
+            id: number;
+            date: string;
+            customer_name: string;
+            courier_name: string;
+            balance: number;
+        }[];
+        total_count: number;
+    };
 }
 
 export default function Dashboard({ filters, metrics, lowStockProducts, unsettledDeliveries }: DashboardProps) {
@@ -43,8 +48,8 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
         <AppLayout title="Dashboard">
             <Head title="Dashboard" />
 
-            <div className="flex flex-col gap-8 pb-20">
-                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+            <div className="flex flex-col gap-6 sm:gap-8 pb-20">
+                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-6 flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
                     <div>
                         <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">
                             Overview.
@@ -52,25 +57,25 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                         <p className="text-sm font-medium text-zinc-500 mt-1">Financial & operations summary</p>
                     </div>
 
-                    <div className="flex flex-col sm:flex-row items-end gap-3 bg-zinc-50 dark:bg-zinc-900 p-2 sm:p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 w-full md:w-auto">
+                    <div className="flex flex-col sm:flex-row items-end gap-3 bg-zinc-50 dark:bg-zinc-900 p-2 sm:p-3 rounded-xl border border-zinc-200 dark:border-zinc-800 w-full lg:w-auto">
 
                         <div className="flex w-full sm:w-auto gap-3">
-                            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                            <div className="flex flex-col gap-1.5 flex-1 sm:flex-initial">
                                 <Label className="text-[10px] uppercase text-zinc-500 ml-1 font-bold">From</Label>
                                 <Input
                                     type="date"
                                     value={startDate}
                                     onChange={e => setStartDate(e.target.value)}
-                                    className="appearance-none block h-10 text-sm w-full bg-white dark:bg-zinc-950 shadow-sm px-2 min-w-0"
+                                    className="block w-full sm:w-[150px] min-h-[40px] bg-white dark:bg-zinc-950 shadow-sm px-3 py-2 text-sm text-center appearance-none align-middle"
                                 />
                             </div>
-                            <div className="flex flex-col gap-1.5 flex-1 min-w-0">
+                            <div className="flex flex-col gap-1.5 flex-1 sm:flex-initial">
                                 <Label className="text-[10px] uppercase text-zinc-500 ml-1 font-bold">To</Label>
                                 <Input
                                     type="date"
                                     value={endDate}
                                     onChange={e => setEndDate(e.target.value)}
-                                    className="appearance-none block h-10 text-sm w-full bg-white dark:bg-zinc-950 shadow-sm px-2 min-w-0"
+                                    className="block w-full sm:w-[150px] min-h-[40px] bg-white dark:bg-zinc-950 shadow-sm px-3 py-2 text-sm text-center appearance-none align-middle"
                                 />
                             </div>
                         </div>
@@ -81,89 +86,52 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                     </div>
                 </div>
 
-                {/* METRICS GRID */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between h-36 transition-all hover:border-black dark:hover:border-white group">
-                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Net Revenue</h3>
-                        <div>
-                            <p className="text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left">
-                                {Number(metrics.net_revenue).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-zinc-400 font-bold">MMK</p>
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-zinc-900 border border-green-200 dark:border-green-900/50 rounded-2xl p-5 shadow-sm flex flex-col justify-between h-36 transition-all hover:border-green-500 group relative overflow-hidden">
-                        <div className="absolute top-0 right-0 p-4 opacity-10 text-green-500 dark:text-green-400">
-                            <svg className="w-12 h-12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" /></svg>
-                        </div>
-                        <h3 className="text-[10px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest">Net Profit</h3>
-                        <div>
-                            <p className="text-2xl font-black text-green-600 dark:text-green-400 group-hover:scale-[1.02] transition-transform origin-left">
-                                {Number(metrics.net_profit).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-green-600/50 dark:text-green-500/50 font-bold">MMK</p>
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between h-36 transition-all hover:border-black dark:hover:border-white group">
-                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Inventory Cost</h3>
-                        <div>
-                            <p className="text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left">
-                                {Number(metrics.inventory_cost).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-zinc-400 font-bold">Total Base Cost (MMK)</p>
-                        </div>
-                    </div>
-
-                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-5 shadow-sm flex flex-col justify-between h-36 transition-all hover:border-black dark:hover:border-white group">
-                        <h3 className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Expected Retail Value</h3>
-                        <div>
-                            <p className="text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left">
-                                {Number(metrics.inventory_retail).toLocaleString()}
-                            </p>
-                            <p className="text-xs text-zinc-400 font-bold">Total Retail Value (MMK)</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mt-4">
+                {/* ALERTS SECTION MOVED TO TOP */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-8 mt-2">
                     {/* UNSETTLED DELIVERIES */}
-                    <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-sm font-bold text-orange-600 dark:text-orange-500 uppercase tracking-widest flex items-center gap-2">
-                                <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
-                                Unsettled Deliveries
-                            </h2>
-                            <span className="text-xs font-bold text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-2 py-1 rounded">
-                                {unsettledDeliveries.length}
-                            </span>
+                    <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-4 sm:p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between mb-4 sm:mb-6">
+                                <h2 className="text-[11px] sm:text-sm font-bold text-orange-600 dark:text-orange-500 uppercase tracking-widest flex items-center gap-2">
+                                    <span className="w-2 h-2 rounded-full bg-orange-500 animate-pulse"></span>
+                                    Unsettled Deliveries
+                                </h2>
+                                <span className="text-xs font-bold text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-2 py-1 rounded">
+                                    {unsettledDeliveries.total_count}
+                                </span>
+                            </div>
+
+                            <div className="flex flex-col gap-2 sm:gap-3">
+                                {unsettledDeliveries.items.length === 0 ? (
+                                    <p className="text-sm text-zinc-500 italic">All deliveries have been fully settled! 🎉</p>
+                                ) : (
+                                    unsettledDeliveries.items.map(order => (
+                                        <Link key={order.id} href={`/sales/${order.id}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 sm:p-4 rounded-xl flex justify-between items-center group hover:border-orange-500 transition-colors">
+                                            <div className="flex flex-col truncate pr-2">
+                                                <span className="font-bold text-xs sm:text-sm text-black dark:text-white truncate">#{order.id} • {order.customer_name}</span>
+                                                <span className="text-[10px] sm:text-xs text-zinc-500 truncate">Delivered via: {order.courier_name}</span>
+                                            </div>
+                                            <div className="flex flex-col items-end shrink-0">
+                                                <span className="font-black text-orange-600 dark:text-orange-500 text-sm sm:text-base leading-none">{Number(order.balance).toLocaleString()}</span>
+                                                <span className="text-[9px] sm:text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Owed (MMK)</span>
+                                            </div>
+                                        </Link>
+                                    ))
+                                )}
+                            </div>
                         </div>
 
-                        <div className="flex flex-col gap-3">
-                            {unsettledDeliveries.length === 0 ? (
-                                <p className="text-sm text-zinc-500 italic">All deliveries have been fully settled! 🎉</p>
-                            ) : (
-                                unsettledDeliveries.map(order => (
-                                    <Link key={order.id} href={`/sales/${order.id}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex justify-between items-center group hover:border-orange-500 transition-colors">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-sm text-black dark:text-white">#{order.id} • {order.customer_name}</span>
-                                            <span className="text-xs text-zinc-500">Delivered via: {order.courier_name}</span>
-                                        </div>
-                                        <div className="flex flex-col items-end">
-                                            <span className="font-black text-orange-600 dark:text-orange-500 text-base">{Number(order.balance).toLocaleString()}</span>
-                                            <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">Owed (MMK)</span>
-                                        </div>
-                                    </Link>
-                                ))
-                            )}
-                        </div>
+                        {unsettledDeliveries.total_count > 5 && (
+                            <Link href="/sales?status=delivered&settlement_status=unpaid" className="mt-4 text-center text-[10px] sm:text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline uppercase tracking-wider block">
+                                See All {unsettledDeliveries.total_count} Unsettled Deliveries →
+                            </Link>
+                        )}
                     </div>
 
                     {/* LOW STOCK ALERTS */}
-                    <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800">
-                        <div className="flex items-center justify-between mb-6">
-                            <h2 className="text-sm font-bold text-red-600 dark:text-red-500 uppercase tracking-widest flex items-center gap-2">
+                    <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl p-4 sm:p-6 border-2 border-dashed border-zinc-200 dark:border-zinc-800">
+                        <div className="flex items-center justify-between mb-4 sm:mb-6">
+                            <h2 className="text-[11px] sm:text-sm font-bold text-red-600 dark:text-red-500 uppercase tracking-widest flex items-center gap-2">
                                 <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
                                 Low Stock Alerts
                             </h2>
@@ -172,23 +140,89 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                             </span>
                         </div>
 
-                        <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-2 sm:gap-3">
                             {lowStockProducts.length === 0 ? (
                                 <p className="text-sm text-zinc-500 italic">Inventory looks healthy! No low stock alerts.</p>
                             ) : (
                                 lowStockProducts.map(product => (
-                                    <Link key={product.id} href={`/inventory/${product.id}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-4 rounded-xl flex justify-between items-center group hover:border-red-500 transition-colors">
-                                        <div className="flex flex-col">
-                                            <span className="font-bold text-sm text-black dark:text-white">{product.name}</span>
-                                            <span className="text-xs text-zinc-500">Retail: {Number(product.retail_price).toLocaleString()} MMK</span>
+                                    <Link key={product.id} href={`/inventory/${product.id}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 sm:p-4 rounded-xl flex justify-between items-center group hover:border-red-500 transition-colors">
+                                        <div className="flex flex-col truncate pr-2">
+                                            <span className="font-bold text-xs sm:text-sm text-black dark:text-white flex flex-wrap items-center gap-1.5 truncate">
+                                                <span className="truncate">{product.name}</span>
+                                                {product.pending_stock > 0 && (
+                                                    <span className="text-[9px] sm:text-[10px] text-green-600 dark:text-green-400 font-black tracking-wide uppercase bg-green-50 dark:bg-green-950/30 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                                        +{product.pending_stock} Arriving
+                                                    </span>
+                                                )}
+                                            </span>
+                                            <span className="text-[10px] sm:text-xs text-zinc-500">Retail: {Number(product.retail_price).toLocaleString()} MMK</span>
                                         </div>
-                                        <div className="flex flex-col items-end bg-red-50 dark:bg-red-900/20 px-3 py-1 rounded-lg border border-red-100 dark:border-red-900/50">
-                                            <span className="font-black text-red-600 dark:text-red-500 text-lg">{product.stock_quantity}</span>
-                                            <span className="text-[10px] font-bold text-red-400 uppercase tracking-widest">Left</span>
+                                        <div className="flex flex-col items-end bg-red-50 dark:bg-red-900/20 px-2 sm:px-3 py-1 rounded-lg border border-red-100 dark:border-red-900/50 shrink-0">
+                                            <span className="font-black text-red-600 dark:text-red-500 text-sm sm:text-lg leading-none">{product.stock_quantity}</span>
+                                            <span className="text-[9px] sm:text-[10px] font-bold text-red-400 uppercase tracking-widest mt-0.5">Left</span>
                                         </div>
                                     </Link>
                                 ))
                             )}
+                        </div>
+                    </div>
+                </div>
+
+                {/* METRICS GRID - COMPACT ON MOBILE */}
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-2">
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-black dark:hover:border-white group">
+                        <h3 className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-tight">Net Revenue</h3>
+                        <div className="mt-2 sm:mt-0">
+                            <p className="text-lg sm:text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
+                                {Number(metrics.net_revenue).toLocaleString()}
+                            </p>
+                            <p className="text-[9px] sm:text-xs text-zinc-400 font-bold mt-0.5">MMK</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-zinc-900 border border-green-200 dark:border-green-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-green-500 group relative overflow-hidden">
+                        <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-green-500 dark:text-green-400">
+                            <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z" /></svg>
+                        </div>
+                        <h3 className="text-[9px] sm:text-[10px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest relative z-10 leading-tight">Net Profit</h3>
+                        <div className="relative z-10 mt-2 sm:mt-0">
+                            <p className="text-lg sm:text-2xl font-black text-green-600 dark:text-green-400 group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
+                                {Number(metrics.net_profit).toLocaleString()}
+                            </p>
+                            <p className="text-[9px] sm:text-xs text-green-600/50 dark:text-green-500/50 font-bold mt-0.5">MMK</p>
+                        </div>
+                    </div>
+
+                    <Link href="/sales?status=pending" className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-blue-500 group relative overflow-hidden col-span-2 lg:col-span-1">
+                        <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-blue-500 dark:text-blue-400">
+                            <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                        </div>
+                        <h3 className="text-[9px] sm:text-[10px] font-bold text-blue-600 dark:text-blue-500 uppercase tracking-widest relative z-10 leading-tight">Needs Delivery</h3>
+                        <div className="relative z-10 mt-2 sm:mt-0">
+                            <p className="text-lg sm:text-2xl font-black text-blue-600 dark:text-blue-400 group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
+                                {Number(metrics.pending_orders_count || 0)}
+                            </p>
+                            <p className="text-[9px] sm:text-xs text-blue-600/50 dark:text-blue-500/50 font-bold mt-0.5">Pending Orders</p>
+                        </div>
+                    </Link>
+
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-black dark:hover:border-white group">
+                        <h3 className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-tight">Inventory Cost</h3>
+                        <div className="mt-2 sm:mt-0">
+                            <p className="text-lg sm:text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
+                                {Number(metrics.inventory_cost).toLocaleString()}
+                            </p>
+                            <p className="text-[9px] sm:text-xs text-zinc-400 font-bold mt-0.5 truncate">Total Base Cost (MMK)</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-black dark:hover:border-white group">
+                        <h3 className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-tight">Expected Retail</h3>
+                        <div className="mt-2 sm:mt-0">
+                            <p className="text-lg sm:text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
+                                {Number(metrics.inventory_retail).toLocaleString()}
+                            </p>
+                            <p className="text-[9px] sm:text-xs text-zinc-400 font-bold mt-0.5 truncate">Total Retail Value (MMK)</p>
                         </div>
                     </div>
                 </div>

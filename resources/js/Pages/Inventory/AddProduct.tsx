@@ -7,12 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Category } from '@/types/inventory';
 
-export default function AddProduct({ categories = [], isForeignMode = false }: { categories: Category[], isForeignMode: boolean }) {
-    const { data, setData, post, processing, errors } = useForm({
+export default function AddProduct({ categories = [] }: { categories: Category[] }) {
+    const { data, setData, post, processing, errors } = useForm<{
+        name: string;
+        sku: string;
+        category_id: string;
+        type: string;
+    }>({
         name: '',
         sku: '',
-        base_cost: '',
-        retail_price: '',
         category_id: '',
         type: 'local',
     });
@@ -24,11 +27,7 @@ export default function AddProduct({ categories = [], isForeignMode = false }: {
 
     const typeOptions = [
         { label: 'Local Stock', value: 'local' },
-        ...(isForeignMode
-            ? [
-                { label: 'Global Stock', value: 'global' },
-            ]
-            : []),
+        { label: 'Global Stock', value: 'global' },
     ];
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -109,59 +108,26 @@ export default function AddProduct({ categories = [], isForeignMode = false }: {
                                 {errors.category_id && <span className="text-red-500 text-xs">{errors.category_id}</span>}
                             </div>
 
-                            {isForeignMode && (
-                                <div className="flex flex-col gap-2">
-                                    <Label htmlFor="type">Product Type *</Label>
-                                    <Select value={data.type} onValueChange={(val) => setData('type', val ?? '')} required>
-                                        <SelectTrigger id="type">
-                                            <SelectValue placeholder="Select Type...">
-                                                {data.type ? typeOptions.find(o => o.value === data.type)?.label : null}
-                                            </SelectValue>
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {typeOptions.map(opt => (
-                                                <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {errors.type && <span className="text-red-500 text-xs">{errors.type}</span>}
-                                </div>
-                            )}
-                        </div>
-                    </section>
-
-                    <section>
-                        <h2 className="text-xs font-bold text-zinc-500 dark:text-zinc-400 uppercase tracking-widest mb-6">
-                            02. Pricing (MMK)
-                        </h2>
-
-                        <div className="flex gap-4">
-                            <div className="flex flex-col gap-2 flex-1">
-                                <Label htmlFor="base_cost">Cost Price *</Label>
-                                <Input
-                                    id="base_cost"
-                                    placeholder="0"
-                                    type="number"
-                                    value={data.base_cost}
-                                    onChange={(e) => setData('base_cost', e.target.value)}
-                                    required
-                                />
-                                {errors.base_cost && <span className="text-red-500 text-xs">{errors.base_cost}</span>}
-                            </div>
-                            <div className="flex flex-col gap-2 flex-1">
-                                <Label htmlFor="retail_price">Retail Price *</Label>
-                                <Input
-                                    id="retail_price"
-                                    placeholder="0"
-                                    type="number"
-                                    value={data.retail_price}
-                                    onChange={(e) => setData('retail_price', e.target.value)}
-                                    required
-                                />
-                                {errors.retail_price && <span className="text-red-500 text-xs">{errors.retail_price}</span>}
+                            <div className="flex flex-col gap-2">
+                                <Label htmlFor="type">Product Type *</Label>
+                                <Select value={data.type} onValueChange={(val) => setData('type', val ?? '')} required>
+                                    <SelectTrigger id="type">
+                                        <SelectValue placeholder="Select Type...">
+                                            {data.type ? typeOptions.find(o => o.value === data.type)?.label : null}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {typeOptions.map(opt => (
+                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                {errors.type && <span className="text-red-500 text-xs">{errors.type}</span>}
                             </div>
                         </div>
                     </section>
+
+
 
                     <div className="mt-4 pt-6 border-t border-zinc-100 dark:border-zinc-800">
                         <Button

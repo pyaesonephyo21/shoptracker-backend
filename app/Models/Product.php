@@ -57,7 +57,6 @@ class Product extends Model implements HasMedia
         if (isset($filters['type']) && $filters['type']) {
             $query->where('type', $filters['type']);
         }
-
         // 3. You can easily add more here later (e.g. Price Range)
         // if (isset($filters['min_price'])) { ... }
 
@@ -90,5 +89,9 @@ class Product extends Model implements HasMedia
         $this->addMediaConversion('app_view')
             ->width(800)
             ->height(800);
+    }
+    public function batches()
+    {
+        return $this->hasMany(ProductBatch::class);
     }
 }

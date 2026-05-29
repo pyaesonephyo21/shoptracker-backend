@@ -37,6 +37,12 @@ class AppServiceProvider extends ServiceProvider
                     'all_shops' => $user ? ($user->role === 'superadmin' ? \App\Models\Shop::select('id', 'name')->get() : $user->shops()->select('shops.id', 'shops.name')->get()) : [],
                 ];
             },
+            'flash' => function () {
+                return [
+                    'success' => Session::get('success'),
+                    'error' => Session::get('error'),
+                ];
+            },
         ]);
 
         if ($this->app->environment('production')) {

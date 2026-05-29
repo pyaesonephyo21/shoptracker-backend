@@ -40,6 +40,8 @@ return new class extends Migration
             // Stage 2: Paid on Arrival
             $table->decimal('cargo_fee', 12, 2)->default(0);        // Shipping from China
             $table->decimal('local_deli_fee', 12, 2)->default(0);   // Delivery to warehouse
+            $table->decimal('adjustment_amount', 12, 2)->default(0);
+            $table->string('adjustment_reason')->nullable();
 
             // 5. Grand Total (Sum of everything * Exchange Rate)
             $table->decimal('grand_total', 12, 2)->default(0);
@@ -48,8 +50,10 @@ return new class extends Migration
             // 'unpaid', 'partial' (paid upfront only), 'paid' (fully settled)
             $table->string('payment_status')->default('unpaid');
             $table->decimal('paid_amount', 12, 2)->default(0); // How much have we actually paid?
+            $table->string('cancel_reason')->nullable();
 
             $table->text('note')->nullable();
+            $table->json('audit_log')->nullable();
             $table->timestamps();
         });
 
@@ -64,11 +68,13 @@ return new class extends Migration
             $table->foreign('product_id', 'po_items_prod_fk')->references('id')->on('products');
 
             $table->integer('quantity');
+            $table->integer('received_quantity')->nullable();
 
             $table->decimal('original_cost', 12, 2); // e.g., 30.00 (CNY)
             $table->decimal('unit_cost', 12, 2);     // e.g., 15000.00 (MMK) - Used for calculations
 
             $table->decimal('line_total', 12, 2);
+            $table->decimal('retail_price', 15, 2)->nullable();
 
             $table->timestamps();
         });

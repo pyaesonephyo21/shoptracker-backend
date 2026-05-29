@@ -53,10 +53,16 @@ export default function Pagination({ meta, className = '' }: PaginationProps) {
                         );
                     }
 
+                    let href = link.url as string;
+                    try {
+                        const urlObj = new URL(href);
+                        href = urlObj.pathname + urlObj.search;
+                    } catch (e) {}
+
                     return (
                         <Link
                             key={index}
-                            href={link.url as string}
+                            href={href}
                             preserveState
                             preserveScroll
                             className={twMerge(

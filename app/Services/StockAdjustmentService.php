@@ -2,7 +2,7 @@
 
 namespace App\Services;
 
-use App\Models\Product;
+use App\Models\ProductVariant;
 use App\Models\InventoryLog;
 use App\Models\StockAdjustment;
 use Illuminate\Support\Facades\DB;
@@ -13,20 +13,20 @@ class StockAdjustmentService
     /**
      * Adjust stock for a product, log the adjustment, and update product stock.
      */
-    public function adjustStock(int $productId, int $quantity, string $reason, ?string $note = null): StockAdjustment
+    public function adjustStock(int $productVariantId, int $quantity, string $reason, ?string $note = null): StockAdjustment
     {
-        return DB::transaction(function () use ($productId, $quantity, $reason, $note) {
-            $product = Product::lockForUpdate()->findOrFail($productId);
+        return DB::transaction(function () use ($productVariantId, $quantity, $reason, $note) {
+            $variant = ProductVariant::lockForUpdate()->findOrFail($productVariantId);
 
-            $newStockLevel = $product->stock_quantity + $quantity;
+            $newStockLevel = $variant->stock_quantity + $quantity;
 
             if ($newStockLevel < 0) {
-                throw new Exception("Stock cannot be negative. Current stock: {$product->stock_quantity}");
+                throw new Exception("Stock cannot be negative. Current stock: {$variant->stock_quantity}");
             }
 
             // 1. Create StockAdjustment record
             $adjustment = StockAdjustment::create([
-                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
                 'quantity' => $quantity,
                 'reason' => $reason,
                 'note' => $note,
@@ -34,7 +34,7 @@ class StockAdjustmentService
 
             // 2. Log in InventoryLog
             InventoryLog::create([
-                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
                 'quantity_change' => $quantity,
                 'new_stock_level' => $newStockLevel,
                 'reason' => $reason,
@@ -44,7 +44,7 @@ class StockAdjustmentService
             ]);
 
             // 3. Update Product stock
-            $product->update([
+            $variant->update([
                 'stock_quantity' => $newStockLevel
             ]);
 

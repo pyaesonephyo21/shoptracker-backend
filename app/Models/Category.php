@@ -4,28 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\BelongsToShop;
 
 class Category extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToShop;
 
     protected $guarded = ['id'];
-
-    // 1. Auto-assign Shop ID
-    protected static function booted()
-    {
-        static::addGlobalScope('shop', function ($builder) {
-            if (auth()->check()) {
-                $builder->where('shop_id', auth()->user()->shop_id);
-            }
-        });
-
-        static::creating(function ($model) {
-            if (auth()->check()) {
-                $model->shop_id = auth()->user()->shop_id;
-            }
-        });
-    }
 
     // 2. Relationship
     public function products()

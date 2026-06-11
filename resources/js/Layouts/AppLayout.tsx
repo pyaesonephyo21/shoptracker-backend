@@ -75,13 +75,20 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                {auth.user.role === 'superadmin' && <span className="text-[10px] uppercase font-bold text-red-500 tracking-widest bg-red-100 dark:bg-red-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Super Admin</span>}
-                                {auth.user.role !== 'superadmin' && <span className="text-[10px] uppercase font-bold text-blue-500 tracking-widest bg-blue-100 dark:bg-blue-900/30 px-2 py-0.5 rounded-full inline-block mt-1">Multi-Shop Access</span>}
+                                <span className="text-[10px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block mt-1 border border-black dark:border-white truncate max-w-full">
+                                    {auth.user?.name}
+                                </span>
                             </div>
                         ) : (
                             <div className="w-full overflow-hidden">
                                 <h1 className="text-xl font-black tracking-tight truncate">{auth?.shop?.name || 'ShopTracker'}</h1>
-                                {auth?.user && <span className="text-xs text-zinc-500 font-medium truncate block">Logged in as {auth.user.name}</span>}
+                                {auth?.user && (
+                                    <div className="mt-1">
+                                        <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
+                                            {auth.user.name}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         )
                     )}
@@ -144,14 +151,22 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <div className="flex flex-col gap-0.5 mt-0.5 ml-1">
-                                    <span className="text-[11px] font-bold text-zinc-800 dark:text-zinc-200 leading-none">{auth.user?.name}</span>
+                                <div className="mt-1">
+                                    <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
+                                        {auth.user?.name}
+                                    </span>
                                 </div>
                             </div>
                         ) : (
                             <div className="flex flex-col">
                                 <h1 className="text-lg font-bold tracking-tight">{title || auth?.shop?.name || 'ShopTracker'}</h1>
-                                {auth?.user && <span className="text-[10px] font-medium text-zinc-500 mt-0.5">Logged in as {auth.user.name}</span>}
+                                {auth?.user && (
+                                    <div className="mt-1">
+                                        <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
+                                            {auth.user.name}
+                                        </span>
+                                    </div>
+                                )}
                             </div>
                         )}
                     </div>

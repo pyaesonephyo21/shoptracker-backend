@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Auth;
 
 class SalesOrder extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToShop;
     protected $guarded = ['id'];
 
     protected $casts = [
@@ -22,20 +24,7 @@ class SalesOrder extends Model
         'paid_amount' => 'float',
     ];
 
-    protected static function booted()
-    {
-        static::addGlobalScope('shop', function ($builder) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $builder->where('shop_id', auth()->user()->shop_id);
-            }
-        });
 
-        static::creating(function ($order) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $order->shop_id = auth()->user()->shop_id;
-            }
-        });
-    }
 
     public function items()
     {
@@ -54,11 +43,16 @@ class SalesOrder extends Model
         $log = $this->audit_log ?? [];
         $log[] = [
             'action' => $action,
-            'by' => auth()->user()->name ?? 'System',
+            'by' => Auth::user()->name ?? 'System',
             'at' => now()->toIso8601String(),
             'details' => $details
         ];
         $this->audit_log = $log;
         $this->saveQuietly();
+    }
+
+    public function payments()
+    {
+        return $this->hasMany(SalesOrderPayment::class);
     }
 }

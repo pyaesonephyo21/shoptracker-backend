@@ -73,8 +73,8 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('sales_order_id');
             $table->foreign('sales_order_id', 'so_items_order_fk')->references('id')->on('sales_orders')->onDelete('cascade');
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id', 'so_items_prod_fk')->references('id')->on('products')->onDelete('cascade');
+            $table->unsignedBigInteger('product_variant_id');
+            $table->foreign('product_variant_id', 'so_items_variant_fk')->references('id')->on('product_variants')->onDelete('cascade');
             $table->integer('quantity');
             $table->string('discount_type')->default('none');
             $table->decimal('discount_value', 12, 2)->default(0);

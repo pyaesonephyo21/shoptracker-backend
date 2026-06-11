@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -13,7 +14,7 @@ interface Courier {
 }
 
 export default function EditSale({ order, couriers = [] }: { order: any, couriers: Courier[] }) {
-    const { data, setData, put, processing, errors, transform } = useForm<{
+    const { data, setData, put, processing, errors, transform, clearErrors } = useForm<{
         customer_name: string;
         customer_phone: string;
         address: string;
@@ -81,6 +82,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         }));
 
         put(`/sales/${order.id}`, {
+            preserveScroll: true,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
                     alert('Failed to update order');
@@ -124,30 +126,34 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div className="flex flex-col gap-2">
-                                <Label htmlFor="customer_name">Name</Label>
+                                <Label htmlFor="customer_name">Name (Optional)</Label>
                                 <Input
                                     id="customer_name"
                                     value={data.customer_name}
-                                    onChange={(e) => setData('customer_name', e.target.value)}
+                                    onChange={(e) => { setData('customer_name', e.target.value); clearErrors('customer_name'); }}
                                 />
+                                {errors.customer_name && <span className="text-red-500 text-xs">{errors.customer_name}</span>}
                             </div>
                             <div className="flex flex-col gap-2">
-                                <Label htmlFor="customer_phone">Phone</Label>
+                                <Label htmlFor="customer_phone">Phone (Optional)</Label>
                                 <Input
                                     id="customer_phone"
                                     type="tel"
                                     value={data.customer_phone}
-                                    onChange={(e) => setData('customer_phone', e.target.value)}
+                                    onChange={(e) => { setData('customer_phone', e.target.value); clearErrors('customer_phone'); }}
                                 />
+                                {errors.customer_phone && <span className="text-red-500 text-xs">{errors.customer_phone}</span>}
                             </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="address">Address</Label>
-                            <Input
+                            <Label htmlFor="address">Address (Optional)</Label>
+                            <textarea
                                 id="address"
                                 value={data.address}
-                                onChange={(e) => setData('address', e.target.value)}
+                                onChange={(e) => { setData('address', e.target.value); clearErrors('address'); }}
+                                className="flex min-h-[80px] w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:placeholder:text-zinc-400 dark:focus-visible:ring-zinc-300 resize-y"
                             />
+                            {errors.address && <span className="text-red-500 text-xs">{errors.address}</span>}
                         </div>
                     </section>
 
@@ -159,7 +165,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
 
                         <div className="flex flex-col gap-4">
                             {order.items.map((item: any, index: number) => {
-                                const productName = item.product?.name || `Item #${index + 1}`;
+                                const productName = item.product_variant ? `${item.product_variant.product?.name} - ${Object.values(item.product_variant.attributes || {}).join(' / ') || 'Default'}` : (item.product?.name || `Item #${index + 1}`);
                                 const price = Number(item.unit_price) || 0;
                                 const qty = Number(item.quantity) || 0;
                                 const discountVal = Number(item.discount_value) || 0;
@@ -209,25 +215,26 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                                     <Label>Tracking Number</Label>
                                     <Input
                                         value={data.tracking_number}
-                                        onChange={(e) => setData('tracking_number', e.target.value)}
+                                        onChange={(e) => { setData('tracking_number', e.target.value); clearErrors('tracking_number'); }}
                                         placeholder="e.g. TRK12345"
                                     />
+                                    {errors.tracking_number && <span className="text-red-500 text-xs">{errors.tracking_number}</span>}
                                 </div>
                                 <div className="flex flex-col gap-2">
                                     <Label>Delivery Fee (Charged to Customer)</Label>
-                                    <Input
-                                        type="number"
+                                    <FormattedNumberInput
                                         value={data.delivery_fee}
-                                        onChange={(e) => setData('delivery_fee', e.target.value)}
+                                        onChange={(val) => { setData('delivery_fee', val); clearErrors('delivery_fee'); }}
                                     />
+                                    {errors.delivery_fee && <span className="text-red-500 text-xs">{errors.delivery_fee}</span>}
                                 </div>
                                 <div className="flex flex-col gap-2">
                                     <Label>Courier Service Fee (Cost to Shop)</Label>
-                                    <Input
-                                        type="number"
+                                    <FormattedNumberInput
                                         value={data.courier_service_fee}
-                                        onChange={(e) => setData('courier_service_fee', e.target.value)}
+                                        onChange={(val) => { setData('courier_service_fee', val); clearErrors('courier_service_fee'); }}
                                     />
+                                    {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
                                 </div>
                             </div>
                         </section>
@@ -258,29 +265,30 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
 
                             {data.discount_type !== 'none' && (
                                 <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <Input
-                                        type="number"
+                                    <FormattedNumberInput
                                         placeholder="Discount Value"
                                         value={data.discount_value}
-                                        onChange={(e) => setData('discount_value', e.target.value)}
+                                        onChange={(val) => { setData('discount_value', val); clearErrors('discount_value'); }}
                                     />
+                                    {errors.discount_value && <span className="text-red-500 text-xs">{errors.discount_value}</span>}
                                     <Input
                                         placeholder="Reason"
                                         value={data.discount_reason}
-                                        onChange={(e) => setData('discount_reason', e.target.value)}
+                                        onChange={(e) => { setData('discount_reason', e.target.value); clearErrors('discount_reason'); }}
                                     />
+                                    {errors.discount_reason && <span className="text-red-500 text-xs">{errors.discount_reason}</span>}
                                 </div>
                             )}
 
                             <div className="flex justify-between items-center mt-4 mb-2">
                                 <span className="text-zinc-500 text-sm font-medium">Overcharge</span>
-                                <Input
-                                    type="number"
+                                <FormattedNumberInput
                                     placeholder="0"
                                     value={data.overcharge}
-                                    onChange={(e) => setData('overcharge', e.target.value)}
+                                    onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
                                     className="w-32 h-8 text-right font-bold"
                                 />
+                                {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
                             </div>
 
                             <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
@@ -296,13 +304,13 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                             <div className="bg-black dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                                 <span className="text-zinc-400 text-xs font-bold uppercase block mb-3">Deposit / Paid</span>
-                                <input
-                                    type="number"
+                                <FormattedNumberInput
                                     value={data.paid_amount}
-                                    onChange={(e) => setData('paid_amount', e.target.value)}
+                                    onChange={(val) => { setData('paid_amount', val); clearErrors('paid_amount'); }}
                                     placeholder="0"
-                                    className="bg-transparent border-none outline-none text-white font-black text-2xl w-full"
+                                    className="bg-transparent shadow-none border-none outline-none text-white font-black text-2xl w-full h-auto px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:ring-0 focus-visible:ring-offset-0"
                                 />
+                                {errors.paid_amount && <span className="text-red-500 text-xs">{errors.paid_amount}</span>}
                             </div>
 
                             <div className="flex flex-col items-end justify-center py-4">
@@ -326,13 +334,14 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                     </section>
 
                     <section className="flex flex-col gap-2">
-                        <Label htmlFor="note">General Note</Label>
+                        <Label htmlFor="note">General Note (Optional)</Label>
                         <Input
                             id="note"
                             placeholder="Optional..."
                             value={data.note}
-                            onChange={(e) => setData('note', e.target.value)}
+                            onChange={(e) => { setData('note', e.target.value); clearErrors('note'); }}
                         />
+                        {errors.note && <span className="text-red-500 text-xs">{errors.note}</span>}
                     </section>
 
                     <Button

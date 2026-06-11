@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Supplier;
+use App\Models\PurchaseOrder;
 
 class SupplierController extends Controller
 {
@@ -35,9 +36,8 @@ class SupplierController extends Controller
 
         return redirect()->back()->with('success', 'Supplier created successfully.');
     }
-    public function update(Request $request, $id)
+    public function update(Request $request, Supplier $supplier)
     {
-        $supplier = Supplier::findOrFail($id);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -58,11 +58,10 @@ class SupplierController extends Controller
         return redirect()->back()->with('success', 'Supplier updated successfully.');
     }
 
-    public function destroy($id)
+    public function destroy(Supplier $supplier)
     {
-        $supplier = Supplier::findOrFail($id);
 
-        if (\App\Models\PurchaseOrder::where('supplier_id', $supplier->id)->exists()) {
+        if (PurchaseOrder::where('supplier_id', $supplier->id)->exists()) {
             return redirect()->back()->withErrors(['error' => 'Cannot delete this supplier because it is linked to existing purchase orders.']);
         }
 

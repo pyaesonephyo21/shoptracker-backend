@@ -22,21 +22,40 @@ export interface ProductBatch {
     created_at: string;
 }
 
+export interface VariantOption {
+    name: string;
+    values: string[];
+}
+
+export interface ProductVariant {
+    id: number;
+    product_id: number;
+    sku: string;
+    attributes: Record<string, string>;
+    stock_quantity: number;
+    pending_stock: number;
+    retail_price: number | null;
+    effective_retail_price: number;
+    product?: Product;
+    inventory_logs?: InventoryLog[];
+    batches?: ProductBatch[];
+    deleted_at?: string | null;
+}
+
 export interface Product {
     id: number;
     name: string;
-    sku: string;
     retail_price: number;
     base_cost: number;
     image: string | null;
-    stock_quantity: number;
-    pending_stock: number;
     category_id?: number | null;
     category?: Category;
     type: "local" | "global";
     status: "in_stock" | "out_of_stock";
-    inventory_logs?: InventoryLog[];
-    batches?: ProductBatch[];
+    is_active?: boolean;
+    product_variant_id: number,
+    variant_options: VariantOption[] | null;
+    variants?: ProductVariant[];
 }
 
 export interface StockAdjustmentRequest {
@@ -47,15 +66,16 @@ export interface StockAdjustmentRequest {
 }
 
 export interface PurchaseOrderItemInput {
-    product_id: number;
+    product_variant_id: number;
     quantity: number | '';
     unit_cost: number | '';
     retail_price?: number | '';
 }
 
 export interface PurchaseOrderItem {
+    product_variant: any;
     id: number;
-    product_id: number;
+    product_variant_id: number;
     quantity: number;
     received_quantity?: number | null;
     original_cost: number;
@@ -75,6 +95,8 @@ export interface PurchaseOrderItem {
 }
 
 export interface PurchaseOrder {
+    supplier: any;
+    order_type: string;
     id: number;
     batch_name: string;
     status: "pending" | "arrived" | "cancelled";
@@ -95,5 +117,7 @@ export interface PurchaseOrder {
     audit_log?: any[];
     created_at: string;
     updated_at: string;
+    foreign_deli_fee?: number;
+
     items?: PurchaseOrderItem[];
 }

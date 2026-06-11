@@ -13,9 +13,9 @@ class ProductBatch extends Model
         'retail_price' => 'float',
     ];
 
-    public function product()
+    public function productVariant()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(ProductVariant::class)->withTrashed();
     }
 
     public function shop()

@@ -20,12 +20,12 @@ export default defineConfig({
     },
     server: {
         host: '0.0.0.0',
-        port: 5173,
+        port: 5178,
         watch: {
             ignored: ['**/storage/framework/views/**'],
         },
         hmr: {
-            host: '10.10.1.89',
+            host: '10.10.1.112',
         },
     },
 });

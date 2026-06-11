@@ -5,6 +5,10 @@ namespace App\Http\Controllers;
 use Inertia\Inertia;
 use App\Models\SalesOrder;
 use App\Models\Product;
+use App\Models\Expense;
+use App\Models\PurchaseOrder;
+use App\Models\ProductVariant;
+use App\Models\ProductBatch;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -28,7 +32,23 @@ class DashboardController extends Controller
             ->get();
 
         $netRevenue = $ordersInRange->sum('net_revenue');
-        $netProfit = $ordersInRange->sum('net_profit');
+        $grossProfit = $ordersInRange->sum('net_profit'); // Before expenses
+
+        // 2.5 Calculate Other Expenses
+        $expensesInRange = Expense::whereBetween('incurred_at', [$startDate, $endDate])->get();
+        $totalExpenses = $expensesInRange->sum('amount');
+
+        // Include PO fees as expenses
+        $poExpenses = PurchaseOrder::whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', 'arrived')
+            ->get()
+            ->sum(function($po) {
+                return $po->local_deli_fee ?: 0;
+            });
+
+        $totalExpenses += $poExpenses;
+
+        $netProfit = $grossProfit - $totalExpenses;
 
         // Orders needing delivery (status = pending)
         $ordersNeedingDeliveryCount = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
@@ -36,25 +56,34 @@ class DashboardController extends Controller
             ->count();
 
         // 3. Inventory Value (All Time Active)
-        $products = Product::all();
+        $variants = ProductVariant::with('product')
+            ->whereHas('product', function ($query) {
+                $query->where('is_active', true);
+            })
+            ->get();
         $totalStockCost = 0;
         $totalStockRetail = 0;
-        $batches = \App\Models\ProductBatch::where('remaining_quantity', '>', 0)->get();
+        $batches = ProductBatch::where('remaining_quantity', '>', 0)->get();
         foreach ($batches as $batch) {
             $totalStockCost += ($batch->unit_cost * $batch->remaining_quantity);
             $totalStockRetail += ($batch->retail_price * $batch->remaining_quantity);
         }
 
         $lowStockProducts = [];
-        foreach ($products as $product) {
-            $qty = $product->stock_quantity;
+        foreach ($variants as $variant) {
+            $qty = $variant->stock_quantity;
             if ($qty <= 5) { // Low stock threshold
+                $name = $variant->product ? $variant->product->name : 'Unknown Product';
+                if ($variant->sku) {
+                    $name .= " ({$variant->sku})";
+                }
+                
                 $lowStockProducts[] = [
-                    'id' => $product->id,
-                    'name' => $product->name,
+                    'id' => $variant->product_id,
+                    'name' => $name,
                     'stock_quantity' => $qty,
-                    'pending_stock' => $product->pending_stock,
-                    'retail_price' => $product->retail_price,
+                    'pending_stock' => $variant->pending_stock,
+                    'retail_price' => $variant->effective_retail_price,
                 ];
             }
         }
@@ -76,7 +105,7 @@ class DashboardController extends Controller
 
         $totalUnsettledCount = $unsettledDeliveriesQuery->count();
         $unsettledDeliveries = $unsettledDeliveriesQuery
-            ->take(5)
+            ->take(50)
             ->get()
             ->map(function ($order) {
                 return [
@@ -95,12 +124,17 @@ class DashboardController extends Controller
             ],
             'metrics' => [
                 'net_revenue' => $netRevenue,
+                'gross_profit' => $grossProfit,
+                'total_expenses' => $totalExpenses,
                 'net_profit' => $netProfit,
                 'pending_orders_count' => $ordersNeedingDeliveryCount,
                 'inventory_cost' => $totalStockCost,
                 'inventory_retail' => $totalStockRetail,
             ],
-            'lowStockProducts' => array_slice($lowStockProducts, 0, 10), // Top 10 lowest
+            'lowStockProducts' => [
+                'items' => array_slice($lowStockProducts, 0, 50),
+                'total_count' => count($lowStockProducts),
+            ],
             'unsettledDeliveries' => [
                 'items' => $unsettledDeliveries,
                 'total_count' => $totalUnsettledCount,

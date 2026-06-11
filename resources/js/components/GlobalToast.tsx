@@ -32,7 +32,7 @@ export function GlobalToast() {
     if (!toast) return null;
 
     return (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4">
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] animate-in fade-in slide-in-from-top-4 w-max max-w-[90vw]">
             <div className={twMerge(
                 "px-4 py-3 rounded-lg shadow-lg border flex items-center gap-3 font-medium text-sm",
                 toast.type === 'success' 

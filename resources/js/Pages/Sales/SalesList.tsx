@@ -4,53 +4,81 @@ import { Head, Link, router } from '@inertiajs/react';
 import { SalesOrder } from '@/types/sales';
 import { PaginatedData } from '@/types/pagination';
 import Pagination from '@/components/Pagination';
+import { DatePicker } from '@/components/ui/date-picker';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
+import { Button } from '@/components/ui/button';
+import { Filter } from 'lucide-react';
 
-export default function SalesList({ orders, filters = { status: '', settlement_status: '', search: '' } }: { orders: PaginatedData<SalesOrder>, filters: { status: string, settlement_status: string, search: string } }) {
+export default function SalesList({ orders, filters = { status: '', settlement_status: '', search: '', start_date: '', end_date: '' } }: { orders: PaginatedData<SalesOrder>, filters: { status: string, settlement_status: string, search: string, start_date: string, end_date: string } }) {
     const [searchVal, setSearchVal] = useState(filters.search || '');
     const [activeStatus, setActiveStatus] = useState(filters.status || '');
     const [activeSettlement, setActiveSettlement] = useState(filters.settlement_status || '');
+    const [activePaymentMethod, setActivePaymentMethod] = useState((filters as any).payment_method || '');
+    const [startDate, setStartDate] = useState<Date | undefined>(filters.start_date ? new Date(filters.start_date) : undefined);
+    const [endDate, setEndDate] = useState<Date | undefined>(filters.end_date ? new Date(filters.end_date) : undefined);
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             // Only trigger if local search differs from current URL search
             if (searchVal !== (filters.search || '')) {
-                handleFilterChange(activeStatus, searchVal, activeSettlement);
+                handleFilterChange(activeStatus, searchVal, activeSettlement, activePaymentMethod, startDate, endDate);
             }
         }, 300);
         return () => clearTimeout(timer);
     }, [searchVal]); // Only trigger on searchVal change
 
-    const handleFilterChange = (status: string, search: string, settlement: string) => {
+    const handleFilterChange = (status: string, search: string, settlement: string, method: string, start?: Date, end?: Date) => {
         router.get('/sales', {
             status: status || undefined,
             search: search || undefined,
-            settlement_status: settlement || undefined
+            settlement_status: settlement || undefined,
+            payment_method: method || undefined,
+            start_date: start ? start.toISOString().split('T')[0] : undefined,
+            end_date: end ? end.toISOString().split('T')[0] : undefined,
+            page: 1
         }, { preserveState: true, replace: true });
     };
 
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        handleFilterChange(activeStatus, searchVal, activeSettlement);
+        handleFilterChange(activeStatus, searchVal, activeSettlement, activePaymentMethod, startDate, endDate);
+    };
+
+    const applyFilters = () => {
+        handleFilterChange(activeStatus, searchVal, activeSettlement, activePaymentMethod, startDate, endDate);
+        setIsFilterOpen(false);
+    };
+
+    const clearFilters = () => {
+        setActiveStatus('');
+        setActiveSettlement('');
+        setActivePaymentMethod('');
+        setStartDate(undefined);
+        setEndDate(undefined);
+        handleFilterChange('', searchVal, '', '', undefined, undefined);
+        setIsFilterOpen(false);
     };
     const getStatusStyle = (order: SalesOrder) => {
         if (order.status.toUpperCase() === "CANCELLED") {
-            return { color: "text-red-500", text: "CANCELLED" };
+            return { color: "border border-zinc-200 dark:border-zinc-800 text-zinc-500", text: "CANCELLED" };
         }
         const payStatus = order.financials.payment_status;
-        if (payStatus === "unpaid") return { color: "text-red-500 bg-red-50 dark:bg-red-900/20", text: "UNPAID" };
-        if (payStatus === "partial") return { color: "text-orange-500 bg-orange-50 dark:bg-orange-900/20", text: "PARTIAL" };
-        if (payStatus === "paid") return { color: "text-green-600 bg-green-50 dark:bg-green-900/20", text: "PAID" };
-        return { color: "text-zinc-500 bg-zinc-100 dark:bg-zinc-800", text: payStatus.toUpperCase() };
+        if (payStatus === "unpaid") return { color: "border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 bg-transparent", text: "UNPAID" };
+        if (payStatus === "partial") return { color: "border border-zinc-400 dark:border-zinc-500 text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900", text: "PARTIAL" };
+        if (payStatus === "paid") return { color: "bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white", text: "PAID" };
+        return { color: "border border-zinc-200 dark:border-zinc-800 text-zinc-500 bg-transparent", text: payStatus.toUpperCase() };
     };
 
     const getOrderStatusStyle = (status: string) => {
         const s = status.toUpperCase();
-        if (s === "PENDING") return "text-zinc-500 bg-zinc-100 dark:bg-zinc-800";
-        if (s === "DELIVERY ADDED") return "text-blue-600 bg-blue-50 dark:bg-blue-900/20";
-        if (s === "DELIVERED") return "text-purple-600 bg-purple-50 dark:bg-purple-900/20";
-        if (s === "COMPLETED") return "text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20";
-        if (s === "CANCELLED") return "text-red-600 bg-red-50 dark:bg-red-900/20";
-        return "text-zinc-500 bg-zinc-100 dark:bg-zinc-800";
+        if (s === "PENDING") return "border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 bg-transparent";
+        if (s === "DELIVERY ADDED") return "border border-zinc-400 dark:border-zinc-500 text-zinc-800 dark:text-zinc-200 bg-zinc-50 dark:bg-zinc-900";
+        if (s === "DELIVERED") return "bg-zinc-800 text-white dark:bg-zinc-200 dark:text-black border border-zinc-800 dark:border-zinc-200";
+        if (s === "COMPLETED") return "bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white";
+        if (s === "CANCELLED") return "border border-zinc-300 dark:border-zinc-700 text-zinc-500 line-through decoration-zinc-400 bg-transparent";
+        return "border border-zinc-200 dark:border-zinc-800 text-zinc-500 bg-transparent";
     };
 
     return (
@@ -58,24 +86,34 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
             <Head title="Sales" />
 
             <div className="flex flex-col gap-6">
-                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 flex justify-between items-center">
-                    <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">
-                        Sales.
+                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <h1 className="text-2xl sm:text-3xl font-black text-black dark:text-white tracking-tight">
+                        Sales
                     </h1>
 
-                    <Link
-                        href="/sales/create"
-                        className="bg-black dark:bg-white px-4 py-2 rounded-lg hover:scale-[1.02] active:scale-95 transition-all shadow-sm"
-                    >
-                        <span className="text-[10px] font-bold text-white dark:text-black uppercase tracking-widest">
-                            + New Sale
-                        </span>
-                    </Link>
+                    <div className="flex items-center gap-2">
+                        <a
+                            href={`/sales/export?${new URLSearchParams(filters as any).toString()}`}
+                            className="bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-lg hover:scale-[1.02] active:scale-95 transition-all shadow-sm flex items-center justify-center shrink-0"
+                        >
+                            <span className="text-[10px] font-bold text-zinc-600 dark:text-zinc-300 uppercase tracking-widest">
+                                EXPORT
+                            </span>
+                        </a>
+                        <Link
+                            href="/sales/create"
+                            className="bg-black dark:bg-white px-4 py-2 rounded-lg hover:scale-[1.02] active:scale-95 transition-all shadow-sm flex items-center justify-center shrink-0"
+                        >
+                            <span className="text-[10px] font-bold text-white dark:text-black uppercase tracking-widest">
+                                + New Sale
+                            </span>
+                        </Link>
+                    </div>
                 </div>
 
                 {/* SEARCH AND FILTERS */}
-                <div className="flex flex-col gap-3">
-                    <form onSubmit={handleSearchSubmit} className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 h-11 flex items-center transition-all duration-200 focus-within:bg-white dark:focus-within:bg-black focus-within:border-black dark:focus-within:border-white">
+                <div className="flex items-center gap-2">
+                    <form onSubmit={handleSearchSubmit} className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 h-11 flex items-center transition-all duration-200 focus-within:bg-white dark:focus-within:bg-black focus-within:border-black dark:focus-within:border-white">
                         <input
                             className="flex-1 bg-transparent text-sm font-medium text-black dark:text-white outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
                             placeholder="Search"
@@ -85,72 +123,127 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
                         <button type="submit" className="text-xs font-bold uppercase text-zinc-400 hover:text-black dark:hover:text-white">Search</button>
                     </form>
 
-                    <div className="flex flex-col gap-2">
-                        {/* Status Filter */}
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Status:</span>
-                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
-                                {[
-                                    { key: '', label: 'All' },
-                                    { key: 'pending', label: 'Pending' },
-                                    { key: 'delivery_added', label: 'Deli Added' },
-                                    { key: 'delivered', label: 'Delivered' },
-                                    { key: 'completed', label: 'Completed' },
-                                    { key: 'cancelled', label: 'Cancelled' }
-                                ].map(item => {
-                                    const active = activeStatus === item.key;
-                                    return (
-                                        <button
-                                            key={item.key}
-                                            onClick={() => {
-                                                const nextStatus = activeStatus === item.key ? '' : item.key;
-                                                setActiveStatus(nextStatus);
-                                                handleFilterChange(nextStatus, searchVal, activeSettlement);
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
-                                        >
-                                            {item.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
+                    <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                        <DialogTrigger className="h-11 px-4 flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors shrink-0">
+                            <Filter className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
+                            <span className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-300 hidden sm:block">Filters</span>
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle className="font-black text-xl uppercase tracking-widest">Filters</DialogTitle>
+                            </DialogHeader>
+                            <div className="flex flex-col gap-6 py-4">
+                                {/* Date Range */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Date Range</span>
 
-                        {/* Settlement Filter */}
-                        <div className="flex items-center gap-1.5">
-                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Payment:</span>
-                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
-                                {[
-                                    { key: '', label: 'All' },
-                                    { key: 'unpaid', label: 'Unpaid' },
-                                    { key: 'partial', label: 'Partial' },
-                                    { key: 'paid', label: 'Paid' }
-                                ].map(item => {
-                                    const active = activeSettlement === item.key;
-                                    return (
-                                        <button
-                                            key={item.key}
-                                            onClick={() => {
-                                                const nextSettlement = activeSettlement === item.key ? '' : item.key;
-                                                setActiveSettlement(nextSettlement);
-                                                handleFilterChange(activeStatus, searchVal, nextSettlement);
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
-                                        >
-                                            {item.label}
-                                        </button>
-                                    );
-                                })}
+                                    <div className="grid grid-cols-2 gap-2 w-full [&_button]:w-full">
+                                        <DatePicker
+                                            date={startDate}
+                                            setDate={setStartDate}
+                                            placeholder="Start Date"
+                                        />
+                                        <DatePicker
+                                            date={endDate}
+                                            setDate={setEndDate}
+                                            placeholder="End Date"
+                                        />
+                                    </div>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Status</span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {[
+                                            { key: '', label: 'All' },
+                                            { key: 'pending', label: 'Pending' },
+                                            { key: 'delivery_added', label: 'Deli Added' },
+                                            { key: 'delivered', label: 'Delivered' },
+                                            { key: 'completed', label: 'Completed' },
+                                            { key: 'cancelled', label: 'Cancelled' }
+                                        ].map(item => {
+                                            const active = activeStatus === item.key;
+                                            return (
+                                                <button
+                                                    key={item.key}
+                                                    onClick={() => setActiveStatus(item.key)}
+                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Settlement Filter */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Payment Status</span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {[
+                                            { key: '', label: 'All' },
+                                            { key: 'unpaid', label: 'Unpaid' },
+                                            { key: 'partial', label: 'Partial' },
+                                            { key: 'paid', label: 'Paid' }
+                                        ].map(item => {
+                                            const active = activeSettlement === item.key;
+                                            return (
+                                                <button
+                                                    key={item.key}
+                                                    onClick={() => setActiveSettlement(item.key)}
+                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Payment Method Filter */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Payment Method</span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {[
+                                            { key: '', label: 'All' },
+                                            { key: 'cash', label: 'Cash' },
+                                            { key: 'kpay', label: 'KBZPay' },
+                                            { key: 'ayapay', label: 'AYAPay' }
+                                        ].map(item => {
+                                            const active = activePaymentMethod === item.key;
+                                            return (
+                                                <button
+                                                    key={item.key}
+                                                    onClick={() => setActivePaymentMethod(item.key)}
+                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none ${active ? 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </div>
+                            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                <Button variant="outline" onClick={clearFilters} className="font-bold uppercase tracking-widest text-[10px]">Clear</Button>
+                                <Button onClick={applyFilters} className="font-bold uppercase tracking-widest text-[10px]">Apply Filters</Button>
+                            </div>
+                        </DialogContent>
+                    </Dialog>
                 </div>
 
                 <div className="flex flex-col">
                     {orders.data.length === 0 ? (
-                        <div className="mt-10 flex justify-center items-center">
-                            <span className="text-zinc-400 font-medium">No sales found.</span>
-                        </div>
+                        <EmptyState 
+                            title="No Sales Found" 
+                            description="There are no sales matching your search or filters." 
+                            action={
+                                <Button variant="outline" onClick={clearFilters} className="text-xs font-bold uppercase tracking-widest">
+                                    Clear Filters
+                                </Button>
+                            }
+                        />
                     ) : (
                         orders.data.map((item) => {
                             const statusStyle = getStatusStyle(item);
@@ -158,32 +251,39 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
                                 <Link
                                     key={item.id}
                                     href={`/sales/${item.id}`}
-                                    className="py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-center transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group"
+                                    className="py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-start transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group"
                                 >
-                                    <div>
-                                        <div className="flex items-center mb-1">
-                                            <span className="font-bold text-black dark:text-white text-base mr-2">
+                                    <div className="flex-1 min-w-0 pr-4">
+                                        <div className="flex flex-col gap-2 mb-2">
+                                            <span className="font-bold text-black dark:text-white text-base truncate">
                                                 {item.customer.name || "Walk-in Customer"}
                                             </span>
-                                            <div className="flex gap-2">
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${getStatusStyle(item).color}`}>
-                                                    {getStatusStyle(item).text}
-                                                </span>
-                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide ${getOrderStatusStyle(item.status)}`}>
+                                            <div className="flex flex-wrap gap-2">
+                                                {item.status.toUpperCase() !== 'CANCELLED' && (
+                                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide whitespace-nowrap ${getStatusStyle(item).color}`}>
+                                                        {getStatusStyle(item).text}
+                                                    </span>
+                                                )}
+                                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide whitespace-nowrap ${getOrderStatusStyle(item.status)}`}>
                                                     {item.status.replace(/_/g, ' ')}
                                                 </span>
+                                                {(item as any).financials?.payment_method && (item as any).financials?.payment_status !== 'unpaid' && (
+                                                    <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide whitespace-nowrap border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/50">
+                                                        {(item as any).financials.payment_method === 'kpay' ? 'KPay' : (item as any).financials.payment_method === 'ayapay' ? 'AYAPay' : 'Cash'}
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
-                                        <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                                        <span className="text-xs text-zinc-500 dark:text-zinc-400 block">
                                             #{item.id} • {item.date}
                                         </span>
                                     </div>
 
-                                    <div className="flex flex-col items-end">
-                                        <span className="font-black text-black dark:text-white text-base">
-                                            {Number(item.financials.paid_amount).toLocaleString()}
+                                    <div className="flex flex-col items-end shrink-0 pt-0.5">
+                                        <span className="font-black text-black dark:text-white text-base sm:text-lg">
+                                            {Number(item.financials.grand_total).toLocaleString()}
                                         </span>
-                                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider">
+                                        <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-bold uppercase tracking-wider mt-0.5">
                                             MMK
                                         </span>
                                     </div>

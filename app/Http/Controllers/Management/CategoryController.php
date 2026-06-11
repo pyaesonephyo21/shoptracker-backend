@@ -27,9 +27,8 @@ class CategoryController extends Controller
 
         return redirect()->back()->with('success', 'Category created successfully.');
     }
-    public function update(Request $request, $id)
+    public function update(Request $request, Category $category)
     {
-        $category = Category::findOrFail($id);
         
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -40,9 +39,8 @@ class CategoryController extends Controller
         return redirect()->back()->with('success', 'Category updated successfully.');
     }
 
-    public function destroy($id)
+    public function destroy(Category $category)
     {
-        $category = Category::findOrFail($id);
 
         if ($category->products()->exists()) {
             return redirect()->back()->withErrors(['error' => 'Cannot delete this category because it is linked to existing products.']);

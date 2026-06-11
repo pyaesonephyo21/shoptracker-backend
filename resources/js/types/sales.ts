@@ -1,4 +1,5 @@
 export interface SalesOrder {
+    payments: any;
     cancel_reason: boolean;
     id: number;
     date: string;
@@ -59,7 +60,7 @@ export interface SalesOrder {
 }
 
 export interface SaleItemInput {
-    product_id: number;
+    product_variant_id: number;
     quantity: number | '';
     discount_type: "none" | "fixed" | "percent";
     discount_value: number | '';

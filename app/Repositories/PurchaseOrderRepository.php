@@ -9,15 +9,15 @@ class PurchaseOrderRepository
 {
     public function getAll(array $filters, int $perPage = 20)
     {
-        // We eagerly load 'items' and 'items.product' to see what's inside the batch
-        return PurchaseOrder::with(['items.product'])
+        // We eagerly load 'items' and 'items.productVariant.product' to see what's inside the batch
+        return PurchaseOrder::with(['items.productVariant.product'])
             ->latest()
             ->paginate($perPage);
     }
 
     public function findById($id): PurchaseOrder
     {
-        return PurchaseOrder::with(['items.product'])->findOrFail($id);
+        return PurchaseOrder::with(['items.productVariant.product'])->findOrFail($id);
     }
 
     /**

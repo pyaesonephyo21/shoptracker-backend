@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 export default function Login() {
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
         email: '',
         password: '',
     });
@@ -36,7 +36,7 @@ export default function Login() {
                             type="email"
                             name="email"
                             value={data.email}
-                            onChange={(e) => setData('email', e.target.value)}
+                            onChange={(e) => { setData('email', e.target.value); clearErrors('email'); }}
                             className="h-12 rounded-xl bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
                             placeholder="owner@shop.com"
                             autoComplete="username"
@@ -52,7 +52,7 @@ export default function Login() {
                             type="password"
                             name="password"
                             value={data.password}
-                            onChange={(e) => setData('password', e.target.value)}
+                            onChange={(e) => { setData('password', e.target.value); clearErrors('password'); }}
                             className="h-12 rounded-xl bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
                             autoComplete="current-password"
                         />

@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import AppLayout from '../Layouts/AppLayout';
 import { Head, router, Link } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { DatePicker } from '@/components/ui/date-picker';
 
 interface DashboardProps {
     filters: {
@@ -11,6 +12,8 @@ interface DashboardProps {
         end_date: string;
     };
     metrics: {
+        total_expenses: number;
+        gross_profit: number;
         pending_orders_count: number;
         net_revenue: number;
         net_profit: number;
@@ -18,12 +21,15 @@ interface DashboardProps {
         inventory_retail: number;
     };
     lowStockProducts: {
-        id: number;
-        name: string;
-        stock_quantity: number;
-        pending_stock: number;
-        retail_price: number;
-    }[];
+        items: {
+            id: number;
+            name: string;
+            stock_quantity: number;
+            pending_stock: number;
+            retail_price: number;
+        }[];
+        total_count: number;
+    };
     unsettledDeliveries: {
         items: {
             id: number;
@@ -37,12 +43,22 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ filters, metrics, lowStockProducts, unsettledDeliveries }: DashboardProps) {
-    const [startDate, setStartDate] = useState(filters.start_date);
-    const [endDate, setEndDate] = useState(filters.end_date);
+    const [startDate, setStartDate] = useState<Date | undefined>(filters.start_date ? new Date(filters.start_date) : undefined);
+    const [endDate, setEndDate] = useState<Date | undefined>(filters.end_date ? new Date(filters.end_date) : undefined);
 
-    const applyFilter = () => {
-        router.get('/', { start_date: startDate, end_date: endDate }, { preserveState: true });
-    };
+    const isFirstRender = useRef(true);
+
+    useEffect(() => {
+        if (isFirstRender.current) {
+            isFirstRender.current = false;
+            return;
+        }
+
+        router.get('/', { 
+            start_date: startDate ? startDate.toISOString().split('T')[0] : undefined, 
+            end_date: endDate ? endDate.toISOString().split('T')[0] : undefined 
+        }, { preserveState: true, preserveScroll: true });
+    }, [startDate, endDate]);
 
     return (
         <AppLayout title="Dashboard">
@@ -52,7 +68,7 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-6 flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4">
                     <div>
                         <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">
-                            Overview.
+                            Overview
                         </h1>
                         <p className="text-sm font-medium text-zinc-500 mt-1">Financial & operations summary</p>
                     </div>
@@ -62,27 +78,22 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                         <div className="flex w-full sm:w-auto gap-3">
                             <div className="flex flex-col gap-1.5 flex-1 sm:flex-initial">
                                 <Label className="text-[10px] uppercase text-zinc-500 ml-1 font-bold">From</Label>
-                                <Input
-                                    type="date"
-                                    value={startDate}
-                                    onChange={e => setStartDate(e.target.value)}
-                                    className="block w-full sm:w-[150px] min-h-[40px] bg-white dark:bg-zinc-950 shadow-sm px-3 py-2 text-sm text-center appearance-none align-middle"
+                                <DatePicker 
+                                    date={startDate} 
+                                    setDate={setStartDate} 
+                                    className="w-full sm:w-[150px] min-h-[40px] shadow-sm bg-white dark:bg-zinc-950" 
                                 />
                             </div>
                             <div className="flex flex-col gap-1.5 flex-1 sm:flex-initial">
                                 <Label className="text-[10px] uppercase text-zinc-500 ml-1 font-bold">To</Label>
-                                <Input
-                                    type="date"
-                                    value={endDate}
-                                    onChange={e => setEndDate(e.target.value)}
-                                    className="block w-full sm:w-[150px] min-h-[40px] bg-white dark:bg-zinc-950 shadow-sm px-3 py-2 text-sm text-center appearance-none align-middle"
+                                <DatePicker 
+                                    date={endDate} 
+                                    setDate={setEndDate} 
+                                    className="w-full sm:w-[150px] min-h-[40px] shadow-sm bg-white dark:bg-zinc-950" 
                                 />
                             </div>
                         </div>
 
-                        <Button onClick={applyFilter} className="w-full sm:w-auto h-10 px-4 sm:px-6 text-xs font-bold shadow-md shrink-0">
-                            APPLY
-                        </Button>
                     </div>
                 </div>
 
@@ -101,7 +112,7 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                                 </span>
                             </div>
 
-                            <div className="flex flex-col gap-2 sm:gap-3">
+                            <div className="flex flex-col gap-2 sm:gap-3 max-h-[300px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
                                 {unsettledDeliveries.items.length === 0 ? (
                                     <p className="text-sm text-zinc-500 italic">All deliveries have been fully settled! 🎉</p>
                                 ) : (
@@ -112,7 +123,7 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                                                 <span className="text-[10px] sm:text-xs text-zinc-500 truncate">Delivered via: {order.courier_name}</span>
                                             </div>
                                             <div className="flex flex-col items-end shrink-0">
-                                                <span className="font-black text-orange-600 dark:text-orange-500 text-sm sm:text-base leading-none">{Number(order.balance).toLocaleString()}</span>
+                                                <span className="font-black text-orange-600 dark:text-orange-500 text-sm sm:text-base leading-none">{Math.round(Number(order.balance)).toLocaleString()}</span>
                                                 <span className="text-[9px] sm:text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-1">Owed (MMK)</span>
                                             </div>
                                         </Link>
@@ -121,7 +132,7 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                             </div>
                         </div>
 
-                        {unsettledDeliveries.total_count > 5 && (
+                        {unsettledDeliveries.total_count > 3 && (
                             <Link href="/sales?status=delivered&settlement_status=unpaid" className="mt-4 text-center text-[10px] sm:text-xs font-bold text-orange-600 dark:text-orange-400 hover:underline uppercase tracking-wider block">
                                 See All {unsettledDeliveries.total_count} Unsettled Deliveries →
                             </Link>
@@ -136,26 +147,26 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                                 Low Stock Alerts
                             </h2>
                             <span className="text-xs font-bold text-zinc-400 bg-zinc-200 dark:bg-zinc-800 px-2 py-1 rounded">
-                                {lowStockProducts.length}
+                                {lowStockProducts.total_count}
                             </span>
                         </div>
 
-                        <div className="flex flex-col gap-2 sm:gap-3">
-                            {lowStockProducts.length === 0 ? (
+                        <div className="flex flex-col gap-2 sm:gap-3 max-h-[300px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                            {lowStockProducts.total_count === 0 ? (
                                 <p className="text-sm text-zinc-500 italic">Inventory looks healthy! No low stock alerts.</p>
                             ) : (
-                                lowStockProducts.map(product => (
+                                lowStockProducts.items.map(product => (
                                     <Link key={product.id} href={`/inventory/${product.id}`} className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-3 sm:p-4 rounded-xl flex justify-between items-center group hover:border-red-500 transition-colors">
                                         <div className="flex flex-col truncate pr-2">
                                             <span className="font-bold text-xs sm:text-sm text-black dark:text-white flex flex-wrap items-center gap-1.5 truncate">
                                                 <span className="truncate">{product.name}</span>
                                                 {product.pending_stock > 0 && (
-                                                    <span className="text-[9px] sm:text-[10px] text-green-600 dark:text-green-400 font-black tracking-wide uppercase bg-green-50 dark:bg-green-950/30 px-1.5 py-0.5 rounded whitespace-nowrap">
+                                                    <span className="text-[9px] sm:text-[10px] text-black dark:text-white font-black tracking-wide uppercase bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded whitespace-nowrap">
                                                         +{product.pending_stock} Arriving
                                                     </span>
                                                 )}
                                             </span>
-                                            <span className="text-[10px] sm:text-xs text-zinc-500">Retail: {Number(product.retail_price).toLocaleString()} MMK</span>
+                                            <span className="text-[10px] sm:text-xs text-zinc-500">Retail: {Math.round(Number(product.retail_price)).toLocaleString()} MMK</span>
                                         </div>
                                         <div className="flex flex-col items-end bg-red-50 dark:bg-red-900/20 px-2 sm:px-3 py-1 rounded-lg border border-red-100 dark:border-red-900/50 shrink-0">
                                             <span className="font-black text-red-600 dark:text-red-500 text-sm sm:text-lg leading-none">{product.stock_quantity}</span>
@@ -165,18 +176,44 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                                 ))
                             )}
                         </div>
+
+                        {lowStockProducts.total_count > 3 && (
+                            <Link href="/inventory?filter=low_stock" className="mt-4 text-center text-[10px] sm:text-xs font-bold text-red-600 dark:text-red-400 hover:underline uppercase tracking-wider block">
+                                See All {lowStockProducts.total_count} Low Stock Items →
+                            </Link>
+                        )}
                     </div>
                 </div>
 
                 {/* METRICS GRID - COMPACT ON MOBILE */}
-                <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 sm:gap-4 mt-2">
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-2">
                     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-black dark:hover:border-white group">
                         <h3 className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-tight">Net Revenue</h3>
                         <div className="mt-2 sm:mt-0">
                             <p className="text-lg sm:text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
-                                {Number(metrics.net_revenue).toLocaleString()}
+                                {Math.round(Number(metrics.net_revenue)).toLocaleString()}
                             </p>
                             <p className="text-[9px] sm:text-xs text-zinc-400 font-bold mt-0.5">MMK</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-black dark:hover:border-white group">
+                        <h3 className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-tight">Gross Profit</h3>
+                        <div className="mt-2 sm:mt-0">
+                            <p className="text-lg sm:text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
+                                {Math.round(Number(metrics.gross_profit || 0)).toLocaleString()}
+                            </p>
+                            <p className="text-[9px] sm:text-xs text-zinc-400 font-bold mt-0.5">MMK (Before Expenses)</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-red-500 group relative overflow-hidden">
+                        <h3 className="text-[9px] sm:text-[10px] font-bold text-red-600 dark:text-red-500 uppercase tracking-widest relative z-10 leading-tight">Total Expenses</h3>
+                        <div className="relative z-10 mt-2 sm:mt-0">
+                            <p className="text-lg sm:text-2xl font-black text-red-600 dark:text-red-400 group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
+                                -{Math.round(Number(metrics.total_expenses || 0)).toLocaleString()}
+                            </p>
+                            <p className="text-[9px] sm:text-xs text-red-600/50 dark:text-red-500/50 font-bold mt-0.5">MMK</p>
                         </div>
                     </div>
 
@@ -187,13 +224,13 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                         <h3 className="text-[9px] sm:text-[10px] font-bold text-green-600 dark:text-green-500 uppercase tracking-widest relative z-10 leading-tight">Net Profit</h3>
                         <div className="relative z-10 mt-2 sm:mt-0">
                             <p className="text-lg sm:text-2xl font-black text-green-600 dark:text-green-400 group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
-                                {Number(metrics.net_profit).toLocaleString()}
+                                {Math.round(Number(metrics.net_profit)).toLocaleString()}
                             </p>
-                            <p className="text-[9px] sm:text-xs text-green-600/50 dark:text-green-500/50 font-bold mt-0.5">MMK</p>
+                            <p className="text-[9px] sm:text-xs text-green-600/50 dark:text-green-500/50 font-bold mt-0.5">MMK (After Expenses)</p>
                         </div>
                     </div>
 
-                    <Link href="/sales?status=pending" className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-blue-500 group relative overflow-hidden col-span-2 lg:col-span-1">
+                    <Link href="/sales?status=pending" className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-blue-500 group relative overflow-hidden">
                         <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-blue-500 dark:text-blue-400">
                             <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
@@ -210,7 +247,7 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                         <h3 className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-tight">Inventory Cost</h3>
                         <div className="mt-2 sm:mt-0">
                             <p className="text-lg sm:text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
-                                {Number(metrics.inventory_cost).toLocaleString()}
+                                {Math.round(Number(metrics.inventory_cost)).toLocaleString()}
                             </p>
                             <p className="text-[9px] sm:text-xs text-zinc-400 font-bold mt-0.5 truncate">Total Base Cost (MMK)</p>
                         </div>
@@ -220,7 +257,7 @@ export default function Dashboard({ filters, metrics, lowStockProducts, unsettle
                         <h3 className="text-[9px] sm:text-[10px] font-bold text-zinc-500 uppercase tracking-widest leading-tight">Expected Retail</h3>
                         <div className="mt-2 sm:mt-0">
                             <p className="text-lg sm:text-2xl font-black text-black dark:text-white group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
-                                {Number(metrics.inventory_retail).toLocaleString()}
+                                {Math.round(Number(metrics.inventory_retail)).toLocaleString()}
                             </p>
                             <p className="text-[9px] sm:text-xs text-zinc-400 font-bold mt-0.5 truncate">Total Retail Value (MMK)</p>
                         </div>

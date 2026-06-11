@@ -20,10 +20,10 @@ return new class extends Migration
                 ->references('id')->on('shops')
                 ->onDelete('cascade');
 
-            // 2. Product FK ('adj_prod_fk')
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id', 'adj_prod_fk')
-                ->references('id')->on('products')
+            // 2. Variant FK ('adj_variant_fk')
+            $table->unsignedBigInteger('product_variant_id');
+            $table->foreign('product_variant_id', 'adj_variant_fk')
+                ->references('id')->on('product_variants')
                 ->onDelete('cascade');
 
             // 3. User FK ('adj_user_fk') - Who made the mistake?

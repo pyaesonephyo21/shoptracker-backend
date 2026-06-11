@@ -5,15 +5,19 @@ import { Product } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { twMerge } from 'tailwind-merge';
 
 export default function StockAdjustment({ product }: { product: Product }) {
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
+        product_variant_id: product.variants?.[0]?.id?.toString() || '',
         reason: 'correction' as 'damage' | 'loss' | 'return' | 'correction',
         action_type: 'add' as 'add' | 'remove',
         quantity: '',
         note: ''
     });
+
+    const selectedVariant = product.variants?.find(v => v.id.toString() === data.product_variant_id);
 
     const isActionLocked = data.reason !== 'correction';
 
@@ -30,6 +34,7 @@ export default function StockAdjustment({ product }: { product: Product }) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post(`/inventory/${product.id}/adjust`, {
+            preserveScroll: true,
             onError: () => alert('Failed to adjust stock')
         });
     };
@@ -83,11 +88,34 @@ export default function StockAdjustment({ product }: { product: Product }) {
                 <form onSubmit={handleSubmit} className="flex flex-col gap-8">
                     
                     {/* Product Info */}
-                    <div className="items-center text-center p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
-                        <h2 className="text-xl font-bold text-black dark:text-white mb-2">{product.name}</h2>
-                        <span className="text-sm text-zinc-500">
-                            Current Stock: <span className="text-black dark:text-white font-black ml-1">{product.stock_quantity ?? 0}</span>
-                        </span>
+                    <div className="flex flex-col gap-4 p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                        <div className="text-center">
+                            <h2 className="text-xl font-bold text-black dark:text-white mb-2">{product.name}</h2>
+                            <span className="text-sm text-zinc-500">
+                                Current Stock: <span className="text-black dark:text-white font-black ml-1">{selectedVariant ? selectedVariant.stock_quantity : 0}</span>
+                            </span>
+                        </div>
+                        
+                        <div className="flex flex-col gap-2">
+                            <Label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">Select Variant</Label>
+                            <Select value={data.product_variant_id} onValueChange={(val) => setData('product_variant_id', val ?? '')}>
+                                <SelectTrigger className="w-full bg-white dark:bg-black h-12">
+                                    <SelectValue placeholder="Select a variant...">
+                                        {selectedVariant 
+                                            ? `${Object.values(selectedVariant.attributes || {}).join(' / ') || 'Default'} (${selectedVariant.sku}) ${selectedVariant.deleted_at ? '(Archived)' : ''}`
+                                            : "Select a variant..."}
+                                    </SelectValue>
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {product.variants?.map(v => (
+                                        <SelectItem key={v.id} value={v.id.toString()}>
+                                            {Object.values(v.attributes || {}).join(' / ') || 'Default'} ({v.sku}) {v.deleted_at ? '(Archived)' : ''}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {errors.product_variant_id && <span className="text-red-500 text-xs">{errors.product_variant_id}</span>}
+                        </div>
                     </div>
 
                     <div className="flex flex-col gap-3">
@@ -113,7 +141,7 @@ export default function StockAdjustment({ product }: { product: Product }) {
                         <Input
                             type="number"
                             value={data.quantity}
-                            onChange={(e) => setData('quantity', e.target.value)}
+                            onChange={(e) => { setData('quantity', e.target.value); clearErrors('quantity'); }}
                             placeholder="e.g. 1"
                             min="1"
                             autoFocus
@@ -128,7 +156,7 @@ export default function StockAdjustment({ product }: { product: Product }) {
                         <Label>Note (Optional)</Label>
                         <Input
                             value={data.note}
-                            onChange={(e) => setData('note', e.target.value)}
+                            onChange={(e) => { setData('note', e.target.value); clearErrors('note'); }}
                             placeholder="e.g. Count error"
                         />
                         {errors.note && <span className="text-red-500 text-xs">{errors.note}</span>}

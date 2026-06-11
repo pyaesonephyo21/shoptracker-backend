@@ -3,12 +3,17 @@ import AppLayout from '../../Layouts/AppLayout';
 import { Head, router } from '@inertiajs/react';
 import { Product, InventoryLog } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
 import { twMerge } from 'tailwind-merge';
 
 export default function ProductDetail({ product, latestCost, latestRetailPrice, pendingCost }: { product: Product, latestCost: number, latestRetailPrice: number, pendingCost: number }) {
     const [activeTab, setActiveTab] = useState<'activity' | 'batches'>('activity');
-    
-    const stock = product.stock_quantity ?? 0;
+    const [activeVariantTab, setActiveVariantTab] = useState<'active' | 'archived'>('active');
+    const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
+
+    const stock = product.variants?.filter(v => !v.deleted_at).reduce((acc, v) => acc + (v.stock_quantity || 0), 0) || 0;
+    const pendingStock = product.variants?.filter(v => !v.deleted_at).reduce((acc, v) => acc + (v.pending_stock || 0), 0) || 0;
 
     const formatReason = (reason: string) => {
         switch (reason) {
@@ -21,15 +26,26 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
             default: return reason.replace("_", " ");
         }
     };
+    const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
-    const formatMMK = (val: number) => Number(val).toLocaleString();
+    const handleToggleActive = () => {
+        router.post(`/inventory/${product.id}/toggle-active`, {}, {
+            onSuccess: () => setIsArchiveDialogOpen(false)
+        });
+    };
+
+    const handleRestoreVariant = (variantId: number) => {
+        router.post(`/inventory/variants/${variantId}/restore`, {}, {
+            preserveScroll: true
+        });
+    };
 
     return (
         <AppLayout title={product.name}>
             <Head title={product.name} />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full pb-20">
-                
+
                 {/* Header */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
@@ -38,21 +54,37 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Product Details</h1>
                         </div>
                     </div>
-                    <button onClick={() => router.visit(`/inventory/${product.id}/edit`)} className="text-xs font-bold text-zinc-400 hover:text-black dark:hover:text-white uppercase tracking-widest transition-colors">
-                        EDIT
-                    </button>
+                    <div className="flex gap-4 items-center">
+                        <Button onClick={() => router.visit(`/inventory/${product.id}/edit`)} className="text-xs font-bold uppercase tracking-widest">
+                            EDIT
+                        </Button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     {/* Left Column */}
                     <div className="lg:col-span-1 flex flex-col gap-6">
                         {/* HERO */}
-                        <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800 items-center flex flex-col text-center">
+                        <div className={twMerge("p-6 rounded-2xl border items-center flex flex-col text-center relative overflow-hidden", product.is_active ? "bg-zinc-50 dark:bg-zinc-900 border-zinc-100 dark:border-zinc-800" : "bg-zinc-100 dark:bg-zinc-800 border-zinc-200 dark:border-zinc-700 opacity-80")}>
+                            {!product.is_active && (
+                                <div className="absolute top-0 right-0 bg-red-100 dark:bg-red-900/40 text-red-600 dark:text-red-400 text-[9px] font-black uppercase tracking-widest px-3 py-1 rounded-bl-xl border-l border-b border-red-200 dark:border-red-900/50">
+                                    Archived
+                                </div>
+                            )}
                             <div className="w-24 h-24 bg-white dark:bg-black rounded-2xl mb-4 items-center justify-center shadow-sm flex">
                                 <span className="text-4xl">📦</span>
                             </div>
-                            <h2 className="text-2xl font-black text-black dark:text-white mb-1">{product.name}</h2>
-                            <span className="text-sm text-zinc-400 font-bold uppercase tracking-widest">{product.sku || "NO SKU"}</span>
+                            <h2 className={twMerge("text-2xl font-black mb-6", product.is_active ? "text-black dark:text-white" : "text-zinc-500 line-through decoration-zinc-300 dark:decoration-zinc-600")}>
+                                {product.name}
+                            </h2>
+
+                            <Button
+                                variant={product.is_active ? "outline" : "default"}
+                                className={twMerge("w-full text-xs font-bold uppercase tracking-widest", !product.is_active && "bg-green-600 hover:bg-green-700 text-white border-transparent")}
+                                onClick={() => setIsArchiveDialogOpen(true)}
+                            >
+                                {product.is_active ? 'ARCHIVE PRODUCT' : 'RESTORE PRODUCT'}
+                            </Button>
                         </div>
 
                         {/* STATS */}
@@ -64,7 +96,7 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                             <div className="w-px h-16 bg-zinc-800 dark:bg-zinc-200" />
                             <div className="flex-1 flex flex-col items-center">
                                 <span className="text-[10px] font-bold text-zinc-400 dark:text-zinc-500 uppercase tracking-widest mb-1">Pending</span>
-                                <span className="text-3xl lg:text-4xl font-black text-zinc-400">{product.pending_stock || 0}</span>
+                                <span className="text-3xl lg:text-4xl font-black text-zinc-400">{pendingStock}</span>
                                 {pendingCost > 0 && (
                                     <span className="text-[10px] font-bold text-zinc-500 mt-1">Est. {formatMMK(pendingCost)} MMK/ea</span>
                                 )}
@@ -89,15 +121,90 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                     </div>
 
                     {/* Right Column */}
-                    <div className="lg:col-span-2">
+                    <div className="lg:col-span-2 flex flex-col gap-6">
+
+                        {/* VARIANTS */}
+                        <div className="flex flex-col gap-4">
+                            <div className="flex justify-between items-center">
+                                <h3 className="text-sm font-bold uppercase tracking-widest text-zinc-400">Variants ({product.variants?.filter(v => activeVariantTab === 'active' ? !v.deleted_at : v.deleted_at).length || 0})</h3>
+                                <div className="flex gap-2">
+                                    <button
+                                        onClick={() => setActiveVariantTab('active')}
+                                        className={twMerge("text-xs font-bold uppercase px-3 py-1.5 rounded-lg transition-colors", activeVariantTab === 'active' ? "bg-black text-white dark:bg-white dark:text-black" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-400")}
+                                    >
+                                        Active
+                                    </button>
+                                    <button
+                                        onClick={() => setActiveVariantTab('archived')}
+                                        className={twMerge("text-xs font-bold uppercase px-3 py-1.5 rounded-lg transition-colors", activeVariantTab === 'archived' ? "bg-black text-white dark:bg-white dark:text-black" : "bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-900 dark:text-zinc-400")}
+                                    >
+                                        Archived
+                                    </button>
+                                </div>
+                            </div>
+                            <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
+                                <table className="w-full text-sm text-left">
+                                    <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase text-zinc-500 font-bold">
+                                        <tr>
+                                            <th className="px-4 py-3">Variant</th>
+                                            <th className="px-4 py-3">SKU</th>
+                                            {activeVariantTab === 'active' ? (
+                                                <>
+                                                    <th className="px-4 py-3 text-right">Stock</th>
+                                                    <th className="px-4 py-3 text-right">Retail Price</th>
+                                                </>
+                                            ) : (
+                                                <th className="px-4 py-3 text-right">Action</th>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {product.variants?.filter(v => activeVariantTab === 'active' ? !v.deleted_at : v.deleted_at).map(v => (
+                                            <tr key={v.id} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0 bg-white dark:bg-black">
+                                                <td className="px-4 py-3 font-medium">
+                                                    {Object.values(v.attributes || {}).join(' / ') || 'Default'}
+                                                </td>
+                                                <td className="px-4 py-3 text-zinc-500">{v.sku}</td>
+                                                {activeVariantTab === 'active' ? (
+                                                    <>
+                                                        <td className="px-4 py-3 text-right">
+                                                            <span className={twMerge("font-bold", v.stock_quantity > 0 ? "text-green-600 dark:text-green-500" : "text-red-500")}>
+                                                                {v.stock_quantity}
+                                                            </span>
+                                                            {v.pending_stock > 0 && <span className="text-zinc-400 ml-1">(+{v.pending_stock})</span>}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-right font-medium">
+                                                            {formatMMK(v.retail_price || product.retail_price)} MMK
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <td className="px-4 py-3 text-right">
+                                                        <Button 
+                                                            variant="outline" 
+                                                            size="sm" 
+                                                            className="text-[10px] font-bold uppercase tracking-widest"
+                                                            onClick={() => handleRestoreVariant(v.id)}
+                                                        >
+                                                            Restore
+                                                        </Button>
+                                                    </td>
+                                                )}
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+
                         <div className="flex gap-4 mb-6 border-b border-zinc-100 dark:border-zinc-800 pb-2">
-                            <button 
+                            <button
                                 onClick={() => setActiveTab('activity')}
                                 className={twMerge("text-xs font-bold uppercase tracking-widest pb-2 border-b-2 transition-colors", activeTab === 'activity' ? "text-black dark:text-white border-black dark:border-white" : "text-zinc-400 border-transparent hover:text-zinc-600")}
                             >
                                 Activity History
                             </button>
-                            <button 
+                            <button
                                 onClick={() => setActiveTab('batches')}
                                 className={twMerge("text-xs font-bold uppercase tracking-widest pb-2 border-b-2 transition-colors", activeTab === 'batches' ? "text-black dark:text-white border-black dark:border-white" : "text-zinc-400 border-transparent hover:text-zinc-600")}
                             >
@@ -106,24 +213,25 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                         </div>
 
                         {activeTab === 'activity' && (
-                            !product.inventory_logs || product.inventory_logs.length === 0 ? (
-                                <div className="p-8 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
-                                    <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">No activity recorded</span>
-                                </div>
+                            !product.variants || product.variants.flatMap(v => v.inventory_logs || []).length === 0 ? (
+                                <EmptyState 
+                                    title="No Activity Recorded" 
+                                    description="There is no recorded activity for this product yet." 
+                                />
                             ) : (
                                 <div className="flex flex-col gap-6 relative">
                                     <div className="absolute left-2.5 top-2 bottom-2 w-px bg-zinc-100 dark:bg-zinc-800" />
-                                    
-                                    {product.inventory_logs.map((log: InventoryLog) => {
+
+                                        {product.variants.flatMap(v => v.inventory_logs?.map(log => ({ ...log, variant: v })) || []).sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map((log: any) => {
                                         const isPositive = log.quantity_change > 0;
                                         return (
                                             <div key={log.id} className="flex justify-between items-start relative pl-8">
                                                 <div className={twMerge("absolute left-1 top-1.5 w-3 h-3 rounded-full border-2 border-white dark:border-black", isPositive ? "bg-green-500" : "bg-black dark:bg-zinc-400")} />
-                                                
+
                                                 <div className="flex-1">
                                                     <h4 className="text-sm font-bold text-black dark:text-white uppercase">{formatReason(log.reason)}</h4>
                                                     <span className="text-[10px] text-zinc-400 font-medium tracking-wider block mt-1">
-                                                        {new Date(log.created_at).toLocaleString()}
+                                                        {new Date(log.created_at).toLocaleString()} • {Object.values(log.variant.attributes || {}).join(' / ') || 'Default Variant'}
                                                     </span>
                                                     {log.note && (
                                                         <p className="text-xs text-zinc-500 dark:text-zinc-400 italic mt-2 bg-zinc-50 dark:bg-zinc-900 p-2 rounded-lg inline-block">
@@ -150,9 +258,10 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                         {activeTab === 'batches' && (
                             <div className="flex flex-col gap-4">
                                 {(() => {
-                                    const totalBatchRemaining = product.batches?.reduce((acc, b) => acc + b.remaining_quantity, 0) || 0;
-                                    const stockDesync = product.stock_quantity - totalBatchRemaining;
-                                    
+                                    const allBatches = product.variants?.flatMap(v => v.batches?.map(b => ({ ...b, variant: v })) || []) || [];
+                                    const totalBatchRemaining = allBatches.reduce((acc, b) => acc + b.remaining_quantity, 0) || 0;
+                                    const stockDesync = stock - totalBatchRemaining;
+
                                     return (
                                         <>
                                             {stockDesync > 0 && (
@@ -164,12 +273,12 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                                                 </div>
                                             )}
 
-                                            {product.batches && product.batches.length > 0 ? (
-                                                product.batches.map(batch => (
+                                            {allBatches.length > 0 ? (
+                                                allBatches.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()).map(batch => (
                                                     <div key={batch.id} className="p-4 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-100 dark:border-zinc-800 flex justify-between items-center">
                                                         <div>
                                                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-1">
-                                                                Batch #{batch.id} • {new Date(batch.created_at).toLocaleDateString()}
+                                                                Batch #{batch.id} • {new Date(batch.created_at).toLocaleDateString()} • {Object.values(batch.variant.attributes || {}).join(' / ') || 'Default'}
                                                             </span>
                                                             <span className="text-sm font-black text-black dark:text-white block">
                                                                 {formatMMK(batch.unit_cost)} MMK <span className="text-xs text-zinc-400 font-medium">cost / unit</span>
@@ -195,9 +304,10 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                                                     </div>
                                                 ))
                                             ) : (
-                                                <div className="p-8 bg-zinc-50 dark:bg-zinc-900/50 rounded-2xl border-2 border-dashed border-zinc-200 dark:border-zinc-800 flex items-center justify-center">
-                                                    <span className="text-zinc-400 text-xs font-bold uppercase tracking-wider">No batches recorded</span>
-                                                </div>
+                                                <EmptyState 
+                                                    title="No Batches Recorded" 
+                                                    description="There are no inventory batches recorded for this product yet." 
+                                                />
                                             )}
                                         </>
                                     );
@@ -208,6 +318,32 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                 </div>
 
             </div>
+
+            {/* Archive Confirm Dialog */}
+            <Dialog open={isArchiveDialogOpen} onOpenChange={setIsArchiveDialogOpen}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{product.is_active ? 'Archive Product?' : 'Restore Product?'}</DialogTitle>
+                        <DialogDescription>
+                            {product.is_active
+                                ? `Are you sure you want to archive ${product.name}? It will be hidden from new orders and lists by default, but its historical data will be preserved.`
+                                : `Are you sure you want to restore ${product.name}? It will become available for new orders again.`
+                            }
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex flex-col gap-2 mt-4">
+                        <Button
+                            onClick={handleToggleActive}
+                            className={twMerge("text-white font-bold h-12", product.is_active ? "bg-orange-500 hover:bg-orange-600" : "bg-green-600 hover:bg-green-700")}
+                        >
+                            {product.is_active ? 'YES, ARCHIVE' : 'YES, RESTORE'}
+                        </Button>
+                        <Button variant="outline" onClick={() => setIsArchiveDialogOpen(false)} className="h-12 font-bold">
+                            CANCEL
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
         </AppLayout>
     );
 }

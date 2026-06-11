@@ -3,6 +3,7 @@ import AppLayout from '../../Layouts/AppLayout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SalesOrder } from '@/types/sales';
@@ -16,7 +17,7 @@ interface Courier {
 }
 
 export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrder, couriers: Courier[] }) {
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
         courier_id: '',
         tracking_number: '',
         delivery_fee: '',
@@ -33,6 +34,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post(`/sales/${order.id}/fulfill`, {
+            preserveScroll: true,
             onError: () => alert('Failed to fulfill order')
         });
     };
@@ -56,7 +58,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                     
                     {/* 1. SELECT COURIER */}
                     <div className="flex flex-col gap-2">
-                        <Label>Select Method / Courier *</Label>
+                            <Label>Select Method / Courier</Label>
                         <Select value={data.courier_id} onValueChange={(val) => {
                             if (!val) return;
                             const selected = couriers.find(c => c.id === Number(val));
@@ -65,7 +67,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                                 courier_id: val,
                                 courier_service_fee: selected ? String(Number(selected.default_service_fee)) : data.courier_service_fee
                             }));
-                        }} required>
+                        }}>
                             <SelectTrigger>
                                 <SelectValue placeholder="Choose a courier...">
                                     {selectedCourier ? selectedCourier.name : "Choose a courier..."}
@@ -87,11 +89,10 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                             {!isPickup && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div className="flex flex-col gap-2">
-                                        <Label>Deli Fee (Charge to Customer)</Label>
-                                        <Input
-                                            type="number"
+                                        <Label>Deli Fee (Charge to Customer) (Optional)</Label>
+                                        <FormattedNumberInput
                                             value={data.delivery_fee}
-                                            onChange={(e) => setData('delivery_fee', e.target.value)}
+                                            onChange={(val) => { setData('delivery_fee', val); clearErrors('delivery_fee'); }}
                                             placeholder="0"
                                         />
                                         {errors.delivery_fee && <span className="text-red-500 text-xs">{errors.delivery_fee}</span>}
@@ -99,11 +100,10 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
 
                                     {!isSelfManaged && (
                                         <div className="flex flex-col gap-2">
-                                            <Label>Service Fee (Cost to us)</Label>
-                                            <Input
-                                                type="number"
+                                            <Label>Service Fee (Cost to us) (Optional)</Label>
+                                            <FormattedNumberInput
                                                 value={data.courier_service_fee}
-                                                onChange={(e) => setData('courier_service_fee', e.target.value)}
+                                                onChange={(val) => { setData('courier_service_fee', val); clearErrors('courier_service_fee'); }}
                                                 placeholder="e.g. 200"
                                             />
                                             {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
@@ -115,10 +115,10 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                             {/* 3. TRACKING */}
                             {!isSelfManaged && (
                                 <div className="flex flex-col gap-2">
-                                    <Label>Tracking No.</Label>
+                                    <Label>Tracking No. (Optional)</Label>
                                     <Input
                                         value={data.tracking_number}
-                                        onChange={(e) => setData('tracking_number', e.target.value)}
+                                        onChange={(e) => { setData('tracking_number', e.target.value); clearErrors('tracking_number'); }}
                                         placeholder="Optional"
                                     />
                                 </div>
@@ -155,9 +155,9 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                                             type="button"
                                             onClick={() => setData('is_deli_prepaid', !data.is_deli_prepaid)}
                                             className={twMerge("p-4 rounded-xl border-2 text-left transition-colors flex justify-between items-center", 
-                                                data.is_deli_prepaid ? "border-green-500 bg-green-50 dark:bg-green-900/20" : "border-zinc-200 dark:border-zinc-800 bg-transparent")}
+                                                data.is_deli_prepaid ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 dark:border-zinc-800 bg-transparent")}
                                         >
-                                            <span className={twMerge("font-bold text-sm", data.is_deli_prepaid ? "text-green-700 dark:text-green-500" : "text-zinc-500")}>
+                                            <span className={twMerge("font-bold text-sm", data.is_deli_prepaid ? "text-black dark:text-white" : "text-zinc-500")}>
                                                 {data.is_deli_prepaid ? "✓ Deli Fee Included in Payment" : "Deli Fee is Separate (COD)"}
                                             </span>
                                         </button>
@@ -167,10 +167,10 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
 
                             {/* 5. NOTE */}
                             <div className="flex flex-col gap-2">
-                                <Label>Delivery Instructions</Label>
+                                <Label>Delivery Instructions (Optional)</Label>
                                 <Input
                                     value={data.delivery_note}
-                                    onChange={(e) => setData('delivery_note', e.target.value)}
+                                    onChange={(e) => { setData('delivery_note', e.target.value); clearErrors('delivery_note'); }}
                                     placeholder="e.g. Call before arrival..."
                                 />
                             </div>

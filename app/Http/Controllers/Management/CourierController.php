@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Models\Courier;
+use App\Models\SalesOrder;
 
 class CourierController extends Controller
 {
@@ -34,9 +35,8 @@ class CourierController extends Controller
 
         return redirect()->back()->with('success', 'Courier created successfully.');
     }
-    public function update(Request $request, $id)
+    public function update(Request $request, Courier $courier)
     {
-        $courier = Courier::findOrFail($id);
 
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -55,11 +55,10 @@ class CourierController extends Controller
         return redirect()->back()->with('success', 'Courier updated successfully.');
     }
 
-    public function destroy($id)
+    public function destroy(Courier $courier)
     {
-        $courier = Courier::findOrFail($id);
 
-        if (\App\Models\SalesOrder::where('courier_id', $courier->id)->exists()) {
+        if (SalesOrder::where('courier_id', $courier->id)->exists()) {
             return redirect()->back()->withErrors(['error' => 'Cannot delete this courier because it is linked to existing sales orders.']);
         }
 

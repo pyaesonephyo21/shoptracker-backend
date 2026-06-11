@@ -42,7 +42,7 @@ services:
     volumes:
       - ./:/var/www
     ports:
-      - "5173:5173"
+      - "5178:5178"
     depends_on:
       - app
     networks:

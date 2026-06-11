@@ -3,12 +3,14 @@
 namespace App\Services;
 
 use App\Models\InventoryLog;
-use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use App\Models\ProductVariant;
+use App\Models\ProductBatch;
+use App\Models\PurchaseOrderItem;
 
 class SalesOrderService
 {
@@ -48,7 +50,7 @@ class SalesOrderService
                 // Pass item-level discount data if available
                 $wasPreorder = $this->processAddItem(
                     $order,
-                    $item['product_id'],
+                    $item['product_variant_id'],
                     $item['quantity'],
                     null, // No price override, use retail
                     $item // Pass full item array for discount logic
@@ -66,7 +68,14 @@ class SalesOrderService
 
             $this->recalculateTotals($order);
 
-            return $order->load(['items.product']);
+            if ($order->paid_amount > 0) {
+                $order->payments()->create([
+                    'amount' => $order->paid_amount,
+                    'payment_method' => $data['payment_method'] ?? 'kpay',
+                ]);
+            }
+
+            return $order->load(['items.productVariant.product', 'payments']);
         });
     }
 
@@ -123,26 +132,26 @@ class SalesOrderService
             } else {
                 $order->save();
             }
-            
+
             return $order;
         });
     }
 
-    public function addItemToOrder($orderId, $productId, $quantity, $priceOverride = null)
+    public function addItem($orderId, $variantId, $quantity, $unitPrice = null, array $discountData = [])
     {
-        return DB::transaction(function () use ($orderId, $productId, $quantity, $priceOverride) {
+        return DB::transaction(function () use ($orderId, $variantId, $quantity, $unitPrice, $discountData) {
             $order = SalesOrder::findOrFail($orderId);
 
             if ($order->status !== 'pending') {
-                throw new Exception("Cannot add items. Order is already {$order->status}.");
+                throw new Exception("Cannot add items to an order that is not pending.");
             }
 
-            $this->processAddItem($order, $productId, $quantity, $priceOverride);
+            $this->processAddItem($order, $variantId, $quantity, $unitPrice, $discountData);
+
             $this->recalculateTotals($order);
+            $order->logAction('item_added', ['product_variant_id' => $variantId, 'qty' => $quantity]);
 
-            $order->logAction('item_added', ['product_id' => $productId, 'qty' => $quantity]);
-
-            return $order->load('items.product');
+            return $order->load('items.productVariant.product');
         });
     }
 
@@ -202,10 +211,17 @@ class SalesOrderService
                     throw new Exception("Order is already settled.");
                 }
 
+                $amountToPay = $order->customer_grand_total - $order->paid_amount;
+                if ($amountToPay > 0) {
+                    $order->payments()->create([
+                        'amount' => $amountToPay,
+                        'payment_method' => $paymentMethod,
+                    ]);
+                }
+
                 $order->update([
                     'settlement_status' => 'settled',
                     'payment_status' => 'paid',
-                    'payment_method' => $paymentMethod,
                     'paid_amount' => $order->customer_grand_total,
                     'status' => 'completed'
                 ]);
@@ -215,6 +231,14 @@ class SalesOrderService
                 if ($order->payment_status === 'paid') {
                     throw new Exception("Order is already fully paid.");
                 }
+                $amountToPay = $order->customer_grand_total - $order->paid_amount;
+                if ($amountToPay > 0) {
+                    $order->payments()->create([
+                        'amount' => $amountToPay,
+                        'payment_method' => $paymentMethod ?? 'kpay',
+                    ]);
+                }
+
                 $order->update([
                     'payment_status' => 'paid',
                     'paid_amount' => $order->customer_grand_total,
@@ -235,12 +259,12 @@ class SalesOrderService
             $order = SalesOrder::with('items')->findOrFail($id);
             if ($order->status === 'cancelled') throw new Exception("Order is already cancelled.");
 
-            /** @var \App\Models\SalesOrderItem $item */
+            /** @var SalesOrderItem $item */
             foreach ($order->items as $item) {
-                $product = Product::lockForUpdate()->find($item->product_id);
-                if ($product) {
-                    $product->increment('stock_quantity', $item->quantity);
-                    $this->createLog($order, $product, $item->quantity, 'sale_cancelled_return');
+                $variant = ProductVariant::withTrashed()->lockForUpdate()->find($item->product_variant_id);
+                if ($variant) {
+                    $variant->increment('stock_quantity', $item->quantity);
+                    $this->createLog($order, $variant, $item->quantity, 'sale_cancelled_return');
                 }
                 $this->restoreBatches($item);
             }
@@ -264,23 +288,27 @@ class SalesOrderService
             }
 
             // 1. Restore Stock
-            $product = Product::lockForUpdate()->find($item->product_id);
-            if ($product) {
-                $product->increment('stock_quantity', $quantity);
+            $variant = ProductVariant::withTrashed()->lockForUpdate()->find($item->product_variant_id);
+            if ($variant) {
+                $variant->increment('stock_quantity', $quantity);
 
                 // Log context: If pending, it's just removing. If completed, it's a return.
                 $logType = ($order->status === 'pending') ? 'sale_item_removed' : 'sale_return_partial';
-                $this->createLog($order, $product, $quantity, $logType);
+                $this->createLog($order, $variant, $quantity, $logType);
             }
 
             $this->restoreBatches($item, $quantity);
 
             // 2. Adjust Item (Price reduction proportional to quantity)
-            // Note: unit_price accounts for item-level discounts already.
-            $refundLineTotal = $item->unit_price * $quantity;
+            $originalQty = $item->quantity;
+            $discountPerUnit = $originalQty > 0 ? ($item->discount_amount / $originalQty) : 0;
+            
+            $refundLineTotal = ($item->unit_price - $discountPerUnit) * $quantity;
+            $refundDiscountAmount = $discountPerUnit * $quantity;
 
             $item->quantity -= $quantity;
             $item->line_total -= $refundLineTotal;
+            $item->discount_amount -= $refundDiscountAmount;
 
             if ($item->quantity <= 0) {
                 $item->delete();
@@ -292,7 +320,7 @@ class SalesOrderService
             $this->recalculateTotals($order);
 
             $order->logAction('item_returned', [
-                'product' => $product->name ?? 'Unknown',
+                'product' => $variant->sku ?? 'Unknown',
                 'qty' => $quantity,
                 'reason' => $reason
             ]);
@@ -303,17 +331,18 @@ class SalesOrderService
 
     // --- HELPERS ---
 
-    private function processAddItem(SalesOrder $order, $productId, $qty, $priceOverride = null, $discountData = [])
+    private function processAddItem(SalesOrder $order, $variantId, $qty, $priceOverride = null, $discountData = [])
     {
-        $product = Product::lockForUpdate()->find($productId);
+        $variant = ProductVariant::with('product')->lockForUpdate()->find($variantId);
 
-        if (!$product || ($product->stock_quantity + $product->pending_stock) < $qty) {
-            throw new Exception("Stock limit exceeded for: {$product->name}");
+        if (!$variant || ($variant->stock_quantity + $variant->pending_stock) < $qty) {
+            $productName = $variant->product ? $variant->product->name : 'Unknown';
+            throw new Exception("Stock limit exceeded for: {$productName} ({$variant->sku})");
         }
 
-        $isPreorder = $qty > $product->stock_quantity;
+        $isPreorder = $qty > $variant->stock_quantity;
 
-        $product->decrement('stock_quantity', $qty);
+        $variant->decrement('stock_quantity', $qty);
 
         $discountType = $discountData['discount_type'] ?? 'none';
         $discountValue = (float) ($discountData['discount_value'] ?? 0);
@@ -322,7 +351,7 @@ class SalesOrderService
         // FIFO Batch Deduction Logic
         $remainingQtyNeeded = $qty;
 
-        $activeBatches = \App\Models\ProductBatch::where('product_id', $product->id)
+        $activeBatches = ProductBatch::where('product_variant_id', $variant->id)
             ->where('shop_id', $order->shop_id)
             ->where('remaining_quantity', '>', 0)
             ->orderBy('created_at', 'asc')
@@ -334,7 +363,7 @@ class SalesOrderService
             $takeQty = min($batch->remaining_quantity, $remainingQtyNeeded);
             $batchCost = $takeQty * $batch->unit_cost;
 
-            $sellingPrice = $priceOverride !== null ? $priceOverride : ($batch->retail_price ?? $product->retail_price);
+            $sellingPrice = $priceOverride !== null ? $priceOverride : ($batch->retail_price ?? $variant->effective_retail_price);
 
             $itemDiscountPerUnit = 0;
             if ($discountType === 'fixed') {
@@ -348,7 +377,7 @@ class SalesOrderService
             $totalDiscountAmount = $itemDiscountPerUnit * $takeQty;
 
             $order->items()->create([
-                'product_id' => $product->id,
+                'product_variant_id' => $variant->id,
                 'quantity' => $takeQty,
                 'unit_price' => $sellingPrice,
                 'unit_cost'  => $batch->unit_cost,
@@ -366,13 +395,13 @@ class SalesOrderService
 
         // Handle pre-orders using a "Virtual FIFO" across Pending POs
         if ($remainingQtyNeeded > 0) {
-            $lastBatch = \App\Models\ProductBatch::where('product_id', $product->id)
+            $lastBatch = ProductBatch::where('product_variant_id', $variant->id)
                 ->where('shop_id', $order->shop_id)
                 ->latest('created_at')
                 ->first();
 
             // Fetch all pending PO items for this product
-            $pendingPoItems = \App\Models\PurchaseOrderItem::where('product_id', $product->id)
+            $pendingPoItems = PurchaseOrderItem::where('product_variant_id', $variant->id)
                 ->whereHas('purchaseOrder', function ($q) use ($order) {
                     $q->where('shop_id', $order->shop_id)
                         ->where('status', 'pending');
@@ -381,7 +410,7 @@ class SalesOrderService
                 ->get();
 
             // Calculate how many pending items were already spoken for (pre-ordered in past sales)
-            $originalStock = $product->stock_quantity + $qty; // Stock before this sale decremented it
+            $originalStock = $variant->stock_quantity + $qty; // Stock before this sale decremented it
             $preorderedBeforeThisSale = $originalStock < 0 ? abs($originalStock) : 0;
 
             $skippedQty = 0;
@@ -403,7 +432,7 @@ class SalesOrderService
                 $takeQty = min($availableInThisPo, $remainingQtyNeeded);
 
                 $fallbackCost = $poItem->unit_cost;
-                $fallbackRetail = $poItem->retail_price ?? ($lastBatch ? $lastBatch->retail_price : $product->retail_price);
+                $fallbackRetail = $poItem->retail_price ?? ($lastBatch ? $lastBatch->retail_price : $variant->effective_retail_price);
 
                 $sellingPrice = $priceOverride !== null ? $priceOverride : $fallbackRetail;
 
@@ -421,7 +450,7 @@ class SalesOrderService
                 $fallbackTotalCost = $takeQty * $fallbackCost;
 
                 $order->items()->create([
-                    'product_id' => $product->id,
+                    'product_variant_id' => $variant->id,
                     'quantity' => $takeQty,
                     'unit_price' => $sellingPrice,
                     'unit_cost'  => $fallbackCost,
@@ -438,8 +467,9 @@ class SalesOrderService
 
             // If they still oversold beyond all pending POs, fallback to base cost
             if ($remainingQtyNeeded > 0) {
-                $fallbackCost = $lastBatch ? $lastBatch->unit_cost : $product->base_cost;
-                $fallbackRetail = $lastBatch && $lastBatch->retail_price ? $lastBatch->retail_price : $product->retail_price;
+                // For variant, fallback to product base cost if we must
+                $fallbackCost = $lastBatch ? $lastBatch->unit_cost : ($variant->product->base_cost ?? 0);
+                $fallbackRetail = $lastBatch && $lastBatch->retail_price ? $lastBatch->retail_price : $variant->effective_retail_price;
 
                 $sellingPrice = $priceOverride !== null ? $priceOverride : $fallbackRetail;
 
@@ -456,7 +486,7 @@ class SalesOrderService
                 $fallbackTotalCost = $remainingQtyNeeded * $fallbackCost;
 
                 $order->items()->create([
-                    'product_id' => $product->id,
+                    'product_variant_id' => $variant->id,
                     'quantity' => $remainingQtyNeeded,
                     'unit_price' => $sellingPrice,
                     'unit_cost'  => $fallbackCost,
@@ -470,7 +500,7 @@ class SalesOrderService
             }
         }
 
-        $this->createLog($order, $product, $qty, 'sale_sold');
+        $this->createLog($order, $variant, $qty, 'sale_sold');
 
         return $isPreorder;
     }
@@ -543,14 +573,14 @@ class SalesOrderService
         $order->save();
     }
 
-    private function createLog($order, $product, $qty, $reason)
+    private function createLog($order, $variant, $qty, $reason)
     {
         $change = ($reason === 'sale_sold') ? -abs($qty) : abs($qty);
         InventoryLog::create([
             'shop_id' => $order->shop_id,
-            'product_id' => $product->id,
+            'product_variant_id' => $variant->id,
             'quantity_change' => $change,
-            'new_stock_level' => $product->stock_quantity,
+            'new_stock_level' => $variant->stock_quantity,
             'reason' => $reason,
             'reference_type' => SalesOrder::class,
             'reference_id' => $order->id,
@@ -578,7 +608,7 @@ class SalesOrderService
                 continue;
             }
 
-            $batch = \App\Models\ProductBatch::find($b['batch_id']);
+            $batch = ProductBatch::find($b['batch_id']);
             if ($batch) {
                 $restoreAmount = min($b['taken'], $qtyToRestore);
                 $batch->increment('remaining_quantity', $restoreAmount);

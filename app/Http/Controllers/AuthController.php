@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Inertia\Inertia;
+use App\Models\User;
 
 class AuthController extends Controller
 {
@@ -48,7 +49,7 @@ class AuthController extends Controller
     {
         $request->validate(['shop_id' => 'required|exists:shops,id']);
         
-        /** @var \App\Models\User $user */
+        /** @var User $user */
         $user = Auth::user();
         
         // Superadmin can switch to ANY shop. Others can only switch to authorized shops.

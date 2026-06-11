@@ -4,28 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\BelongsToShop;
 
 class InventoryLog extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToShop;
 
     protected $guarded = ['id'];
-
-    // 1. The Global Scope (Security)
-    protected static function booted()
-    {
-        static::addGlobalScope('shop', function ($builder) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $builder->where('shop_id', auth()->user()->shop_id);
-            }
-        });
-
-        static::creating(function ($log) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $log->shop_id = auth()->user()->shop_id;
-            }
-        });
-    }
 
     // 2. Polymorphic Relationship (The "Reference")
     // This allows the log to point to EITHER a PurchaseOrder OR a SalesOrder
@@ -34,8 +19,8 @@ class InventoryLog extends Model
         return $this->morphTo();
     }
 
-    public function product()
+    public function productVariant()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(ProductVariant::class)->withTrashed();
     }
 }

@@ -11,6 +11,7 @@
         "laravel/framework": "^13.0",
         "laravel/sanctum": "*",
         "laravel/tinker": "*",
+        "maatwebsite/excel": "^3.1",
         "spatie/laravel-medialibrary": "*",
         "spatie/laravel-query-builder": "*"
     },

@@ -4,34 +4,27 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use App\Traits\BelongsToShop;
+use Illuminate\Support\Facades\Auth;
 
 class StockAdjustment extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToShop;
     protected $guarded = ['id'];
 
     protected static function booted()
     {
-        static::addGlobalScope('shop', function ($builder) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $builder->where('shop_id', auth()->user()->shop_id);
-            }
-        });
-
         static::creating(function ($adj) {
-            if (auth()->check() && auth()->user()->shop_id) {
-                $adj->shop_id = auth()->user()->shop_id;
-            }
             // Automatically record WHO did it
-            if (auth()->check()) {
-                $adj->user_id = auth()->id();
+            if (Auth::check()) {
+                $adj->user_id = Auth::id();
             }
         });
     }
 
-    public function product()
+    public function productVariant()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(ProductVariant::class);
     }
 
     public function user()

@@ -29,7 +29,7 @@ class StoreSalesOrderRequest extends FormRequest
             'is_deli_prepaid' => 'boolean',
 
             // Financials
-            'payment_method' => 'required|string|in:kpay,cash,cod',
+            'payment_method' => 'required|string|in:kpay,cash,ayapay',
             'money_collected_by' => 'required|string|in:seller,courier',
             'paid_amount' => 'nullable|numeric|min:0', // <--- Critical for payment status
 

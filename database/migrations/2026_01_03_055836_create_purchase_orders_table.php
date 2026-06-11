@@ -27,6 +27,8 @@ return new class extends Migration
 
             $table->string('batch_name');
             $table->string('status')->default('pending'); // pending, arrived, cancelled
+            
+            $table->string('order_type')->default('global'); // 'local' or 'global'
 
             // 3. Currency & Exchange Rate (Crucial for China orders)
             // If local, rate is 1.0000. If foreign, rate might be 500.0000
@@ -35,7 +37,9 @@ return new class extends Migration
             // 4. Cost Breakdown (The "Foreign Flow")
             // Stage 1: Paid Upfront
             $table->decimal('total_goods_cost', 12, 2)->default(0); // Calculated from items
-            $table->decimal('supplier_fee', 12, 2)->default(0);     // Extra fee for the agent
+            $table->decimal('foreign_deli_fee', 12, 2)->default(0); // China domestic shipping
+            $table->decimal('supplier_fee_percentage', 5, 2)->default(0); // e.g. 3.00 for 3%
+            $table->decimal('supplier_fee', 12, 2)->default(0);     // Extra fee for the agent (calculated)
 
             // Stage 2: Paid on Arrival
             $table->decimal('cargo_fee', 12, 2)->default(0);        // Shipping from China
@@ -63,9 +67,9 @@ return new class extends Migration
             $table->unsignedBigInteger('purchase_order_id');
             $table->foreign('purchase_order_id', 'po_items_po_fk')->references('id')->on('purchase_orders')->onDelete('cascade');
 
-            // Explicit Product FK
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id', 'po_items_prod_fk')->references('id')->on('products');
+            // Explicit Variant FK
+            $table->unsignedBigInteger('product_variant_id');
+            $table->foreign('product_variant_id', 'po_items_variant_fk')->references('id')->on('product_variants')->onDelete('cascade');
 
             $table->integer('quantity');
             $table->integer('received_quantity')->nullable();

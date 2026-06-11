@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { PurchaseOrder } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { twMerge } from 'tailwind-merge';
@@ -28,27 +29,74 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
 
-    const { data, setData, post, processing } = useForm({
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
         cargo_fee: '',
         local_deli_fee: '',
         adjustment_amount: '',
         adjustment_reason: '',
         received_items: order.items?.map(item => {
-            const rp = item.retail_price || item.product?.retail_price;
+            const rp = item.retail_price || item.product_variant?.retail_price;
             return {
                 id: item.id,
                 received_quantity: item.quantity.toString(),
-                retail_price: (rp === 0 || !rp) ? '' : rp.toString()
+                retail_price: (rp === 0 || !rp) ? '' : rp.toString(),
+                allocated_cargo_fee: '',
+                allocated_adjustment_amount: ''
             };
         }) || []
     });
 
-    const formatMMK = (val: number) => Number(val).toLocaleString();
+    const [manualAllocation, setManualAllocation] = useState(false);
+
+    useEffect(() => {
+        if (!isReceivingMode || manualAllocation) return;
+
+        const totalCargo = Number(data.cargo_fee) || 0;
+        const totalAdjustment = Number(data.adjustment_amount) || 0;
+
+        // Calculate total goods cost based on received quantities
+        let totalValue = 0;
+        data.received_items.forEach(ri => {
+            const item = order.items && order.items.find((i: any) => i.id === ri.id);
+            if (item) {
+                totalValue += (Number(ri.received_quantity) || 0) * Number(item.original_cost);
+            }
+        });
+
+        if (totalValue > 0) {
+            const newReceivedItems = data.received_items.map(ri => {
+                const item = order.items && order.items.find((i: any) => i.id === ri.id);
+                if (!item) return ri;
+
+                const itemValue = (Number(ri.received_quantity) || 0) * Number(item.original_cost);
+                const fraction = itemValue / totalValue;
+
+                return {
+                    ...ri,
+                    allocated_cargo_fee: (totalCargo * fraction).toFixed(2),
+                    allocated_adjustment_amount: (totalAdjustment * fraction).toFixed(2)
+                };
+            });
+
+            // Prevent infinite loop by deep comparing or just updating if different
+            // To be safe, we just set it. But setData triggers re-render, leading to infinite loop if we don't check.
+            const hasChanged = newReceivedItems.some((nRi, idx) =>
+                nRi.allocated_cargo_fee !== data.received_items[idx].allocated_cargo_fee ||
+                nRi.allocated_adjustment_amount !== data.received_items[idx].allocated_adjustment_amount
+            );
+
+            if (hasChanged) {
+                setData('received_items', newReceivedItems);
+            }
+        }
+    }, [data.cargo_fee, data.adjustment_amount, data.received_items, isReceivingMode, manualAllocation, order.items]);
+
+    const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
     const CostRow = ({ label, value, isTotal = false }: { label: string, value: number, isTotal?: boolean }) => (
-        <div className={twMerge("flex justify-between items-center mb-2", isTotal ? "mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700" : "")}>
-            <span className={twMerge("text-xs", isTotal ? "font-black text-black dark:text-white" : "font-medium text-zinc-500")}>{label}</span>
-            <span className={twMerge("text-xs", isTotal ? "font-black text-black dark:text-white text-base" : "font-bold text-zinc-800 dark:text-zinc-300")}>
+        <div className={twMerge("flex justify-between items-start gap-4 mb-3", isTotal ? "mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700 items-center" : "")}>
+            <span className={twMerge("text-xs leading-relaxed", isTotal ? "font-black text-black dark:text-white" : "font-medium text-zinc-500")}>{label}</span>
+            <span className={twMerge("text-xs shrink-0 text-right mt-0.5", isTotal ? "font-black text-black dark:text-white text-base mt-0" : "font-bold text-zinc-800 dark:text-zinc-300")}>
                 {value !== 0 && value !== null && value !== undefined ? formatMMK(value) : "-"}
             </span>
         </div>
@@ -82,10 +130,10 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">{order.batch_name}</h1>
                             <div className="flex items-center gap-2 mt-1">
-                                <span className={twMerge("text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded",
-                                    isArrived ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-500" :
-                                        isCancelled ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-500" :
-                                            "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-400")}>
+                                <span className={twMerge("text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border",
+                                    isArrived ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white" :
+                                        isCancelled ? "bg-transparent border-zinc-300 dark:border-zinc-700 text-zinc-500 line-through decoration-zinc-400" :
+                                            "bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400")}>
                                     {order.status}
                                 </span>
                                 <span className="text-xs text-zinc-400 font-medium">
@@ -117,8 +165,14 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                         <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
                             <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-4">Cost Breakdown (MMK)</span>
 
-                            <CostRow label="Total Goods Cost" value={order.total_goods_cost} />
-                            {order.supplier_fee > 0 && <CostRow label="Supplier Service Fee" value={order.supplier_fee} />}
+                            {order.order_type === 'global' ? (
+                                <CostRow label={`Total Goods Cost (${order.total_goods_cost.toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={order.total_goods_cost * order.exchange_rate} />
+                            ) : (
+                                    <CostRow label="Total Goods Cost" value={order.total_goods_cost} />
+                            )}
+
+                            {Number(order.foreign_deli_fee) > 0 && <CostRow label={`Foreign Delivery (${(order.foreign_deli_fee || 0).toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={(order.foreign_deli_fee || 0) * order.exchange_rate} />}
+                            {order.supplier_fee > 0 && <CostRow label={`Supplier Service Fee (${order.supplier_fee.toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={order.supplier_fee * order.exchange_rate} />}
 
                             {order.cargo_fee > 0 && <CostRow label="Cargo Fee" value={order.cargo_fee} />}
                             {order.local_deli_fee > 0 && <CostRow label="Local Delivery" value={order.local_deli_fee} />}
@@ -152,14 +206,28 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                                     <div key={item.id} className="p-4 border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 flex flex-col gap-2">
                                         <div className="flex justify-between items-start">
                                             <div className="flex-1 mr-4">
-                                                <h4 className="font-bold text-black dark:text-white text-base mb-1">{item.product.name}</h4>
+                                                <h4 className="font-bold text-black dark:text-white text-base mb-1">
+                                                    {item.product_variant?.product?.name} - {Object.values(item.product_variant?.attributes || {}).join(' / ') || 'Default'}
+                                                </h4>
                                                 <span className="text-xs text-zinc-500 block">
-                                                    Ordered: {item.quantity} units @ {formatMMK(item.unit_cost)} (Rate: {order.exchange_rate})
+                                                    Ordered: {item.quantity} units @ {formatMMK(item.unit_cost)} MMK
+                                                    {order.order_type === 'global' && (
+                                                        <span className="text-zinc-400 ml-1">
+                                                            (Original: {item.original_cost} {order.supplier?.currency || 'CNY'}, Rate: {order.exchange_rate})
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </div>
-                                            <span className="font-black text-black dark:text-white text-lg">
-                                                {formatMMK(item.line_total)}
-                                            </span>
+                                            <div className="flex flex-col items-end">
+                                                <span className="font-black text-black dark:text-white text-lg">
+                                                    {formatMMK(item.line_total)}
+                                                </span>
+                                                {order.order_type === 'global' && (
+                                                    <span className="text-[10px] text-zinc-400 font-medium">
+                                                        {((item.received_quantity ?? item.quantity) * item.original_cost).toLocaleString()} {order.supplier?.currency || 'CNY'}
+                                                    </span>
+                                                )}
+                                            </div>
                                         </div>
 
                                         <div>
@@ -183,7 +251,7 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                                             )}
 
                                             {isReceivingMode && (
-                                                <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                                <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
                                                     <div className="flex items-center gap-2">
                                                         <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Received Qty:</Label>
                                                         <Input
@@ -201,22 +269,55 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                                                         />
                                                     </div>
                                                     <div className="flex items-center gap-2">
-                                                        <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Retail Price: *</Label>
-                                                        <Input
-                                                            type="number"
+                                                        <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Retail Price:</Label>
+                                                        <FormattedNumberInput
                                                             value={data.received_items.find(ri => ri.id === item.id)?.retail_price || ''}
-                                                            onChange={(e) => {
+                                                            onChange={(val) => {
                                                                 const newItems = [...data.received_items];
                                                                 const idx = newItems.findIndex(ri => ri.id === item.id);
                                                                 if (idx !== -1) {
-                                                                    newItems[idx].retail_price = e.target.value;
+                                                                    newItems[idx].retail_price = val;
                                                                     setData('received_items', newItems);
                                                                 }
+                                                                clearErrors(`received_items.${idx}.retail_price`);
                                                             }}
                                                             className="w-24 h-7 text-xs border-zinc-200 dark:border-zinc-800"
-                                                            required
                                                         />
                                                     </div>
+                                                    {manualAllocation && (
+                                                        <>
+                                                            <div className="flex items-center gap-2">
+                                                                <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Allocated Cargo:</Label>
+                                                                <FormattedNumberInput
+                                                                    value={data.received_items.find(ri => ri.id === item.id)?.allocated_cargo_fee || ''}
+                                                                    onChange={(val) => {
+                                                                        const newItems = [...data.received_items];
+                                                                        const idx = newItems.findIndex(ri => ri.id === item.id);
+                                                                        if (idx !== -1) {
+                                                                            newItems[idx].allocated_cargo_fee = val;
+                                                                            setData('received_items', newItems);
+                                                                        }
+                                                                    }}
+                                                                    className="w-24 h-7 text-xs border-zinc-200 dark:border-zinc-800"
+                                                                />
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Allocated Adj:</Label>
+                                                                <FormattedNumberInput
+                                                                    value={data.received_items.find(ri => ri.id === item.id)?.allocated_adjustment_amount || ''}
+                                                                    onChange={(val) => {
+                                                                        const newItems = [...data.received_items];
+                                                                        const idx = newItems.findIndex(ri => ri.id === item.id);
+                                                                        if (idx !== -1) {
+                                                                            newItems[idx].allocated_adjustment_amount = val;
+                                                                            setData('received_items', newItems);
+                                                                        }
+                                                                    }}
+                                                                    className="w-24 h-7 text-xs border-zinc-200 dark:border-zinc-800"
+                                                                />
+                                                            </div>
+                                                        </>
+                                                    )}
                                                 </div>
                                             )}
 
@@ -274,43 +375,54 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                                         <h3 className="text-lg font-black text-white">Finalize Costs</h3>
                                         <p className="text-xs text-zinc-400 mb-2">Enter additional fees to calculate true item cost.</p>
 
-                                        <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl mb-2">
-                                            <p className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Auto-Settlement</p>
-                                            <p className="text-xs text-green-300/80 mt-1">This order will be automatically marked as 100% paid in full upon confirmation.</p>
+                                            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl mb-2 flex justify-between items-start gap-4">
+                                                <div>
+                                                    <p className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Auto-Settlement & Auto-Distribution</p>
+                                                    <p className="text-xs text-green-300/80 mt-1">This order will be automatically marked as 100% paid in full. Cargo and Adjustments will be distributed automatically based on product value unless manual allocation is checked.</p>
+                                                </div>
+                                                <div className="flex flex-col items-center shrink-0">
+                                                    <Label className="text-[9px] uppercase font-bold text-green-400 mb-1">Manual Override</Label>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={manualAllocation}
+                                                        onChange={(e) => { setManualAllocation(e.target.checked); clearErrors('received_items'); }}
+                                                        className="w-5 h-5 rounded border-green-500/30 bg-green-900/50 text-green-500 focus:ring-green-500"
+                                                    />
+                                                </div>
                                         </div>
 
                                         <div className="flex flex-col gap-2">
                                             <Label className="text-zinc-300">Cargo Fee (MMK)</Label>
-                                            <Input
-                                                type="number"
+                                            <FormattedNumberInput
                                                 value={data.cargo_fee}
-                                                onChange={(e) => setData('cargo_fee', e.target.value)}
+                                                onChange={(val) => { setData('cargo_fee', val); clearErrors('cargo_fee'); }}
                                                 placeholder="0"
                                                 className="bg-zinc-900 border-zinc-800 text-white"
                                             />
+                                            {errors.cargo_fee && <span className="text-red-500 text-xs">{errors.cargo_fee}</span>}
                                         </div>
 
                                         <div className="flex flex-col gap-2">
                                             <Label className="text-zinc-300">Local Delivery (MMK)</Label>
-                                            <Input
-                                                type="number"
+                                            <FormattedNumberInput
                                                 value={data.local_deli_fee}
-                                                onChange={(e) => setData('local_deli_fee', e.target.value)}
+                                                onChange={(val) => { setData('local_deli_fee', val); clearErrors('local_deli_fee'); }}
                                                 placeholder="0"
                                                 className="bg-zinc-900 border-zinc-800 text-white"
                                             />
+                                            {errors.local_deli_fee && <span className="text-red-500 text-xs">{errors.local_deli_fee}</span>}
                                         </div>
 
                                         <div className="flex flex-col gap-2">
                                             <Label className="text-zinc-300">Adjustment Amount (MMK)</Label>
-                                            <Input
-                                                type="number"
+                                            <FormattedNumberInput
                                                 value={data.adjustment_amount}
-                                                onChange={(e) => setData('adjustment_amount', e.target.value)}
+                                                onChange={(val) => { setData('adjustment_amount', val); clearErrors('adjustment_amount'); }}
                                                 placeholder="e.g. -5000 or 2000"
                                                 className="bg-zinc-900 border-zinc-800 text-white"
                                             />
                                             <span className="text-[10px] text-zinc-500 mt-0.5">Use negative numbers for discounts/missing items.</span>
+                                            {errors.adjustment_amount && <span className="text-red-500 text-xs">{errors.adjustment_amount}</span>}
                                         </div>
 
                                         {data.adjustment_amount && data.adjustment_amount !== '0' && (
@@ -319,11 +431,11 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                                                 <Input
                                                     type="text"
                                                     value={data.adjustment_reason}
-                                                    onChange={(e) => setData('adjustment_reason', e.target.value)}
+                                                    onChange={(e) => { setData('adjustment_reason', e.target.value); clearErrors('adjustment_reason'); }}
                                                     placeholder="Required for adjustments"
                                                     className="bg-zinc-900 border-zinc-800 text-white"
-                                                    required
                                                 />
+                                                {errors.adjustment_reason && <span className="text-red-500 text-xs">{errors.adjustment_reason}</span>}
                                             </div>
                                         )}
 

@@ -14,8 +14,8 @@ class SalesOrderItem extends Model
         'batch_breakdown' => 'array',
     ];
 
-    public function product()
+    public function productVariant()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(ProductVariant::class)->withTrashed();
     }
 }

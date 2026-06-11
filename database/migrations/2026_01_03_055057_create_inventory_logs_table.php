@@ -17,9 +17,9 @@ return new class extends Migration
             $table->unsignedBigInteger('shop_id');
             $table->foreign('shop_id', 'inv_logs_shop_fk')->references('id')->on('shops')->onDelete('cascade');
 
-            // 2. Explicitly name the Product FK
-            $table->unsignedBigInteger('product_id');
-            $table->foreign('product_id', 'inv_logs_prod_fk')->references('id')->on('products')->onDelete('cascade');
+            // 2. Explicitly name the Variant FK
+            $table->unsignedBigInteger('product_variant_id');
+            $table->foreign('product_variant_id', 'inv_logs_variant_fk')->references('id')->on('product_variants')->onDelete('cascade');
 
             // THE CHANGE
             // e.g. +10 (Arrived), -1 (Sold), -1 (Damage), +1 (Return)

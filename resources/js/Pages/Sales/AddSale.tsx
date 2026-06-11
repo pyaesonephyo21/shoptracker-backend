@@ -2,15 +2,17 @@ import React, { useState, useMemo } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import { Head, router, useForm } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { SearchableSelect } from '@/components/SearchableSelect';
 import { twMerge } from 'tailwind-merge';
 import { SaleItemInput } from '@/types/sales';
 import { Product } from '@/types/inventory';
 
 export default function AddSale({ products = [] }: { products: Product[] }) {
-    const { data, setData, post, processing, errors } = useForm({
+    const { data, setData, post, processing, errors, clearErrors } = useForm({
         customer_name: '',
         customer_phone: '',
         address: '',
@@ -20,37 +22,56 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         discount_reason: '',
         overcharge: '',
         note: '',
-        paid_amount: ''
+        paid_amount: '',
+        payment_method: 'kpay' as 'kpay' | 'cash' | 'ayapay'
     });
 
     const [selectedProduct, setSelectedProduct] = useState<string>('');
 
-    const productOptions = products.map(p => {
-        let displayStock = p.stock_quantity;
-        let displayPending = p.pending_stock;
-        
-        if (displayStock < 0) {
-            displayPending = Math.max(0, displayPending + displayStock);
-            displayStock = 0;
-        }
+    const productOptions = products.flatMap(p =>
+        (p.variants || [])
+            .map(v => {
+                let displayStock = v.stock_quantity;
+                let displayPending = v.pending_stock;
 
-        return {
-            label: `${p.name} (S: ${displayStock}, P: ${displayPending})`,
-            value: String(p.id)
-        };
-    });
+                if (displayStock < 0) {
+                    displayPending = Math.max(0, displayPending + displayStock);
+                    displayStock = 0;
+                }
+
+                return { v, displayStock, displayPending };
+            })
+            .filter(({ displayStock, displayPending }) => displayStock + displayPending > 0)
+            .map(({ v, displayStock, displayPending }) => {
+                const attributesLabel = Object.values(v.attributes || {}).join(' / ') || 'Default';
+                return {
+                    label: `${p.name} - ${attributesLabel} (S: ${displayStock}, P: ${displayPending})`,
+                    value: String(v.id)
+                };
+            })
+    );
 
     const handleAddToCart = () => {
         if (!selectedProduct) return;
-        const product = products.find(p => p.id === Number(selectedProduct));
-        if (!product) return;
+
+        let variant = null;
+        let parentProduct = null;
+        for (const p of products) {
+            variant = p.variants?.find(v => v.id === Number(selectedProduct));
+            if (variant) {
+                parentProduct = p;
+                break;
+            }
+        }
+
+        if (!variant || !parentProduct) return;
 
         setData('cart', [
             ...data.cart,
             {
-                product_id: product.id,
+                product_variant_id: variant.id,
                 quantity: '',
-                unit_price_snapshot: product.retail_price || 0,
+                unit_price_snapshot: variant.retail_price || parentProduct.retail_price || 0,
                 discount_type: 'none',
                 discount_value: '',
                 discount_reason: ''
@@ -69,11 +90,13 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         setData('cart', data.cart.filter((_, i) => i !== index));
     };
 
-    const calculateFifoRetailPrice = (product: Product, requestedQty: number) => {
-        if (!product || !product.batches || product.batches.length === 0) {
-            return { 
-                total: requestedQty * (product.retail_price || 0), 
-                average: product.retail_price || 0,
+    const calculateFifoRetailPrice = (variant: any, requestedQty: number, parentProduct: any) => {
+        const effectivePrice = variant.retail_price || (parentProduct ? parentProduct.retail_price : 0) || 0;
+
+        if (!variant || !variant.batches || variant.batches.length === 0) {
+            return {
+                total: requestedQty * effectivePrice,
+                average: effectivePrice,
                 isMultiple: false
             };
         }
@@ -82,18 +105,18 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         let total = 0;
         let pricesUsed = new Set<number>();
 
-        for (const batch of product.batches) {
+        for (const batch of variant.batches) {
             if (remaining <= 0) break;
             const take = Math.min(batch.remaining_quantity, remaining);
-            const price = batch.retail_price !== null && batch.retail_price !== undefined ? batch.retail_price : (product.retail_price || 0);
+            const price = batch.retail_price !== null && batch.retail_price !== undefined ? batch.retail_price : effectivePrice;
             total += take * price;
             pricesUsed.add(price);
             remaining -= take;
         }
 
         if (remaining > 0) {
-            const lastBatch = product.batches[product.batches.length - 1];
-            const price = lastBatch && lastBatch.retail_price !== null && lastBatch.retail_price !== undefined ? lastBatch.retail_price : (product.retail_price || 0);
+            const lastBatch = variant.batches[variant.batches.length - 1];
+            const price = lastBatch && lastBatch.retail_price !== null && lastBatch.retail_price !== undefined ? lastBatch.retail_price : effectivePrice;
             total += remaining * price;
             pricesUsed.add(price);
         }
@@ -108,10 +131,18 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
     // Derived State Calculations
     const subtotal = useMemo(() => {
         return data.cart.reduce((sum, item) => {
-            const product = products.find(p => p.id === item.product_id);
+            let variant = null;
+            let parentProduct = null;
+            for (const p of products) {
+                variant = p.variants?.find(v => v.id === item.product_variant_id);
+                if (variant) {
+                    parentProduct = p;
+                    break;
+                }
+            }
             const qty = Number(item.quantity) || 0;
             const discountVal = Number(item.discount_value) || 0;
-            const basePrice = product ? calculateFifoRetailPrice(product, qty).average : (item.unit_price_snapshot || 0);
+            const basePrice = variant ? calculateFifoRetailPrice(variant, qty, parentProduct).average : (item.unit_price_snapshot || 0);
 
             let effectivePrice = basePrice;
             if (item.discount_type === 'fixed') {
@@ -144,6 +175,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         }
 
         post('/sales', {
+            preserveScroll: true,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
                     alert('Failed to create order');
@@ -180,30 +212,34 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div className="flex flex-col gap-2">
-                                <Label htmlFor="customer_name">Name</Label>
+                                <Label htmlFor="customer_name">Name (Optional)</Label>
                                 <Input
                                     id="customer_name"
                                     value={data.customer_name}
-                                    onChange={(e) => setData('customer_name', e.target.value)}
+                                    onChange={(e) => { setData('customer_name', e.target.value); clearErrors('customer_name'); }}
                                 />
+                                {errors.customer_name && <span className="text-red-500 text-xs">{errors.customer_name}</span>}
                             </div>
                             <div className="flex flex-col gap-2">
-                                <Label htmlFor="customer_phone">Phone</Label>
+                                <Label htmlFor="customer_phone">Phone (Optional)</Label>
                                 <Input
                                     id="customer_phone"
                                     type="tel"
                                     value={data.customer_phone}
-                                    onChange={(e) => setData('customer_phone', e.target.value)}
+                                    onChange={(e) => { setData('customer_phone', e.target.value); clearErrors('customer_phone'); }}
                                 />
+                                {errors.customer_phone && <span className="text-red-500 text-xs">{errors.customer_phone}</span>}
                             </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="address">Address</Label>
-                            <Input
+                            <Label htmlFor="address">Address (Optional)</Label>
+                            <textarea
                                 id="address"
                                 value={data.address}
-                                onChange={(e) => setData('address', e.target.value)}
+                                onChange={(e) => { setData('address', e.target.value); clearErrors('address'); }}
+                                className="flex min-h-[80px] w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:placeholder:text-zinc-400 dark:focus-visible:ring-zinc-300 resize-y"
                             />
+                            {errors.address && <span className="text-red-500 text-xs">{errors.address}</span>}
                         </div>
                     </section>
 
@@ -216,18 +252,12 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                         <div className="flex items-end gap-4 mb-6">
                             <div className="flex-1 flex flex-col gap-2">
                                 <Label>Add Product</Label>
-                                <Select value={selectedProduct} onValueChange={(val) => setSelectedProduct(val ?? '')}>
-                                    <SelectTrigger className="w-full h-10">
-                                        <SelectValue placeholder="Select a product...">
-                                            {selectedProduct ? productOptions.find(p => p.value === selectedProduct)?.label : "Select a product..."}
-                                        </SelectValue>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {productOptions.map(opt => (
-                                            <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
+                                <SearchableSelect
+                                    value={selectedProduct}
+                                    onValueChange={(val) => setSelectedProduct(val)}
+                                    options={productOptions}
+                                    placeholder="Select a product..."
+                                />
                             </div>
                             <Button type="button" onClick={handleAddToCart} className="h-10 px-8 text-xl">
                                 +
@@ -236,18 +266,27 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
 
                         <div className="flex flex-col gap-4">
                             {data.cart.map((item, index) => {
-                                const product = products.find(p => p.id === item.product_id);
-                                const productName = product?.name || `Item #${index + 1}`;
+                                let variant = null;
+                                let parentProduct = null;
+                                let productName = `Item #${index + 1}`;
+                                for (const p of products) {
+                                    variant = p.variants?.find(v => v.id === item.product_variant_id);
+                                    if (variant) {
+                                        parentProduct = p;
+                                        productName = `${p.name} - ${Object.values(variant.attributes || {}).join(' / ') || 'Default'}`;
+                                        break;
+                                    }
+                                }
 
                                 // Calculate dynamically available stock for THIS row
                                 let stock = 0;
                                 let pending = 0;
                                 let maxAllowed = 1;
 
-                                if (product) {
-                                    const previousQty = data.cart.slice(0, index).filter(i => i.product_id === product.id).reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
-                                    let remainingStock = product.stock_quantity - previousQty;
-                                    let remainingPending = product.pending_stock;
+                                if (variant) {
+                                    const previousQty = data.cart.slice(0, index).filter(i => i.product_variant_id === variant.id).reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+                                    let remainingStock = variant.stock_quantity - previousQty;
+                                    let remainingPending = variant.pending_stock;
 
                                     if (remainingStock < 0) {
                                         remainingPending += remainingStock;
@@ -294,23 +333,25 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                                         } else {
                                                             handleUpdateItem(index, 'quantity', val);
                                                         }
+                                                        clearErrors(`cart.${index}.quantity` as any);
                                                     }}
                                                     min="1"
                                                     max={maxAllowed}
                                                 />
+                                                {errors[`cart.${index}.quantity` as keyof typeof errors] && <span className="text-red-500 text-xs">{errors[`cart.${index}.quantity` as keyof typeof errors]}</span>}
                                             </div>
 
                                             <div className="flex-1 flex flex-col justify-center">
                                                 <span className="text-xs text-zinc-500 font-medium mb-1">Unit Price</span>
                                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                                                    {product && calculateFifoRetailPrice(product, Number(item.quantity) || 0).isMultiple ? (
+                                                    {variant && calculateFifoRetailPrice(variant, Number(item.quantity) || 0, parentProduct).isMultiple ? (
                                                         <span className="font-bold text-lg text-orange-500 dark:text-orange-400">
                                                             Varies (Diff Batches)
                                                         </span>
                                                     ) : (
                                                         <>
                                                             <span className={twMerge("font-bold text-lg", hasDiscount ? "text-zinc-400 line-through text-sm" : "text-black dark:text-white")}>
-                                                                {(product ? calculateFifoRetailPrice(product, Number(item.quantity) || 0).average : (item.unit_price_snapshot || 0)).toLocaleString()}
+                                                                    {(variant ? calculateFifoRetailPrice(variant, Number(item.quantity) || 0, parentProduct).average : (item.unit_price_snapshot || 0)).toLocaleString()}
                                                             </span>
                                                             {hasDiscount && (
                                                                 <span className="text-black dark:text-white font-bold text-lg">
@@ -336,12 +377,12 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                             {hasDiscount && (
                                                 <div className="grid grid-cols-3 gap-3">
                                                     <div className="col-span-1">
-                                                        <Input
-                                                            type="number"
+                                                        <FormattedNumberInput
                                                             placeholder="Value"
                                                             value={item.discount_value === '' ? '' : String(item.discount_value)}
-                                                            onChange={(e) => handleUpdateItem(index, 'discount_value', e.target.value === '' ? '' : Number(e.target.value))}
+                                                            onChange={(val) => { handleUpdateItem(index, 'discount_value', val === '' ? '' : Number(val)); clearErrors(`cart.${index}.discount_value` as any); }}
                                                         />
+                                                        {errors[`cart.${index}.discount_value` as keyof typeof errors] && <span className="text-red-500 text-xs">{errors[`cart.${index}.discount_value` as keyof typeof errors]}</span>}
                                                     </div>
                                                     <div className="col-span-2">
                                                         <Input
@@ -389,29 +430,30 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
 
                             {data.discount_type !== 'none' && (
                                 <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <Input
-                                        type="number"
+                                    <FormattedNumberInput
                                         placeholder="Discount Value"
                                         value={data.discount_value}
-                                        onChange={(e) => setData('discount_value', e.target.value)}
+                                        onChange={(val) => { setData('discount_value', val); clearErrors('discount_value'); }}
                                     />
+                                    {errors.discount_value && <span className="text-red-500 text-xs">{errors.discount_value}</span>}
                                     <Input
                                         placeholder="Reason"
                                         value={data.discount_reason}
-                                        onChange={(e) => setData('discount_reason', e.target.value)}
+                                        onChange={(e) => { setData('discount_reason', e.target.value); clearErrors('discount_reason'); }}
                                     />
+                                    {errors.discount_reason && <span className="text-red-500 text-xs">{errors.discount_reason}</span>}
                                 </div>
                             )}
 
                             <div className="flex justify-between items-center mt-4 mb-2">
                                 <span className="text-zinc-500 text-sm font-medium">Overcharge</span>
-                                <Input
-                                    type="number"
+                                <FormattedNumberInput
                                     placeholder="0"
                                     value={data.overcharge}
-                                    onChange={(e) => setData('overcharge', e.target.value)}
+                                    onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
                                     className="w-32 h-8 text-right font-bold"
                                 />
+                                {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
                             </div>
 
                             <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
@@ -427,20 +469,30 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
                             <div className="bg-black dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
                                 <span className="text-zinc-400 text-xs font-bold uppercase block mb-3">Deposit / Paid</span>
-                                <input
-                                    type="number"
+                                <FormattedNumberInput
                                     value={data.paid_amount}
-                                    onChange={(e) => setData('paid_amount', e.target.value)}
+                                    onChange={(val) => { setData('paid_amount', val); clearErrors('paid_amount'); }}
                                     placeholder="0"
-                                    className="bg-transparent border-none outline-none text-white font-black text-2xl w-full"
+                                    className="bg-transparent shadow-none border-none outline-none text-white font-black text-2xl w-full h-auto px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:ring-0 focus-visible:ring-offset-0"
                                 />
+                                {errors.paid_amount && <span className="text-red-500 text-xs">{errors.paid_amount}</span>}
+                                {Number(data.paid_amount) > 0 && (
+                                    <div className="mt-5 pt-5 border-t border-zinc-800">
+                                        <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest block mb-2">Deposit Method</span>
+                                        <div className="flex gap-2">
+                                            <button type="button" onClick={() => setData('payment_method', 'cash')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${data.payment_method === 'cash' ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}`}>Cash</button>
+                                            <button type="button" onClick={() => setData('payment_method', 'kpay')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${data.payment_method === 'kpay' ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}`}>KPay</button>
+                                            <button type="button" onClick={() => setData('payment_method', 'ayapay')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${data.payment_method === 'ayapay' ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}`}>AYA</button>
+                                        </div>
+                                    </div>
+                                )}
                             </div>
 
                             <div className="flex flex-col items-end justify-center py-4">
                                 {isOverpaid ? (
                                     <>
-                                        <span className="text-[10px] text-red-500 uppercase font-black">Error</span>
-                                        <span className="text-red-500 font-bold text-lg">Overpaid</span>
+                                        <span className="text-[10px] text-zinc-400 uppercase font-bold">Overpaid</span>
+                                        <span className="text-orange-500 font-bold text-lg">{Math.abs(remaining).toLocaleString()} MMK</span>
                                     </>
                                 ) : remaining > 0 ? (
                                     <>
@@ -457,13 +509,14 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                     </section>
 
                     <section className="flex flex-col gap-2">
-                        <Label htmlFor="note">General Note</Label>
+                        <Label htmlFor="note">General Note (Optional)</Label>
                         <Input
                             id="note"
                             placeholder="Optional..."
                             value={data.note}
-                            onChange={(e) => setData('note', e.target.value)}
+                            onChange={(e) => { setData('note', e.target.value); clearErrors('note'); }}
                         />
+                        {errors.note && <span className="text-red-500 text-xs">{errors.note}</span>}
                     </section>
 
                     <Button

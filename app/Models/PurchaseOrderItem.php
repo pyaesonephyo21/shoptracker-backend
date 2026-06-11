@@ -24,9 +24,9 @@ class PurchaseOrderItem extends Model
     // ==========================
 
     // Allows $item->product->increment(...) to work
-    public function product()
+    public function productVariant()
     {
-        return $this->belongsTo(Product::class);
+        return $this->belongsTo(ProductVariant::class)->withTrashed();
     }
 
     // Link back to the parent order

@@ -8,35 +8,20 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Builder;
 use Spatie\MediaLibrary\InteractsWithMedia;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Traits\BelongsToShop;
 
 class Product extends Model implements HasMedia
 {
-    use HasFactory, InteractsWithMedia;
+    use HasFactory, InteractsWithMedia, BelongsToShop;
 
     protected $guarded = [];
 
+    protected $casts = [
+        'variant_options' => 'array',
+        'is_active' => 'boolean',
+    ];
+
     protected $appends = ['image_url'];
-
-    /**
-     * The "The Boot Method"
-     * This runs automatically every time this Model is used.
-     */
-    protected static function booted()
-    {
-        // If a user is logged in, AUTOMATICALLY filter by their shop_id
-        static::addGlobalScope('shop', function (Builder $builder) {
-            if (Auth::check()) {
-                $builder->where('shop_id', Auth::user()->shop_id);
-            }
-        });
-
-        // When CREATING a product, AUTOMATICALLY set the shop_id
-        static::creating(function ($product) {
-            if (Auth::check()) {
-                $product->shop_id = Auth::user()->shop_id;
-            }
-        });
-    }
 
     /**
      * Scope a query to filter products.
@@ -49,7 +34,9 @@ class Product extends Model implements HasMedia
             $search = $filters['search'];
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('sku', 'like', "%{$search}%");
+                  ->orWhereHas('variants', function($q) use ($search) {
+                      $q->where('sku', 'like', "%{$search}%");
+                  });
             });
         }
 
@@ -73,11 +60,10 @@ class Product extends Model implements HasMedia
         return $this->belongsTo(Category::class);
     }
 
-    public function inventoryLogs()
+    public function variants()
     {
-        return $this->hasMany(InventoryLog::class);
+        return $this->hasMany(ProductVariant::class);
     }
-
     // Optional: Auto-resize images when uploaded
     public function registerMediaConversions(\Spatie\MediaLibrary\MediaCollections\Models\Media $media = null): void
     {
@@ -89,9 +75,5 @@ class Product extends Model implements HasMedia
         $this->addMediaConversion('app_view')
             ->width(800)
             ->height(800);
-    }
-    public function batches()
-    {
-        return $this->hasMany(ProductBatch::class);
     }
 }

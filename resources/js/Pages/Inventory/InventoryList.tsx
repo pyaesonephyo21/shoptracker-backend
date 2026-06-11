@@ -8,35 +8,40 @@ import Pagination from '@/components/Pagination';
 
 import { router } from '@inertiajs/react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 
-export default function InventoryList({ products, filters = { search: '', type: '', filter: '' } }: { products: PaginatedData<Product>, filters: { search: string, type: string, filter: string } }) {
+export default function InventoryList({ products, filters = { search: '', type: '', filter: '', status: 'active' } }: { products: PaginatedData<Product>, filters: { search: string, type: string, filter: string, status?: string } }) {
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
     const [activeType, setActiveType] = useState(filters.type || '');
     const [activeFilter, setActiveFilter] = useState(filters.filter || '');
+    const [activeStatus, setActiveStatus] = useState(filters.status || 'active');
+    const [showFilters, setShowFilters] = useState(false);
     const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
     useEffect(() => {
         const timer = setTimeout(() => {
             // Only trigger if local search differs from current URL search
             if (searchQuery !== (filters.search || '')) {
-                handleFilterChange(searchQuery, activeType, activeFilter);
+                handleFilterChange(searchQuery, activeType, activeFilter, activeStatus);
             }
         }, 300);
         return () => clearTimeout(timer);
     }, [searchQuery]); // Only trigger on searchQuery change
 
-    const handleFilterChange = (search: string, type: string, filter: string) => {
+    const handleFilterChange = (search: string, type: string, filter: string, status: string) => {
         router.get('/inventory', {
             search: search || undefined,
             type: type || undefined,
-            filter: filter || undefined
+            filter: filter || undefined,
+            status: status || undefined,
+            page: 1
         }, { preserveState: true, replace: true });
     };
 
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        handleFilterChange(searchQuery, activeType, activeFilter);
+        handleFilterChange(searchQuery, activeType, activeFilter, activeStatus);
     };
 
     const handleDelete = () => {
@@ -74,57 +79,93 @@ export default function InventoryList({ products, filters = { search: '', type: 
                 </form>
 
                 {/* COMPACT FILTERS */}
-                <div className="flex flex-col gap-2">
-                    {/* Product Type Filter */}
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Type:</span>
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
-                            {[
-                                { key: '', label: 'All' },
-                                { key: 'local', label: 'Local' },
-                                { key: 'global', label: 'Global' }
-                            ].map(item => {
-                                const active = activeType === item.key;
-                                return (
-                                    <button
-                                        key={item.key}
-                                        onClick={() => {
-                                            const nextType = activeType === item.key ? '' : item.key;
-                                            setActiveType(nextType);
-                                            handleFilterChange(searchQuery, nextType, activeFilter);
-                                        }}
-                                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
-                                    >
-                                        {item.label}
-                                    </button>
-                                );
-                            })}
-                        </div>
-                    </div>
+                <div className="flex flex-col gap-3">
+                    <button 
+                        onClick={() => setShowFilters(!showFilters)}
+                        className="lg:hidden flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-xs font-bold uppercase text-zinc-600 dark:text-zinc-400"
+                    >
+                        <span>Filter Options</span>
+                        <svg className={twMerge("w-4 h-4 transition-transform", showFilters && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
+                    </button>
 
-                    {/* Stock Alert Filter */}
-                    <div className="flex items-center gap-1.5">
-                        <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Stock:</span>
-                        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
-                            {[
-                                { key: '', label: 'All' },
-                                { key: 'low_stock', label: 'Low Stock' }
-                            ].map(item => {
-                                const active = activeFilter === item.key;
-                                return (
-                                    <button
-                                        key={item.key}
-                                        onClick={() => {
-                                            const nextFilter = activeFilter === item.key ? '' : item.key;
-                                            setActiveFilter(nextFilter);
-                                            handleFilterChange(searchQuery, activeType, nextFilter);
-                                        }}
-                                        className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
-                                    >
-                                        {item.label}
-                                    </button>
-                                );
-                            })}
+                    <div className={twMerge("flex-col lg:flex-row lg:flex gap-4 lg:gap-6", showFilters ? "flex" : "hidden")}>
+                        {/* Product Type Filter */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Type:</span>
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
+                                {[
+                                    { key: '', label: 'All' },
+                                    { key: 'local', label: 'Local' },
+                                    { key: 'global', label: 'Global' }
+                                ].map(item => {
+                                    const active = activeType === item.key;
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            onClick={() => {
+                                                const nextType = activeType === item.key ? '' : item.key;
+                                                setActiveType(nextType);
+                                                handleFilterChange(searchQuery, nextType, activeFilter, activeStatus);
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Stock Alert Filter */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Stock:</span>
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
+                                {[
+                                    { key: '', label: 'All' },
+                                    { key: 'low_stock', label: 'Low Stock' }
+                                ].map(item => {
+                                    const active = activeFilter === item.key;
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            onClick={() => {
+                                                const nextFilter = activeFilter === item.key ? '' : item.key;
+                                                setActiveFilter(nextFilter);
+                                                handleFilterChange(searchQuery, activeType, nextFilter, activeStatus);
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        </div>
+
+                        {/* Status Filter */}
+                        <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Status:</span>
+                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
+                                {[
+                                    { key: 'active', label: 'Active' },
+                                    { key: 'archived', label: 'Archived' },
+                                    { key: 'all', label: 'All' }
+                                ].map(item => {
+                                    const active = activeStatus === item.key;
+                                    return (
+                                        <button
+                                            key={item.key}
+                                            onClick={() => {
+                                                setActiveStatus(item.key);
+                                                handleFilterChange(searchQuery, activeType, activeFilter, item.key);
+                                            }}
+                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                        >
+                                            {item.label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -151,26 +192,45 @@ export default function InventoryList({ products, filters = { search: '', type: 
 
                 <div className="flex flex-col">
                     {products.data.length === 0 ? (
-                        <div className="mt-10 flex justify-center items-center">
-                            <span className="text-zinc-400 font-medium">No products found.</span>
-                        </div>
+                        <EmptyState 
+                            title="No Products Found" 
+                            description="There are no products matching your search or filters."
+                            action={
+                                <Button variant="outline" onClick={() => {
+                                    setSearchQuery('');
+                                    setActiveType('');
+                                    setActiveFilter('');
+                                    setActiveStatus('active');
+                                    handleFilterChange('', '', '', 'active');
+                                }} className="text-xs font-bold uppercase tracking-widest">
+                                    Clear Filters
+                                </Button>
+                            }
+                        />
                     ) : (
-                            products.data.map((item) => {
-                            const stock = item.stock_quantity ?? 0;
+                            products.data.map((item: any) => {
+                            const stock = Number(item.variants_sum_stock_quantity || 0);
+                            const pendingStock = Number(item.variants_sum_pending_stock || 0);
                             const status = getStockStatus(stock);
 
                             return (
                                 <Link
                                     key={item.id}
                                     href={`/inventory/${item.id}`}
-                                    className="py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-center transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group"
+                                    className={twMerge(
+                                        "py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-center transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group",
+                                        item.is_active === false && "opacity-60 grayscale hover:opacity-100 bg-zinc-50/50 dark:bg-zinc-900/20"
+                                    )}
                                 >
                                     <div className="flex-1 mr-4 overflow-hidden">
-                                        <p className="font-bold text-black dark:text-white text-base truncate">
+                                        <p className={twMerge("font-bold text-base truncate flex items-center gap-2", item.is_active === false ? "text-zinc-500 line-through decoration-zinc-300 dark:decoration-zinc-700" : "text-black dark:text-white")}>
                                             {item.name}
+                                            {item.is_active === false && (
+                                                <span className="text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded uppercase tracking-widest font-black border border-red-200 dark:border-red-900/50 no-underline">Archived</span>
+                                            )}
                                         </p>
                                         <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                            {item.sku || "No SKU"} • {item.category?.name || "Uncategorized"}
+                                            {item.category?.name || "Uncategorized"}
                                         </p>
                                     </div>
 
@@ -184,10 +244,10 @@ export default function InventoryList({ products, filters = { search: '', type: 
                                                     {status.label}
                                                 </span>
 
-                                                {item.pending_stock > 0 && (
+                                                {pendingStock > 0 && (
                                                     <div className="bg-zinc-100 dark:bg-zinc-800 px-1.5 py-0.5 rounded mt-1">
                                                         <span className="text-[9px] font-bold text-green-700 dark:text-green-400">
-                                                            +{item.pending_stock} Arriving
+                                                            +{pendingStock} Arriving
                                                         </span>
                                                     </div>
                                                 )}

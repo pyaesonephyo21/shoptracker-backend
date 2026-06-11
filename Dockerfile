@@ -8,6 +8,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
     libpng-dev \
     libonig-dev \
     libxml2-dev \
+    libzip-dev \
     zip \
     unzip \
     nodejs
@@ -16,7 +17,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - \
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # 3. Install PHP extensions required by Laravel
-RUN docker-php-ext-install mbstring exif pcntl bcmath gd
+RUN docker-php-ext-install mbstring exif pcntl bcmath gd zip
 
 # 4. Get latest Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer

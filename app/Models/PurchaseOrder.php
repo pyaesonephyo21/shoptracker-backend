@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
+use App\Traits\BelongsToShop;
 
 class PurchaseOrder extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToShop;
 
     // 1. Allow Mass Assignment
     // This lets us do PurchaseOrder::create($data) safely
@@ -17,6 +18,8 @@ class PurchaseOrder extends Model
     protected $casts = [
         'exchange_rate' => 'float',
         'total_goods_cost' => 'float',
+        'foreign_deli_fee' => 'float',
+        'supplier_fee_percentage' => 'float',
         'supplier_fee' => 'float',
         'cargo_fee' => 'float',
         'local_deli_fee' => 'float',
@@ -33,25 +36,7 @@ class PurchaseOrder extends Model
         return $this->supplier_id ? $this->supplier->name : $this->local_shop_name;
     }
 
-    /**
-     * The "Magic" Boot Method
-     * automatically adds shop_id when creating
-     * and filters by shop_id when reading.
-     */
-    protected static function booted()
-    {
-        static::addGlobalScope('shop', function ($builder) {
-            if (Auth::check() && Auth::user()->shop_id) {
-                $builder->where('shop_id', Auth::user()->shop_id);
-            }
-        });
 
-        static::creating(function ($po) {
-            if (Auth::check() && Auth::user()->shop_id) {
-                $po->shop_id = Auth::user()->shop_id;
-            }
-        });
-    }
 
     // ==========================
     // RELATIONSHIPS

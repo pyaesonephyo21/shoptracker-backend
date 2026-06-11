@@ -6,6 +6,8 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Product;
 use App\Models\InventoryLog;
+use App\Models\ProductVariant;
+use App\Models\ProductBatch;
 use Illuminate\Support\Facades\DB;
 use Exception;
 
@@ -25,13 +27,22 @@ class PurchaseOrderService
                 $totalGoodsCost += ($item['quantity'] * $item['unit_cost']);
             }
             
-            $supplierFee = (float) ($data['supplier_fee'] ?: 0);
-            $paidAmount = (float) ($data['paid_amount'] ?: 0);
+            $orderType = $data['order_type'] ?? 'global';
+            $foreignDeliFee = (float) ($data['foreign_deli_fee'] ?? 0);
+            $supplierFeePercentage = (float) ($data['supplier_fee_percentage'] ?? 0);
+            
+            // Calculate Supplier Fee
+            $supplierFee = 0;
+            if ($supplierFeePercentage > 0) {
+                $supplierFee = ($totalGoodsCost + $foreignDeliFee) * ($supplierFeePercentage / 100);
+            }
             
             // Grand Total (in MMK)
-            $grandTotal = ($totalGoodsCost + $supplierFee) * $exchangeRate;
+            // Foreign costs = Goods + Foreign Deli + Supplier Fee
+            $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee) * $exchangeRate;
             
             // Payment Status
+            $paidAmount = (float) ($data['paid_amount'] ?? 0);
             $paymentStatus = 'unpaid';
             if ($paidAmount > 0) {
                 $paymentStatus = $paidAmount >= $grandTotal ? 'paid' : 'partial';
@@ -42,9 +53,12 @@ class PurchaseOrderService
                 'batch_name' => $data['batch_name'],
                 'supplier_id' => $data['supplier_id'] ?: null,
                 'local_shop_name' => $data['shop_name'] ?: null,
+                'order_type' => $orderType,
                 'status' => 'pending',
                 'exchange_rate' => $exchangeRate,
                 'total_goods_cost' => $totalGoodsCost,
+                'foreign_deli_fee' => $foreignDeliFee,
+                'supplier_fee_percentage' => $supplierFeePercentage,
                 'supplier_fee' => $supplierFee,
                 'cargo_fee' => 0,
                 'local_deli_fee' => 0,
@@ -62,7 +76,7 @@ class PurchaseOrderService
 
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $po->id,
-                    'product_id' => $item['product_id'],
+                    'product_variant_id' => $item['product_variant_id'],
                     'quantity' => $item['quantity'],
                     'original_cost' => $originalCost,
                     'unit_cost' => $unitCostMmk,
@@ -70,9 +84,9 @@ class PurchaseOrderService
                     'retail_price' => $item['retail_price'] ?? null,
                 ]);
 
-                // Increment pending_stock for the product
-                $product = Product::lockForUpdate()->findOrFail($item['product_id']);
-                $product->increment('pending_stock', $item['quantity']);
+                // Increment pending_stock for the variant
+                $variant = ProductVariant::withTrashed()->lockForUpdate()->findOrFail($item['product_variant_id']);
+                $variant->increment('pending_stock', $item['quantity']);
             }
 
             $po->logAction('created', [
@@ -104,13 +118,22 @@ class PurchaseOrderService
                 $totalGoodsCost += ($item['quantity'] * $item['unit_cost']);
             }
             
-            $supplierFee = (float) ($data['supplier_fee'] ?: 0);
-            $paidAmount = (float) ($data['paid_amount'] ?: 0);
+            $orderType = $data['order_type'] ?? 'global';
+            $foreignDeliFee = (float) ($data['foreign_deli_fee'] ?? 0);
+            $supplierFeePercentage = (float) ($data['supplier_fee_percentage'] ?? 0);
+            
+            // Calculate Supplier Fee
+            $supplierFee = 0;
+            if ($supplierFeePercentage > 0) {
+                $supplierFee = ($totalGoodsCost + $foreignDeliFee) * ($supplierFeePercentage / 100);
+            }
             
             // Grand Total (in MMK)
-            $grandTotal = ($totalGoodsCost + $supplierFee) * $exchangeRate;
+            // Foreign costs = Goods + Foreign Deli + Supplier Fee
+            $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee) * $exchangeRate;
             
             // Payment Status
+            $paidAmount = (float) ($data['paid_amount'] ?? 0);
             $paymentStatus = 'unpaid';
             if ($paidAmount > 0) {
                 $paymentStatus = $paidAmount >= $grandTotal ? 'paid' : 'partial';
@@ -122,10 +145,10 @@ class PurchaseOrderService
             // 1. Revert old items
             $oldItems = $po->items()->get();
             foreach ($oldItems as $oldItem) {
-                if (!isset($stockChanges[$oldItem->product_id])) {
-                    $stockChanges[$oldItem->product_id] = 0;
+                if (!isset($stockChanges[$oldItem->product_variant_id])) {
+                    $stockChanges[$oldItem->product_variant_id] = 0;
                 }
-                $stockChanges[$oldItem->product_id] -= $oldItem->quantity;
+                $stockChanges[$oldItem->product_variant_id] -= $oldItem->quantity;
             }
 
             // Delete old items
@@ -139,7 +162,7 @@ class PurchaseOrderService
 
                 PurchaseOrderItem::create([
                     'purchase_order_id' => $po->id,
-                    'product_id' => $item['product_id'],
+                    'product_variant_id' => $item['product_variant_id'],
                     'quantity' => $item['quantity'],
                     'original_cost' => $originalCost,
                     'unit_cost' => $unitCostMmk,
@@ -147,26 +170,27 @@ class PurchaseOrderService
                     'retail_price' => $item['retail_price'] ?? null,
                 ]);
 
-                if (!isset($stockChanges[$item['product_id']])) {
-                    $stockChanges[$item['product_id']] = 0;
+                if (!isset($stockChanges[$item['product_variant_id']])) {
+                    $stockChanges[$item['product_variant_id']] = 0;
                 }
-                $stockChanges[$item['product_id']] += $item['quantity'];
+                $stockChanges[$item['product_variant_id']] += $item['quantity'];
             }
 
             // 3. Apply stock changes to Products and validate deficit
-            foreach ($stockChanges as $productId => $change) {
+            foreach ($stockChanges as $variantId => $change) {
                 if ($change !== 0) {
-                    $product = Product::lockForUpdate()->findOrFail($productId);
-                    $newPendingStock = max(0, $product->pending_stock + $change);
+                    $variant = ProductVariant::with('product')->withTrashed()->lockForUpdate()->findOrFail($variantId);
+                    $newPendingStock = max(0, $variant->pending_stock + $change);
 
-                    if ($product->stock_quantity < 0) {
-                        $deficit = abs($product->stock_quantity);
+                    if ($variant->stock_quantity < 0) {
+                        $deficit = abs($variant->stock_quantity);
                         if ($newPendingStock < $deficit) {
-                            throw new Exception("Cannot update PO because {$product->name} has pending sales orders that rely on this incoming stock. The new quantity is insufficient.");
+                            $productName = $variant->product ? $variant->product->name : 'Product';
+                            throw new Exception("Cannot update PO because {$productName} ({$variant->sku}) has pending sales orders that rely on this incoming stock. The new quantity is insufficient.");
                         }
                     }
 
-                    $product->update(['pending_stock' => $newPendingStock]);
+                    $variant->update(['pending_stock' => $newPendingStock]);
                 }
             }
 
@@ -175,8 +199,11 @@ class PurchaseOrderService
                 'batch_name' => $data['batch_name'],
                 'supplier_id' => $data['supplier_id'] ?: null,
                 'local_shop_name' => $data['shop_name'] ?: null,
+                'order_type' => $orderType,
                 'exchange_rate' => $exchangeRate,
                 'total_goods_cost' => $totalGoodsCost,
+                'foreign_deli_fee' => $foreignDeliFee,
+                'supplier_fee_percentage' => $supplierFeePercentage,
                 'supplier_fee' => $supplierFee,
                 'grand_total' => $grandTotal,
                 'payment_status' => $paymentStatus,
@@ -258,26 +285,24 @@ class PurchaseOrderService
                 $totalReceivedQuantity += $receivedQty;
                 $newTotalGoodsCost += ($receivedQty * $item->original_cost);
             }
-
-            // Distribute shipping & adjustment costs to products to update their base_cost
-            $shippingAndAdjustmentTotal = $cargoFee + $localDeliFee + $adjustmentAmount;
-            $shippingCostPerItem = $totalReceivedQuantity > 0 ? ($shippingAndAdjustmentTotal / $totalReceivedQuantity) : 0;
-            $supplierFeePerItem = $totalReceivedQuantity > 0 ? (($po->supplier_fee * $po->exchange_rate) / $totalReceivedQuantity) : 0;
+            
+            $foreignDeliFeeMmk = $po->foreign_deli_fee * $po->exchange_rate;
+            $supplierFeeMmk = $po->supplier_fee * $po->exchange_rate;
 
             foreach ($items as $item) {
                 $receivedQty = $item->received_quantity;
                 $item->save(); // Save updated received_quantity and line_total
 
-                $product = Product::lockForUpdate()->findOrFail($item->product_id);
+                $variant = ProductVariant::withTrashed()->lockForUpdate()->findOrFail($item->product_variant_id);
                 
-                $finalUnitCostMmk = $item->unit_cost + $shippingCostPerItem + $supplierFeePerItem;
+                $finalUnitCostMmk = $item->unit_cost;
 
                 $retailPrice = $receivedItemsMap->has($item->id) && isset($receivedItemsMap->get($item->id)['retail_price'])
                     ? $receivedItemsMap->get($item->id)['retail_price']
                     : null;
 
                 // Calculate deficit (pre-ordered items)
-                $currentStock = $product->stock_quantity;
+                $currentStock = $variant->stock_quantity;
                 $batchRemainingQty = $receivedQty;
 
                 if ($currentStock < 0) {
@@ -286,11 +311,39 @@ class PurchaseOrderService
                     $batchRemainingQty = $receivedQty - $deduction;
                 }
 
-                // Create ProductBatch instead of updating global base_cost
+                // --- FULLY LANDED COST CALCULATION ---
+                $finalUnitCostMmk = $item->unit_cost; // This is (original_cost * exchange_rate)
+                
                 if ($receivedQty > 0) {
-                    \App\Models\ProductBatch::create([
+                    // 1. Calculate Value Fraction for this row
+                    $rowValueForeign = $receivedQty * $item->original_cost;
+                    $valueFraction = $newTotalGoodsCost > 0 ? ($rowValueForeign / $newTotalGoodsCost) : 0;
+                    
+                    // 2. Distribute Foreign Costs (allocated to the entire row)
+                    $rowForeignDeliMmk = $foreignDeliFeeMmk * $valueFraction;
+                    $rowSupplierFeeMmk = $supplierFeeMmk * $valueFraction;
+                    
+                    // 3. Get Cargo and Adjustments from frontend overrides (or 0)
+                    $rowCargoFee = 0;
+                    $rowAdjustment = 0;
+                    if ($receivedItemsMap->has($item->id)) {
+                        $rowCargoFee = (float) ($receivedItemsMap->get($item->id)['allocated_cargo_fee'] ?? 0);
+                        $rowAdjustment = (float) ($receivedItemsMap->get($item->id)['allocated_adjustment_amount'] ?? 0);
+                    }
+                    
+                    // 4. Calculate per-unit allocations
+                    $unitForeignDeli = $rowForeignDeliMmk / $receivedQty;
+                    $unitSupplierFee = $rowSupplierFeeMmk / $receivedQty;
+                    $unitCargoFee = $rowCargoFee / $receivedQty;
+                    $unitAdjustment = $rowAdjustment / $receivedQty;
+                    
+                    // 5. Sum it all up into the final unit cost
+                    $finalUnitCostMmk = $item->unit_cost + $unitForeignDeli + $unitSupplierFee + $unitCargoFee + $unitAdjustment;
+
+                    // Create ProductBatch
+                    ProductBatch::create([
                         'shop_id' => $po->shop_id,
-                        'product_id' => $product->id,
+                        'product_variant_id' => $variant->id,
                         'reference_type' => PurchaseOrder::class,
                         'reference_id' => $po->id,
                         'initial_quantity' => $receivedQty,
@@ -301,8 +354,8 @@ class PurchaseOrderService
                 }
 
                 // Update product stock (only received items), decrement pending stock (by original ordered quantity)
-                $newStockLevel = $product->stock_quantity + $receivedQty;
-                $newPendingStock = max(0, $product->pending_stock - $item->quantity);
+                $newStockLevel = $variant->stock_quantity + $receivedQty;
+                $newPendingStock = max(0, $variant->pending_stock - $item->quantity);
                 
                 $updateData = [
                     'stock_quantity' => $newStockLevel,
@@ -313,7 +366,7 @@ class PurchaseOrderService
                     $updateData['retail_price'] = $retailPrice;
                 }
 
-                $product->update($updateData);
+                $variant->update($updateData);
 
                 // Create Inventory Log
                 $note = "PO Arrived: {$po->batch_name}";
@@ -323,7 +376,7 @@ class PurchaseOrderService
                 
                 InventoryLog::create([
                     'shop_id' => $po->shop_id,
-                    'product_id' => $product->id,
+                    'product_variant_id' => $variant->id,
                     'quantity_change' => $receivedQty,
                     'new_stock_level' => $newStockLevel,
                     'reason' => 'purchase_arrived',
@@ -334,7 +387,7 @@ class PurchaseOrderService
             }
 
             $po->total_goods_cost = $newTotalGoodsCost;
-            $po->grand_total = (($newTotalGoodsCost + $po->supplier_fee) * $po->exchange_rate) 
+            $po->grand_total = (($newTotalGoodsCost + $po->foreign_deli_fee + $po->supplier_fee) * $po->exchange_rate) 
                                + $cargoFee + $localDeliFee + $adjustmentAmount;
             
             $po->paid_amount = $po->grand_total;
@@ -365,18 +418,19 @@ class PurchaseOrderService
             $items = $po->items()->lockForUpdate()->get();
 
             foreach ($items as $item) {
-                $product = Product::lockForUpdate()->findOrFail($item->product_id);
+                $variant = ProductVariant::with('product')->withTrashed()->lockForUpdate()->findOrFail($item->product_variant_id);
                 // Decrement pending stock
-                $newPendingStock = max(0, $product->pending_stock - $item->quantity);
+                $newPendingStock = max(0, $variant->pending_stock - $item->quantity);
                 
-                if ($product->stock_quantity < 0) {
-                    $deficit = abs($product->stock_quantity);
+                if ($variant->stock_quantity < 0) {
+                    $deficit = abs($variant->stock_quantity);
                     if ($newPendingStock < $deficit) {
-                        throw new Exception("Cannot cancel PO because {$product->name} has pending sales orders that rely on this incoming stock. Cancel the relevant sales orders first.");
+                        $productName = $variant->product ? $variant->product->name : 'Product';
+                        throw new Exception("Cannot cancel PO because {$productName} ({$variant->sku}) has pending sales orders that rely on this incoming stock. Cancel the relevant sales orders first.");
                     }
                 }
 
-                $product->update(['pending_stock' => $newPendingStock]);
+                $variant->update(['pending_stock' => $newPendingStock]);
             }
 
             $po->status = 'cancelled';

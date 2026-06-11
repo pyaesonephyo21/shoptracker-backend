@@ -28,7 +28,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
     } | null>(null);
     const [cancelReason, setCancelReason] = useState("");
 
-    const { data: returnData, setData: setReturnData, post: postReturn, processing: returning } = useForm({
+    const { data: returnData, setData: setReturnData, post: postReturn, processing: returning, clearErrors, errors: returnErrors } = useForm({
         quantity: '',
         reason: ''
     });
@@ -47,10 +47,10 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
 
     if (isRefundNeeded) {
         statusText = "REFUND DUE";
-        statusColor = "text-orange-600 dark:text-orange-500";
+        statusColor = "text-zinc-800 dark:text-zinc-200";
     } else if (isFullyPaid) {
         statusText = "SETTLED";
-        statusColor = "text-green-600 dark:text-green-500";
+        statusColor = "text-black dark:text-white";
     }
 
     let settleButtonText = "";
@@ -69,7 +69,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
             : ['pending', 'delivery_added', 'delivered'].includes(order.status.toLowerCase())
     ));
 
-    const formatMMK = (val: number) => Number(val).toLocaleString();
+    const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
     const openReturnModal = (itemId: number, maxQty: number) => {
         setReturnData({ quantity: '', reason: '' });
@@ -81,6 +81,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
             const qty = Number(returnData.quantity);
             if (qty > 0 && qty <= modalAction.maxQty) {
                 postReturn(`/sales/${order.id}/items/${modalAction.itemId}/return`, {
+                    preserveScroll: true,
                     onSuccess: () => setModalAction(null)
                 });
             } else {
@@ -91,12 +92,14 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
 
     const handleSettle = (method: string) => {
         router.post(`/sales/${order.id}/settle`, { payment_method: method }, {
+            preserveScroll: true,
             onSuccess: () => setModalAction(null)
         });
     };
 
     const handleCancel = () => {
         router.post(`/sales/${order.id}/cancel`, { cancel_reason: cancelReason }, {
+            preserveScroll: true,
             onSuccess: () => {
                 setModalAction(null);
                 setCancelReason("");
@@ -157,20 +160,20 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
 
                 {/* 1. STATUS BANNER */}
                 <div className={twMerge("p-5 rounded-2xl mb-8 flex justify-between items-center border border-transparent",
-                    isCancelled ? "bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-900/30" :
-                        isRefundNeeded ? "bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-900/30" :
-                            isFullyPaid ? "bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-900/30" :
+                    isCancelled ? "bg-transparent border-zinc-300 dark:border-zinc-700" :
+                        isRefundNeeded ? "bg-zinc-50 dark:bg-zinc-900 border-zinc-400 dark:border-zinc-500" :
+                            isFullyPaid ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white" :
                                 "bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800")}>
                     <div>
-                        <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Status</span>
-                        <h2 className={twMerge("text-xl font-black", isCancelled ? "text-red-600 dark:text-red-500" : "text-black dark:text-white uppercase")}>{order.status.replace(/_/g, ' ')}</h2>
+                        <span className={twMerge("text-xs font-bold uppercase tracking-widest", isFullyPaid ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-500")}>Status</span>
+                        <h2 className={twMerge("text-xl font-black", isCancelled ? "text-zinc-500 line-through decoration-zinc-400" : isFullyPaid ? "text-white dark:text-black uppercase" : "text-black dark:text-white uppercase")}>{order.status.replace(/_/g, ' ')}</h2>
                         {isCancelled && order.cancel_reason && (
-                            <p className="text-sm font-bold text-red-700 dark:text-red-400 mt-1">Reason: {order.cancel_reason}</p>
+                            <p className="text-sm font-bold mt-1 text-zinc-500">Reason: {order.cancel_reason}</p>
                         )}
                     </div>
                     <div className="text-right">
-                        <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Balance</span>
-                        <h2 className={twMerge("text-lg font-black uppercase", statusColor)}>{statusText}</h2>
+                        <span className={twMerge("text-xs font-bold uppercase tracking-widest", isFullyPaid ? "text-zinc-400 dark:text-zinc-500" : "text-zinc-500")}>Balance</span>
+                        <h2 className={twMerge("text-lg font-black uppercase", isFullyPaid ? "text-white dark:text-black" : statusColor)}>{statusText}</h2>
                     </div>
                 </div>
 
@@ -249,10 +252,29 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
 
                             <div className="flex justify-between items-center">
                                 <span className="text-zinc-500 text-xs uppercase font-bold">Paid So Far</span>
-                                <span className={twMerge("font-bold text-sm", order.financials.payment_status === "paid" ? "text-green-600 dark:text-green-500" : "text-orange-500")}>
+                                <span className={twMerge("font-bold text-sm", order.financials.payment_status === "paid" ? "text-black dark:text-white" : "text-zinc-600 dark:text-zinc-400")}>
                                     {formatMMK(order.financials.paid_amount)} MMK
                                 </span>
                             </div>
+
+                            {order.payments && order.payments.length > 0 && (
+                                <div className="mt-6 pt-4 border-t border-zinc-200 dark:border-zinc-800 border-dashed">
+                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-3">Payment History</span>
+                                    <div className="flex flex-col gap-2">
+                                        {order.payments.map((payment: any, index: number) => (
+                                            <div key={payment.id} className="flex justify-between items-center text-sm">
+                                                <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
+                                                    <span className="text-[10px] tabular-nums font-mono">{payment.date}</span>
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/50">
+                                                        {payment.method === 'kpay' ? 'KBZPay' : payment.method === 'ayapay' ? 'AYAPay' : 'Cash'}
+                                                    </span>
+                                                </div>
+                                                <span className="font-bold text-black dark:text-white tabular-nums">+{formatMMK(payment.amount)}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -336,7 +358,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                 {!isCancelled && (
                     <div className="flex flex-col gap-4">
                         {order.status.toLowerCase() === "delivery_added" && (
-                            <Button onClick={() => router.post(`/sales/${order.id}/deliver`)} className="h-12 w-full font-bold bg-blue-600 hover:bg-blue-700 text-white">
+                            <Button onClick={() => router.post(`/sales/${order.id}/deliver`, {}, { preserveScroll: true })} className="h-12 w-full font-bold bg-blue-600 hover:bg-blue-700 text-white">
                                 MARK AS DELIVERED
                             </Button>
                         )}
@@ -401,7 +423,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
             </div>
 
             {/* MODALS using Shadcn Dialog */}
-            <Dialog open={modalAction !== null} onOpenChange={(open) => !open && setModalAction(null)}>
+            <Dialog open={modalAction !== null} onOpenChange={(open) => { if (!open) { setModalAction(null); clearErrors(); setReturnData({ quantity: '', reason: '' }); setCancelReason(''); } }}>
                 <DialogContent>
                     {modalAction?.type === "settle" && (
                         <>
@@ -411,12 +433,15 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                     {isRefundNeeded ? `Issue refund of ${formatMMK(Math.abs(balance))} MMK?` : `Received remaining ${formatMMK(balance)} MMK?`}
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="flex gap-4 mt-4">
-                                <Button onClick={() => handleSettle("kpay")} className="flex-1 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:bg-blue-900/30 dark:text-blue-400">
-                                    KPAY / Bank
-                                </Button>
-                                <Button onClick={() => handleSettle("cash")} className="flex-1 bg-green-50 text-green-700 hover:bg-green-100 dark:bg-green-900/30 dark:text-green-400">
+                            <div className="flex gap-3 mt-4">
+                                <Button onClick={() => handleSettle("cash")} variant="outline" className="flex-1 bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800">
                                     Cash
+                                </Button>
+                                <Button onClick={() => handleSettle("kpay")} variant="outline" className="flex-1 bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800">
+                                    KBZPay
+                                </Button>
+                                <Button onClick={() => handleSettle("ayapay")} variant="outline" className="flex-1 bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800">
+                                    AYAPay
                                 </Button>
                             </div>
                         </>
@@ -456,18 +481,20 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                     <Input
                                         type="number"
                                         value={returnData.quantity}
-                                        onChange={(e) => setReturnData('quantity', e.target.value)}
+                                        onChange={(e) => { setReturnData('quantity', e.target.value); clearErrors('quantity'); }}
                                         min="1"
                                         max={modalAction.maxQty}
                                     />
+                                    {returnErrors.quantity && <span className="text-red-500 text-xs">{returnErrors.quantity}</span>}
                                 </div>
                                 <div className="flex flex-col gap-2">
-                                    <Label>Reason</Label>
+                                    <Label>Reason (Optional)</Label>
                                     <Input
                                         placeholder="e.g. Defect"
                                         value={returnData.reason}
-                                        onChange={(e) => setReturnData('reason', e.target.value)}
+                                        onChange={(e) => { setReturnData('reason', e.target.value); clearErrors('reason'); }}
                                     />
+                                    {returnErrors.reason && <span className="text-red-500 text-xs">{returnErrors.reason}</span>}
                                 </div>
                             </div>
                             <DialogFooter className="mt-4">

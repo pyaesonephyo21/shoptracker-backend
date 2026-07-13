@@ -220,16 +220,19 @@ export default function AddPurchaseOrder({ products = [], suppliers = [], curren
                         </div>
 
                         {showExchangeRate && (
+                            <div className="flex flex-col gap-2 mb-3">
+                                <Label>Exchange Rate (1 {dynamicCurrency} = ? MMK)</Label>
+                                <FormattedNumberInput
+                                    value={data.exchange_rate}
+                                    onChange={(val) => { setData('exchange_rate', val); clearErrors('exchange_rate'); }}
+                                    placeholder="e.g. 500"
+                                />
+                                {errors.exchange_rate && <span className="text-red-500 text-xs">{errors.exchange_rate}</span>}
+                            </div>
+                        )}
+
+                        {orderType === 'global' && (
                             <>
-                                <div className="flex flex-col gap-2 mb-3">
-                                    <Label>Exchange Rate (1 {dynamicCurrency} = ? MMK)</Label>
-                                    <FormattedNumberInput
-                                        value={data.exchange_rate}
-                                        onChange={(val) => { setData('exchange_rate', val); clearErrors('exchange_rate'); }}
-                                        placeholder="e.g. 500"
-                                    />
-                                    {errors.exchange_rate && <span className="text-red-500 text-xs">{errors.exchange_rate}</span>}
-                                </div>
                                 <div className="flex flex-col gap-2 mb-3">
                                     <Label>Domestic Shipping ({dynamicCurrency}) (Optional)</Label>
                                     <FormattedNumberInput

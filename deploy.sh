@@ -45,8 +45,8 @@ php artisan view:cache
 
 # 8. Assign secure folders ownership and read/write permissions
 echo "🔒 Restoring correct storage and bootstrap permissions..."
-chmod -R 775 storage bootstrap/cache database
-chown -R www-data:www-data storage bootstrap/cache database || true
+sudo chmod -R 775 storage bootstrap/cache database
+sudo chown -R www-data:www-data storage bootstrap/cache database || true
 
 # 9. Bring application back online
 echo "🟢 Bringing application online..."

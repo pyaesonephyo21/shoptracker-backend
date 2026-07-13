@@ -69,9 +69,11 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
     useEffect(() => {
         if (options.length === 0 || options.every(o => o.values.length === 0)) {
             // If no options, we just have one default variant
-            const defaultSku = baseSku ? `${baseSku}-DEF` : `${randomPrefix}-DEF`;
-            if (variants.length !== 1 || variants[0].sku !== defaultSku || Object.keys(variants[0].attributes || {}).length !== 0) {
+            if (variants.length !== 1 || Object.keys(variants[0].attributes || {}).length !== 0) {
+                const defaultSku = baseSku ? `${baseSku}-DEF` : `${randomPrefix}-DEF`;
                 setVariants([{ sku: defaultSku, attributes: {} }]);
+            } else if (baseSku && variants[0].sku.startsWith(randomPrefix)) {
+                setVariants([{ ...variants[0], sku: variants[0].sku.replace(randomPrefix, baseSku) }]);
             }
             return;
         }

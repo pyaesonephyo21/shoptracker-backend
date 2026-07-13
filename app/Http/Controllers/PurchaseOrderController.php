@@ -124,6 +124,7 @@ class PurchaseOrderController extends Controller
             'items.*.unit_cost' => 'required|numeric|min:0',
             'items.*.retail_price' => 'nullable|numeric|min:0',
             'foreign_deli_fee' => 'nullable|numeric|min:0',
+            'total_discount' => 'nullable|numeric|min:0',
             'supplier_fee_percentage' => 'nullable|numeric|min:0',
             'paid_amount' => 'nullable|numeric|min:0',
             'note' => 'nullable|string'
@@ -162,7 +163,9 @@ class PurchaseOrderController extends Controller
 
         foreach ($order->items as $item) {
             if ($order->status === 'arrived' && $batches->has($item->product_variant_id)) {
-                $item->batch_retail_price = $batches->get($item->product_variant_id)->retail_price;
+                $batch = $batches->get($item->product_variant_id);
+                $item->batch_retail_price = $batch->retail_price;
+                $item->batch_unit_cost = $batch->unit_cost;
             }
 
             // Fetch pricing history
@@ -230,6 +233,7 @@ class PurchaseOrderController extends Controller
             'items.*.unit_cost' => 'required|numeric|min:0',
             'items.*.retail_price' => 'nullable|numeric|min:0',
             'foreign_deli_fee' => 'nullable|numeric|min:0',
+            'total_discount' => 'nullable|numeric|min:0',
             'supplier_fee_percentage' => 'nullable|numeric|min:0',
             'paid_amount' => 'nullable|numeric|min:0',
             'note' => 'nullable|string',

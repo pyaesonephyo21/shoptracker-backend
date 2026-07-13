@@ -54,22 +54,16 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
         const totalCargo = Number(data.cargo_fee) || 0;
         const totalAdjustment = Number(data.adjustment_amount) || 0;
 
-        // Calculate total goods cost based on received quantities
-        let totalValue = 0;
+        // Calculate total received quantity
+        let totalQty = 0;
         data.received_items.forEach(ri => {
-            const item = order.items && order.items.find((i: any) => i.id === ri.id);
-            if (item) {
-                totalValue += (Number(ri.received_quantity) || 0) * Number(item.original_cost);
-            }
+            totalQty += Number(ri.received_quantity) || 0;
         });
 
-        if (totalValue > 0) {
+        if (totalQty > 0) {
             const newReceivedItems = data.received_items.map(ri => {
-                const item = order.items && order.items.find((i: any) => i.id === ri.id);
-                if (!item) return ri;
-
-                const itemValue = (Number(ri.received_quantity) || 0) * Number(item.original_cost);
-                const fraction = itemValue / totalValue;
+                const itemQty = Number(ri.received_quantity) || 0;
+                const fraction = itemQty / totalQty;
 
                 return {
                     ...ri,
@@ -168,10 +162,11 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                             {order.order_type === 'global' ? (
                                 <CostRow label={`Total Goods Cost (${order.total_goods_cost.toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={order.total_goods_cost * order.exchange_rate} />
                             ) : (
-                                    <CostRow label="Total Goods Cost" value={order.total_goods_cost} />
+                                <CostRow label="Total Goods Cost" value={order.total_goods_cost} />
                             )}
 
                             {Number(order.foreign_deli_fee) > 0 && <CostRow label={`Foreign Delivery (${(order.foreign_deli_fee || 0).toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={(order.foreign_deli_fee || 0) * order.exchange_rate} />}
+                            {Number(order.total_discount) > 0 && <CostRow label={`Total Discount (${(order.total_discount || 0).toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={-(order.total_discount || 0) * order.exchange_rate} />}
                             {order.supplier_fee > 0 && <CostRow label={`Supplier Service Fee (${order.supplier_fee.toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={order.supplier_fee * order.exchange_rate} />}
 
                             {order.cargo_fee > 0 && <CostRow label="Cargo Fee" value={order.cargo_fee} />}
@@ -232,16 +227,40 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
 
                                         <div>
                                             {isArrived && item.received_quantity !== null && item.received_quantity !== undefined && (
-                                                <span className={twMerge("text-xs font-bold block mt-1",
-                                                    item.received_quantity !== item.quantity ? "text-orange-600 dark:text-orange-500" : "text-green-600 dark:text-green-500"
-                                                )}>
-                                                    Received: {item.received_quantity} units
-                                                    {item.batch_retail_price !== null && item.batch_retail_price !== undefined && (
-                                                        <span className="text-zinc-500 ml-2 font-medium">
-                                                            (Retail Price: {formatMMK(item.batch_retail_price)})
-                                                        </span>
-                                                    )}
-                                                </span>
+                                                <div className="flex flex-col mt-2">
+                                                    <span className={twMerge("text-xs font-bold",
+                                                        item.received_quantity !== item.quantity ? "text-orange-600 dark:text-orange-500" : "text-green-600 dark:text-green-500"
+                                                    )}>
+                                                        Received: {item.received_quantity} units
+                                                    </span>
+                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] font-medium text-zinc-500">
+                                                        {item.batch_unit_cost !== null && item.batch_unit_cost !== undefined && (
+                                                            <span className="text-blue-600 dark:text-blue-400 font-bold">
+                                                                Final Cost: {formatMMK(item.batch_unit_cost)} MMK/unit
+                                                            </span>
+                                                        )}
+                                                        {Number(order.cargo_fee) > 0 && (() => {
+                                                            let allocatedCargo = 0;
+                                                            if (item.allocated_cargo_fee !== undefined && item.allocated_cargo_fee !== null) {
+                                                                allocatedCargo = Number(item.allocated_cargo_fee);
+                                                            } else {
+                                                                let totalQty = 0;
+                                                                order.items?.forEach(i => {
+                                                                    totalQty += Number(i.received_quantity) || 0;
+                                                                });
+                                                                const itemQty = Number(item.received_quantity) || 0;
+                                                                const fraction = totalQty > 0 ? (itemQty / totalQty) : 0;
+                                                                allocatedCargo = (Number(order.cargo_fee) || 0) * fraction;
+                                                            }
+                                                            return (
+                                                                <span>Allocated Cargo: {formatMMK(allocatedCargo)} MMK (total)</span>
+                                                            );
+                                                        })()}
+                                                        {item.batch_retail_price !== null && item.batch_retail_price !== undefined && (
+                                                            <span>Retail Set: {formatMMK(item.batch_retail_price)} MMK</span>
+                                                        )}
+                                                    </div>
+                                                </div>
                                             )}
 
                                             {!isArrived && !isReceivingMode && item.retail_price !== null && item.retail_price !== undefined && (
@@ -375,20 +394,20 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                                         <h3 className="text-lg font-black text-white">Finalize Costs</h3>
                                         <p className="text-xs text-zinc-400 mb-2">Enter additional fees to calculate true item cost.</p>
 
-                                            <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl mb-2 flex justify-between items-start gap-4">
-                                                <div>
-                                                    <p className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Auto-Settlement & Auto-Distribution</p>
-                                                    <p className="text-xs text-green-300/80 mt-1">This order will be automatically marked as 100% paid in full. Cargo and Adjustments will be distributed automatically based on product value unless manual allocation is checked.</p>
-                                                </div>
-                                                <div className="flex flex-col items-center shrink-0">
-                                                    <Label className="text-[9px] uppercase font-bold text-green-400 mb-1">Manual Override</Label>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={manualAllocation}
-                                                        onChange={(e) => { setManualAllocation(e.target.checked); clearErrors('received_items'); }}
-                                                        className="w-5 h-5 rounded border-green-500/30 bg-green-900/50 text-green-500 focus:ring-green-500"
-                                                    />
-                                                </div>
+                                        <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl mb-2 flex justify-between items-start gap-4">
+                                            <div>
+                                                <p className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Auto-Settlement & Auto-Distribution</p>
+                                                <p className="text-xs text-green-300/80 mt-1">This order will be automatically marked as 100% paid in full. Cargo and Adjustments will be distributed automatically based on product value unless manual allocation is checked.</p>
+                                            </div>
+                                            <div className="flex flex-col items-center shrink-0">
+                                                <Label className="text-[9px] uppercase font-bold text-green-400 mb-1">Manual Override</Label>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={manualAllocation}
+                                                    onChange={(e) => { setManualAllocation(e.target.checked); clearErrors('received_items'); }}
+                                                    className="w-5 h-5 rounded border-green-500/30 bg-green-900/50 text-green-500 focus:ring-green-500"
+                                                />
+                                            </div>
                                         </div>
 
                                         <div className="flex flex-col gap-2">

@@ -29,17 +29,18 @@ class PurchaseOrderService
             
             $orderType = $data['order_type'] ?? 'global';
             $foreignDeliFee = (float) ($data['foreign_deli_fee'] ?? 0);
+            $totalDiscount = (float) ($data['total_discount'] ?? 0);
             $supplierFeePercentage = (float) ($data['supplier_fee_percentage'] ?? 0);
             
             // Calculate Supplier Fee
             $supplierFee = 0;
             if ($supplierFeePercentage > 0) {
-                $supplierFee = ($totalGoodsCost + $foreignDeliFee) * ($supplierFeePercentage / 100);
+                $supplierFee = ($totalGoodsCost + $foreignDeliFee - $totalDiscount) * ($supplierFeePercentage / 100);
             }
             
             // Grand Total (in MMK)
-            // Foreign costs = Goods + Foreign Deli + Supplier Fee
-            $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee) * $exchangeRate;
+            // Foreign costs = Goods + Foreign Deli + Supplier Fee - Discount
+            $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee - $totalDiscount) * $exchangeRate;
             
             // Payment Status
             $paidAmount = (float) ($data['paid_amount'] ?? 0);
@@ -58,6 +59,7 @@ class PurchaseOrderService
                 'exchange_rate' => $exchangeRate,
                 'total_goods_cost' => $totalGoodsCost,
                 'foreign_deli_fee' => $foreignDeliFee,
+                'total_discount' => $totalDiscount,
                 'supplier_fee_percentage' => $supplierFeePercentage,
                 'supplier_fee' => $supplierFee,
                 'cargo_fee' => 0,
@@ -120,17 +122,18 @@ class PurchaseOrderService
             
             $orderType = $data['order_type'] ?? 'global';
             $foreignDeliFee = (float) ($data['foreign_deli_fee'] ?? 0);
+            $totalDiscount = (float) ($data['total_discount'] ?? 0);
             $supplierFeePercentage = (float) ($data['supplier_fee_percentage'] ?? 0);
             
             // Calculate Supplier Fee
             $supplierFee = 0;
             if ($supplierFeePercentage > 0) {
-                $supplierFee = ($totalGoodsCost + $foreignDeliFee) * ($supplierFeePercentage / 100);
+                $supplierFee = ($totalGoodsCost + $foreignDeliFee - $totalDiscount) * ($supplierFeePercentage / 100);
             }
             
             // Grand Total (in MMK)
-            // Foreign costs = Goods + Foreign Deli + Supplier Fee
-            $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee) * $exchangeRate;
+            // Foreign costs = Goods + Foreign Deli + Supplier Fee - Discount
+            $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee - $totalDiscount) * $exchangeRate;
             
             // Payment Status
             $paidAmount = (float) ($data['paid_amount'] ?? 0);
@@ -203,6 +206,7 @@ class PurchaseOrderService
                 'exchange_rate' => $exchangeRate,
                 'total_goods_cost' => $totalGoodsCost,
                 'foreign_deli_fee' => $foreignDeliFee,
+                'total_discount' => $totalDiscount,
                 'supplier_fee_percentage' => $supplierFeePercentage,
                 'supplier_fee' => $supplierFee,
                 'grand_total' => $grandTotal,
@@ -315,13 +319,13 @@ class PurchaseOrderService
                 $finalUnitCostMmk = $item->unit_cost; // This is (original_cost * exchange_rate)
                 
                 if ($receivedQty > 0) {
-                    // 1. Calculate Value Fraction for this row
-                    $rowValueForeign = $receivedQty * $item->original_cost;
-                    $valueFraction = $newTotalGoodsCost > 0 ? ($rowValueForeign / $newTotalGoodsCost) : 0;
+                    // 1. Calculate Quantity Fraction for this row
+                    $quantityFraction = $totalReceivedQuantity > 0 ? ($receivedQty / $totalReceivedQuantity) : 0;
                     
-                    // 2. Distribute Foreign Costs (allocated to the entire row)
-                    $rowForeignDeliMmk = $foreignDeliFeeMmk * $valueFraction;
-                    $rowSupplierFeeMmk = $supplierFeeMmk * $valueFraction;
+                    // 2. Distribute Foreign Costs and Discounts (allocated to the entire row)
+                    $rowForeignDeliMmk = $foreignDeliFeeMmk * $quantityFraction;
+                    $rowSupplierFeeMmk = $supplierFeeMmk * $quantityFraction;
+                    $rowTotalDiscountMmk = ($po->total_discount * $po->exchange_rate) * $quantityFraction;
                     
                     // 3. Get Cargo and Adjustments from frontend overrides (or 0)
                     $rowCargoFee = 0;
@@ -334,11 +338,17 @@ class PurchaseOrderService
                     // 4. Calculate per-unit allocations
                     $unitForeignDeli = $rowForeignDeliMmk / $receivedQty;
                     $unitSupplierFee = $rowSupplierFeeMmk / $receivedQty;
+                    $unitTotalDiscount = $rowTotalDiscountMmk / $receivedQty;
                     $unitCargoFee = $rowCargoFee / $receivedQty;
                     $unitAdjustment = $rowAdjustment / $receivedQty;
                     
-                    // 5. Sum it all up into the final unit cost
-                    $finalUnitCostMmk = $item->unit_cost + $unitForeignDeli + $unitSupplierFee + $unitCargoFee + $unitAdjustment;
+                    // 5. Sum it all up into the final unit cost (subtracting discount)
+                    $finalUnitCostMmk = $item->unit_cost + $unitForeignDeli + $unitSupplierFee - $unitTotalDiscount + $unitCargoFee + $unitAdjustment;
+
+                    // Save allocations to the item
+                    $item->allocated_cargo_fee = $rowCargoFee;
+                    $item->allocated_adjustment_amount = $rowAdjustment;
+                    $item->save();
 
                     // Create ProductBatch
                     ProductBatch::create([
@@ -387,7 +397,7 @@ class PurchaseOrderService
             }
 
             $po->total_goods_cost = $newTotalGoodsCost;
-            $po->grand_total = (($newTotalGoodsCost + $po->foreign_deli_fee + $po->supplier_fee) * $po->exchange_rate) 
+            $po->grand_total = (($newTotalGoodsCost + $po->foreign_deli_fee + $po->supplier_fee - $po->total_discount) * $po->exchange_rate) 
                                + $cargoFee + $localDeliFee + $adjustmentAmount;
             
             $po->paid_amount = $po->grand_total;

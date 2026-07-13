@@ -19,6 +19,7 @@ class PurchaseOrder extends Model
         'exchange_rate' => 'float',
         'total_goods_cost' => 'float',
         'foreign_deli_fee' => 'float',
+        'total_discount' => 'float',
         'supplier_fee_percentage' => 'float',
         'supplier_fee' => 'float',
         'cargo_fee' => 'float',

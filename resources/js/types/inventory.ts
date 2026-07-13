@@ -73,6 +73,7 @@ export interface PurchaseOrderItemInput {
 }
 
 export interface PurchaseOrderItem {
+    batch_unit_cost: undefined;
     product_variant: any;
     id: number;
     product_variant_id: number;
@@ -82,6 +83,8 @@ export interface PurchaseOrderItem {
     unit_cost: number;
     retail_price?: number;
     line_total: number;
+    allocated_cargo_fee?: number | null;
+    allocated_adjustment_amount?: number | null;
     batch_retail_price?: number | null;
     latest_retail_price?: number | null;
     previous_retail_prices?: number[];
@@ -95,6 +98,7 @@ export interface PurchaseOrderItem {
 }
 
 export interface PurchaseOrder {
+    total_discount(total_discount: any): unknown;
     supplier: any;
     order_type: string;
     id: number;

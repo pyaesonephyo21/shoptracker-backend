@@ -29,6 +29,7 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
         exchange_rate: string | number;
         items: PurchaseOrderItemInput[];
         foreign_deli_fee: string | number;
+        total_discount: string | number;
         supplier_fee_percentage: string | number;
         paid_amount: string | number;
         note: string;
@@ -44,6 +45,7 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
             retail_price: item.retail_price || ''
         })) as PurchaseOrderItemInput[],
         foreign_deli_fee: order.foreign_deli_fee ? String(order.foreign_deli_fee) : '',
+        total_discount: order.total_discount ? String(order.total_discount) : '',
         supplier_fee_percentage: order.supplier_fee_percentage ? String(order.supplier_fee_percentage) : '',
         paid_amount: order.paid_amount ? String(order.paid_amount) : '',
         note: order.note || ''
@@ -66,11 +68,12 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
     const totalGoodsCost = data.items.reduce((sum, item) => sum + (Number(item.quantity || 0) * Number(item.unit_cost || 0)), 0);
     const exchangeRate = Number(data.exchange_rate) || 1;
     const foreignDeliFee = Number(data.foreign_deli_fee) || 0;
+    const totalDiscount = Number(data.total_discount) || 0;
     const supplierFeePercent = Number(data.supplier_fee_percentage) || 0;
     
-    const calculatedSupplierFee = orderType === 'global' ? ((totalGoodsCost + foreignDeliFee) * (supplierFeePercent / 100)) : 0;
-    const totalForeignCurrency = totalGoodsCost + foreignDeliFee + calculatedSupplierFee;
-    const grandTotalMMK = orderType === 'global' ? (totalForeignCurrency * exchangeRate) : totalGoodsCost;
+    const calculatedSupplierFee = orderType === 'global' ? ((totalGoodsCost + foreignDeliFee - totalDiscount) * (supplierFeePercent / 100)) : 0;
+    const totalForeignCurrency = totalGoodsCost + foreignDeliFee + calculatedSupplierFee - totalDiscount;
+    const grandTotalMMK = orderType === 'global' ? (totalForeignCurrency * exchangeRate) : (totalGoodsCost - totalDiscount);
 
     const openProductModal = () => {
         if (!selectedProduct) return;
@@ -259,6 +262,16 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
                                     {/* @ts-ignore */}
                                     {errors.foreign_deli_fee && <span className="text-red-500 text-xs">{errors.foreign_deli_fee}</span>}
                                 </div>
+                                <div className="flex flex-col gap-2 mb-3">
+                                    <Label>Total Discount / Coupon Reward ({dynamicCurrency}) (Optional)</Label>
+                                    <FormattedNumberInput
+                                        value={data.total_discount}
+                                        onChange={(val) => { setData('total_discount', val); clearErrors('total_discount'); }}
+                                        placeholder="e.g. 5"
+                                    />
+                                    {/* @ts-ignore */}
+                                    {errors.total_discount && <span className="text-red-500 text-xs">{errors.total_discount}</span>}
+                                </div>
                                 <div className="flex flex-col gap-2">
                                     <Label>Supplier Service Fee (%) (Optional)</Label>
                                     <FormattedNumberInput
@@ -398,6 +411,12 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
                                     <div className="flex justify-between items-center">
                                         <span className="text-zinc-500">Foreign Shipping:</span>
                                         <span className="font-bold">{Number(data.foreign_deli_fee || 0).toLocaleString()} {dynamicCurrency}</span>
+                                    </div>
+                                )}
+                                {Number(data.total_discount || 0) > 0 && (
+                                    <div className="flex justify-between items-center text-green-600 dark:text-green-500">
+                                        <span>Total Discount:</span>
+                                        <span className="font-bold">-{Number(data.total_discount || 0).toLocaleString()} {dynamicCurrency}</span>
                                     </div>
                                 )}
                                 {orderType === 'global' && Number(data.supplier_fee_percentage || 0) > 0 && (

@@ -363,7 +363,7 @@ class SalesOrderService
             $takeQty = min($batch->remaining_quantity, $remainingQtyNeeded);
             $batchCost = $takeQty * $batch->unit_cost;
 
-            $sellingPrice = $priceOverride !== null ? $priceOverride : ($batch->retail_price ?? $variant->effective_retail_price);
+            $sellingPrice = $priceOverride !== null ? $priceOverride : $variant->effective_retail_price;
 
             $itemDiscountPerUnit = 0;
             if ($discountType === 'fixed') {
@@ -432,7 +432,7 @@ class SalesOrderService
                 $takeQty = min($availableInThisPo, $remainingQtyNeeded);
 
                 $fallbackCost = $poItem->unit_cost;
-                $fallbackRetail = $poItem->retail_price ?? ($lastBatch ? $lastBatch->retail_price : $variant->effective_retail_price);
+                $fallbackRetail = $poItem->retail_price ?? $variant->effective_retail_price;
 
                 $sellingPrice = $priceOverride !== null ? $priceOverride : $fallbackRetail;
 
@@ -469,7 +469,7 @@ class SalesOrderService
             if ($remainingQtyNeeded > 0) {
                 // For variant, fallback to product base cost if we must
                 $fallbackCost = $lastBatch ? $lastBatch->unit_cost : ($variant->product->base_cost ?? 0);
-                $fallbackRetail = $lastBatch && $lastBatch->retail_price ? $lastBatch->retail_price : $variant->effective_retail_price;
+                $fallbackRetail = $variant->effective_retail_price;
 
                 $sellingPrice = $priceOverride !== null ? $priceOverride : $fallbackRetail;
 

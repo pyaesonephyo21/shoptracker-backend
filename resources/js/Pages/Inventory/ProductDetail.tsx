@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
 import { Head, router } from '@inertiajs/react';
+import axios from 'axios';
 import { Product, InventoryLog } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { twMerge } from 'tailwind-merge';
 
 export default function ProductDetail({ product, latestCost, latestRetailPrice, pendingCost }: { product: Product, latestCost: number, latestRetailPrice: number, pendingCost: number }) {
@@ -12,8 +14,26 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
     const [activeVariantTab, setActiveVariantTab] = useState<'active' | 'archived'>('active');
     const [isArchiveDialogOpen, setIsArchiveDialogOpen] = useState(false);
 
+    const [editingRetailPriceId, setEditingRetailPriceId] = useState<number | null>(null);
+    const [editRetailPriceValue, setEditRetailPriceValue] = useState<string>('');
+    const [isSavingRetailPrice, setIsSavingRetailPrice] = useState(false);
+
     const stock = product.variants?.filter(v => !v.deleted_at).reduce((acc, v) => acc + (v.stock_quantity || 0), 0) || 0;
     const pendingStock = product.variants?.filter(v => !v.deleted_at).reduce((acc, v) => acc + (v.pending_stock || 0), 0) || 0;
+
+    const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
+
+    const activeVariants = product.variants?.filter(v => !v.deleted_at) || [];
+    const retailPrices = activeVariants.map(v => Number(v.retail_price || product.retail_price || 0));
+
+    let displayRetailPrice = formatMMK(product.retail_price || 0);
+    if (retailPrices.length > 0) {
+        const minRetailPrice = Math.min(...retailPrices);
+        const maxRetailPrice = Math.max(...retailPrices);
+        displayRetailPrice = minRetailPrice === maxRetailPrice
+            ? formatMMK(minRetailPrice)
+            : `${formatMMK(minRetailPrice)} ~ ${formatMMK(maxRetailPrice)}`;
+    }
 
     const formatReason = (reason: string) => {
         switch (reason) {
@@ -26,7 +46,6 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
             default: return reason.replace("_", " ");
         }
     };
-    const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
     const handleToggleActive = () => {
         router.post(`/inventory/${product.id}/toggle-active`, {}, {
@@ -38,6 +57,33 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
         router.post(`/inventory/variants/${variantId}/restore`, {}, {
             preserveScroll: true
         });
+    };
+
+    const handleSaveRetailPrice = async (variantId: number) => {
+        if (!editRetailPriceValue || isSavingRetailPrice) return;
+        setIsSavingRetailPrice(true);
+
+        try {
+            await axios.put(`/inventory/variants/${variantId}/retail-price`, {
+                retail_price: editRetailPriceValue
+            }, {
+                headers: { 'Accept': 'application/json' }
+            });
+
+            if (product.variants) {
+                const variant = product.variants.find(v => v.id === variantId);
+                if (variant) {
+                    variant.retail_price = Number(editRetailPriceValue);
+                }
+            }
+
+            setEditingRetailPriceId(null);
+            setEditRetailPriceValue('');
+            setIsSavingRetailPrice(false);
+        } catch (error) {
+            console.error('Failed to save retail price', error);
+            setIsSavingRetailPrice(false);
+        }
     };
 
     return (
@@ -106,8 +152,8 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                         {/* FINANCIALS */}
                         <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
                             <div className="flex justify-between mb-4">
-                                <span className="text-sm font-medium text-zinc-500">Retail Price <span className="text-[10px] text-zinc-400">(Latest)</span></span>
-                                <span className="text-sm font-bold text-black dark:text-white">{formatMMK(latestRetailPrice || 0)} MMK</span>
+                                <span className="text-sm font-medium text-zinc-500">Retail Price</span>
+                                <span className="text-sm font-bold text-black dark:text-white">{displayRetailPrice} MMK</span>
                             </div>
                             <div className="flex justify-between mb-6">
                                 <span className="text-sm font-medium text-zinc-500">Cost Price <span className="text-[10px] text-zinc-400">(Latest)</span></span>
@@ -143,45 +189,94 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                                 </div>
                             </div>
                             <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
-                                <table className="w-full text-sm text-left">
-                                    <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase text-zinc-500 font-bold">
+                                <table className="w-full text-xs sm:text-sm text-left">
+                                    <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-[10px] sm:text-xs uppercase text-zinc-500 font-bold">
                                         <tr>
-                                            <th className="px-4 py-3">Variant</th>
-                                            <th className="px-4 py-3">SKU</th>
+                                            <th className="px-2 sm:px-4 py-3">Variant</th>
+                                            <th className="px-2 sm:px-4 py-3">SKU</th>
                                             {activeVariantTab === 'active' ? (
                                                 <>
-                                                    <th className="px-4 py-3 text-right">Stock</th>
-                                                    <th className="px-4 py-3 text-right">Retail Price</th>
+                                                    <th className="px-2 sm:px-4 py-3 text-right">Stock</th>
+                                                    <th className="px-2 sm:px-4 py-3 text-right">
+                                                        <span className="hidden sm:inline">Retail Price</span>
+                                                        <span className="sm:hidden">Price</span>
+                                                    </th>
                                                 </>
                                             ) : (
-                                                <th className="px-4 py-3 text-right">Action</th>
+                                                    <th className="px-2 sm:px-4 py-3 text-right">Action</th>
                                             )}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {product.variants?.filter(v => activeVariantTab === 'active' ? !v.deleted_at : v.deleted_at).map(v => (
                                             <tr key={v.id} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0 bg-white dark:bg-black">
-                                                <td className="px-4 py-3 font-medium">
+                                                <td className="px-2 sm:px-4 py-3 font-medium whitespace-nowrap">
                                                     {Object.values(v.attributes || {}).join(' / ') || 'Default'}
                                                 </td>
-                                                <td className="px-4 py-3 text-zinc-500">{v.sku}</td>
+                                                <td className="px-2 sm:px-4 py-3 text-zinc-500 whitespace-nowrap">{v.sku}</td>
                                                 {activeVariantTab === 'active' ? (
                                                     <>
-                                                        <td className="px-4 py-3 text-right">
+                                                        <td className="px-2 sm:px-4 py-3 text-right whitespace-nowrap">
                                                             <span className={twMerge("font-bold", v.stock_quantity > 0 ? "text-green-600 dark:text-green-500" : "text-red-500")}>
                                                                 {v.stock_quantity}
                                                             </span>
                                                             {v.pending_stock > 0 && <span className="text-zinc-400 ml-1">(+{v.pending_stock})</span>}
                                                         </td>
-                                                        <td className="px-4 py-3 text-right font-medium">
-                                                            {formatMMK(v.retail_price || product.retail_price)} MMK
+                                                        <td className="px-2 sm:px-4 py-3 text-right font-medium whitespace-nowrap">
+                                                            {editingRetailPriceId === v.id ? (
+                                                                <div className="flex items-center justify-end gap-1.5">
+                                                                    <div className="flex items-center bg-zinc-50 dark:bg-zinc-900/50 rounded-lg border border-zinc-200 dark:border-zinc-700 px-2 py-0.5 w-32 shadow-sm transition-all focus-within:border-black dark:focus-within:border-zinc-500 focus-within:ring-1 focus-within:ring-black dark:focus-within:ring-zinc-500">
+                                                                        <span className="text-zinc-400 select-none text-[10px] font-bold tracking-widest mr-1">MMK</span>
+                                                                        <FormattedNumberInput
+                                                                            autoFocus
+                                                                            value={editRetailPriceValue}
+                                                                            onChange={(val) => setEditRetailPriceValue(val)}
+                                                                            onKeyDown={(e) => {
+                                                                                if (e.key === 'Enter') handleSaveRetailPrice(v.id);
+                                                                                if (e.key === 'Escape') setEditingRetailPriceId(null);
+                                                                            }}
+                                                                            placeholder="Price"
+                                                                            className="w-full h-7 p-0 text-xs font-bold border-none bg-transparent focus-visible:ring-0 text-right shadow-none text-black dark:text-white"
+                                                                        />
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => handleSaveRetailPrice(v.id)}
+                                                                        disabled={isSavingRetailPrice}
+                                                                        className="h-8 px-2.5 bg-black hover:bg-zinc-800 dark:bg-white dark:hover:bg-zinc-200 text-white dark:text-black rounded-lg flex items-center justify-center shrink-0 transition-colors shadow-sm disabled:opacity-50"
+                                                                    >
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setEditingRetailPriceId(null)}
+                                                                        className="h-8 px-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-500 dark:text-zinc-400 rounded-lg flex items-center justify-center shrink-0 transition-colors shadow-sm"
+                                                                    >
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex items-center justify-end gap-1.5 sm:gap-2 group">
+                                                                    <span className="font-bold">{formatMMK(v.retail_price || product.retail_price)} <span className="text-[10px] text-zinc-400">MMK</span></span>
+                                                                    <button
+                                                                        onClick={() => {
+                                                                            setEditingRetailPriceId(v.id);
+                                                                            setEditRetailPriceValue((v.retail_price || product.retail_price).toString());
+                                                                        }}
+                                                                        className="h-7 w-7 rounded-lg bg-zinc-50 hover:bg-zinc-100 dark:bg-zinc-900 dark:hover:bg-zinc-800 flex items-center justify-center text-zinc-400 hover:text-black dark:hover:text-white transition-all border border-zinc-200 dark:border-zinc-800"
+                                                                        title="Edit Price"
+                                                                    >
+                                                                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" /></svg>
+                                                                    </button>
+                                                                </div>
+                                                            )}
                                                         </td>
                                                     </>
                                                 ) : (
                                                     <td className="px-4 py-3 text-right">
-                                                        <Button 
-                                                            variant="outline" 
-                                                            size="sm" 
+                                                            <Button
+                                                                variant="outline"
+                                                                size="sm"
                                                             className="text-[10px] font-bold uppercase tracking-widest"
                                                             onClick={() => handleRestoreVariant(v.id)}
                                                         >
@@ -214,9 +309,9 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
 
                         {activeTab === 'activity' && (
                             !product.variants || product.variants.flatMap(v => v.inventory_logs || []).length === 0 ? (
-                                <EmptyState 
-                                    title="No Activity Recorded" 
-                                    description="There is no recorded activity for this product yet." 
+                                <EmptyState
+                                    title="No Activity Recorded"
+                                    description="There is no recorded activity for this product yet."
                                 />
                             ) : (
                                 <div className="flex flex-col gap-6 relative">
@@ -304,9 +399,9 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                                                     </div>
                                                 ))
                                             ) : (
-                                                <EmptyState 
-                                                    title="No Batches Recorded" 
-                                                    description="There are no inventory batches recorded for this product yet." 
+                                                    <EmptyState
+                                                        title="No Batches Recorded"
+                                                        description="There are no inventory batches recorded for this product yet."
                                                 />
                                             )}
                                         </>

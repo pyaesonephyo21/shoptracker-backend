@@ -128,8 +128,10 @@ class SalesOrderController extends Controller
 
     public function create()
     {
-        $products = Product::with(['variants.batches' => function ($q) {
-            $q->where('remaining_quantity', '>', 0)->orderBy('created_at', 'asc');
+        $products = Product::with(['variants.purchaseOrderItems' => function ($q) {
+            $q->whereHas('purchaseOrder', function ($q2) {
+                $q2->where('status', 'pending');
+            })->orderBy('created_at', 'asc');
         }])->whereHas('variants', function ($q) {
             $q->whereRaw('(stock_quantity + pending_stock) > 0');
         })->where('is_active', true)->get();

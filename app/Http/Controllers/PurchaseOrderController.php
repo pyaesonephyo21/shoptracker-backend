@@ -2,16 +2,18 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\PurchaseOrderExport;
 use App\Models\Product;
-use App\Models\PurchaseOrder;
-use App\Models\Supplier;
 use App\Models\ProductBatch;
+use App\Models\ProductVariant;
+use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
+use App\Models\Supplier;
 use App\Services\PurchaseOrderService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\PurchaseOrderExport;
 
 class PurchaseOrderController extends Controller
 {
@@ -21,12 +23,12 @@ class PurchaseOrderController extends Controller
 
         if ($request->filled('search')) {
             $search = $request->search;
-            $query->where(function($q) use ($search) {
+            $query->where(function ($q) use ($search) {
                 $q->where('batch_name', 'like', "%{$search}%")
-                  ->orWhere('shop_name', 'like', "%{$search}%")
-                  ->orWhereHas('supplier', function($sq) use ($search) {
-                      $sq->where('name', 'like', "%{$search}%");
-                  });
+                    ->orWhere('shop_name', 'like', "%{$search}%")
+                    ->orWhereHas('supplier', function ($sq) use ($search) {
+                        $sq->where('name', 'like', "%{$search}%");
+                    });
             });
         }
 
@@ -100,6 +102,7 @@ class PurchaseOrderController extends Controller
     public function create()
     {
         $products = Product::with('variants')->where('is_active', true)->get();
+        $products = $this->attachLatestPricesToProducts($products);
         $suppliers = Supplier::all();
 
         return Inertia::render('Inventory/AddPurchaseOrder', [
@@ -180,7 +183,7 @@ class PurchaseOrderController extends Controller
 
             // Fetch pending retail price from other pending POs
             $pendingItem = PurchaseOrderItem::where('product_variant_id', $item->product_variant_id)
-                ->whereHas('purchaseOrder', function($q) {
+                ->whereHas('purchaseOrder', function ($q) {
                     $q->where('status', 'pending');
                 })
                 ->whereNotNull('retail_price')
@@ -208,6 +211,7 @@ class PurchaseOrderController extends Controller
         }
 
         $products = Product::with('variants')->get();
+        $products = $this->attachLatestPricesToProducts($products);
         $suppliers = Supplier::all();
 
         return Inertia::render('Inventory/EditPurchaseOrder', [
@@ -298,5 +302,41 @@ class PurchaseOrderController extends Controller
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
+    }
+
+
+
+    private function attachLatestPricesToProducts($products)
+    {
+        $variantIds = $products->flatMap->variants->pluck('id');
+
+        $latestPoItems = PurchaseOrderItem::whereIn('product_variant_id', $variantIds)
+            ->orderBy('id', 'desc')
+            ->get()
+            ->unique('product_variant_id')
+            ->keyBy('product_variant_id');
+
+        $products->each(function ($product) use ($latestPoItems) {
+            $latestItem = null;
+            foreach ($product->variants as $variant) {
+                if ($latestPoItems->has($variant->id)) {
+                    $item = $latestPoItems->get($variant->id);
+                    if (!$latestItem || $item->id > $latestItem->id) {
+                        $latestItem = $item;
+                    }
+                }
+            }
+
+            if ($latestItem) {
+                $product->base_cost = (float) $latestItem->original_cost;
+                $product->retail_price = (float) $latestItem->retail_price;
+            } else {
+                // Fallback to original product values if no batches exist
+                $product->base_cost = (float) $product->getOriginal('base_cost');
+                $product->retail_price = (float) ($product->variants->first()?->retail_price ?: $product->getOriginal('retail_price'));
+            }
+        });
+
+        return $products;
     }
 }

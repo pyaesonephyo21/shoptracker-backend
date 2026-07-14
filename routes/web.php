@@ -38,6 +38,7 @@ Route::middleware('auth')->group(function () {
     Route::put('/inventory/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update']);
     Route::post('/inventory/purchase-orders/{purchaseOrder}/arrive', [PurchaseOrderController::class, 'markAsArrived']);
     Route::post('/inventory/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
+    Route::put('/inventory/variants/{variant}/retail-price', [InventoryController::class, 'updateRetailPrice']);
     Route::get('/inventory/{product}/adjust', [StockAdjustmentController::class, 'create']);
     Route::post('/inventory/{product}/adjust', [StockAdjustmentController::class, 'store']);
     Route::get('/inventory/{product}', [InventoryController::class, 'show']);

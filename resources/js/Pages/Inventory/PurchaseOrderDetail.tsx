@@ -28,6 +28,7 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
     const [isReceivingMode, setIsReceivingMode] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
+    
 
     const { data, setData, post, processing, errors, clearErrors } = useForm({
         cargo_fee: '',
@@ -257,7 +258,9 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                                                             );
                                                         })()}
                                                         {item.batch_retail_price !== null && item.batch_retail_price !== undefined && (
-                                                            <span>Retail Set: {formatMMK(item.batch_retail_price)} MMK</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span>Retail Set: {formatMMK(item.batch_retail_price)} MMK</span>
+                                                            </div>
                                                         )}
                                                     </div>
                                                 </div>

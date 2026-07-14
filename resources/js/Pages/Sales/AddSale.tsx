@@ -70,7 +70,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
             ...data.cart,
             {
                 product_variant_id: variant.id,
-                quantity: '',
+                quantity: 1,
                 unit_price_snapshot: variant.retail_price || parentProduct.retail_price || 0,
                 discount_type: 'none',
                 discount_value: '',
@@ -90,35 +90,51 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         setData('cart', data.cart.filter((_, i) => i !== index));
     };
 
-    const calculateFifoRetailPrice = (variant: any, requestedQty: number, parentProduct: any) => {
+    const calculateUniformRetailPrice = (variant: any, requestedQty: number, parentProduct: any) => {
         const effectivePrice = variant.retail_price || (parentProduct ? parentProduct.retail_price : 0) || 0;
-
-        if (!variant || !variant.batches || variant.batches.length === 0) {
-            return {
-                total: requestedQty * effectivePrice,
-                average: effectivePrice,
-                isMultiple: false
-            };
-        }
 
         let remaining = requestedQty;
         let total = 0;
         let pricesUsed = new Set<number>();
 
-        for (const batch of variant.batches) {
-            if (remaining <= 0) break;
-            const take = Math.min(batch.remaining_quantity, remaining);
-            const price = batch.retail_price !== null && batch.retail_price !== undefined ? batch.retail_price : effectivePrice;
-            total += take * price;
-            pricesUsed.add(price);
+        // 1. Draw from In-Stock first (uniform price)
+        const inStock = Math.max(0, variant.stock_quantity); // Handle negative stock if any
+        if (remaining > 0 && inStock > 0) {
+            const take = Math.min(inStock, remaining);
+            total += take * effectivePrice;
+            pricesUsed.add(effectivePrice);
             remaining -= take;
         }
 
+        // 2. Draw from Pending POs if still remaining
+        if (remaining > 0 && variant.purchase_order_items) {
+            let skippedQty = variant.stock_quantity < 0 ? Math.abs(variant.stock_quantity) : 0;
+
+            for (const poItem of variant.purchase_order_items) {
+                if (remaining <= 0) break;
+                
+                let availableInThisPo = poItem.quantity;
+                if (skippedQty > 0) {
+                    const skip = Math.min(availableInThisPo, skippedQty);
+                    availableInThisPo -= skip;
+                    skippedQty -= skip;
+                }
+
+                if (availableInThisPo <= 0) continue;
+
+                const take = Math.min(availableInThisPo, remaining);
+                const price = poItem.retail_price !== null && poItem.retail_price !== undefined ? poItem.retail_price : effectivePrice;
+                
+                total += take * price;
+                pricesUsed.add(price);
+                remaining -= take;
+            }
+        }
+
+        // 3. Fallback for any remaining oversell
         if (remaining > 0) {
-            const lastBatch = variant.batches[variant.batches.length - 1];
-            const price = lastBatch && lastBatch.retail_price !== null && lastBatch.retail_price !== undefined ? lastBatch.retail_price : effectivePrice;
-            total += remaining * price;
-            pricesUsed.add(price);
+            total += remaining * effectivePrice;
+            pricesUsed.add(effectivePrice);
         }
 
         return {
@@ -142,7 +158,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
             }
             const qty = Number(item.quantity) || 0;
             const discountVal = Number(item.discount_value) || 0;
-            const basePrice = variant ? calculateFifoRetailPrice(variant, qty, parentProduct).average : (item.unit_price_snapshot || 0);
+            const basePrice = variant ? calculateUniformRetailPrice(variant, qty, parentProduct).average : (item.unit_price_snapshot || 0);
 
             let effectivePrice = basePrice;
             if (item.discount_type === 'fixed') {
@@ -344,14 +360,14 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                             <div className="flex-1 flex flex-col justify-center">
                                                 <span className="text-xs text-zinc-500 font-medium mb-1">Unit Price</span>
                                                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                                                    {variant && calculateFifoRetailPrice(variant, Number(item.quantity) || 0, parentProduct).isMultiple ? (
+                                                    {variant && calculateUniformRetailPrice(variant, Number(item.quantity) || 0, parentProduct).isMultiple ? (
                                                         <span className="font-bold text-lg text-orange-500 dark:text-orange-400">
-                                                            Varies (Diff Batches)
+                                                            Varies (In-Stock/Pending)
                                                         </span>
                                                     ) : (
                                                         <>
                                                             <span className={twMerge("font-bold text-lg", hasDiscount ? "text-zinc-400 line-through text-sm" : "text-black dark:text-white")}>
-                                                                    {(variant ? calculateFifoRetailPrice(variant, Number(item.quantity) || 0, parentProduct).average : (item.unit_price_snapshot || 0)).toLocaleString()}
+                                                                    {(variant ? calculateUniformRetailPrice(variant, Number(item.quantity) || 0, parentProduct).average : (item.unit_price_snapshot || 0)).toLocaleString()}
                                                             </span>
                                                             {hasDiscount && (
                                                                 <span className="text-black dark:text-white font-bold text-lg">

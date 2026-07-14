@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Support\Facades\DB;
-use Inertia\Inertia;
-use App\Models\Product;
 use App\Models\Category;
+use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrderItem;
 use App\Models\SalesOrderItem;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Inertia\Inertia;
 
 class InventoryController extends Controller
 {
@@ -238,5 +239,25 @@ class InventoryController extends Controller
         $variant->restore();
 
         return back()->with('success', 'Variant restored successfully.');
+    }
+
+    public function updateRetailPrice(Request $request, ProductVariant $variant)
+    {
+        $validated = $request->validate([
+            'retail_price' => 'required|numeric|min:0'
+        ]);
+
+        DB::transaction(function () use ($variant, $validated) {
+            $retailPrice = $validated['retail_price'];
+
+            $variant->update(['retail_price' => $retailPrice]);
+            $variant->batches()->update(['retail_price' => $retailPrice]);
+            $variant->purchaseOrderItems()->update(['retail_price' => $retailPrice]);
+        });
+
+        if ($request->wantsJson()) {
+            return response()->json(['success' => true]);
+        }
+        return back()->with('success', 'Retail price updated successfully.');
     }
 }

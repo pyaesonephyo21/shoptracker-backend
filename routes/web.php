@@ -9,6 +9,7 @@ use App\Http\Controllers\Management\SupplierController;
 use App\Http\Controllers\Management\CourierController;
 use App\Http\Controllers\Management\CategoryController;
 use App\Http\Controllers\Management\ExpenseController;
+use App\Http\Controllers\Management\PaymentMethodController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\PurchaseOrderController;
@@ -77,6 +78,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/management/categories', [CategoryController::class, 'store']);
     Route::put('/management/categories/{category}', [CategoryController::class, 'update']);
     Route::delete('/management/categories/{category}', [CategoryController::class, 'destroy']);
+    
+    Route::get('/management/payment-methods', [PaymentMethodController::class, 'index']);
+    Route::post('/management/payment-methods', [PaymentMethodController::class, 'store']);
+    Route::put('/management/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'update']);
+    Route::delete('/management/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
     
     Route::get('/management/expenses', [ExpenseController::class, 'index']);
     Route::get('/management/expenses/export', [ExpenseController::class, 'export']);

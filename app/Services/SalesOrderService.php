@@ -29,6 +29,7 @@ class SalesOrderService
                 'money_collected_by' => 'seller',
                 'is_deli_prepaid' => false,
                 'overcharge' => (float) ($data['overcharge'] ?? 0),
+                'extra_fee' => (float) ($data['extra_fee'] ?? 0),
                 'delivery_fee' => 0,
                 'courier_service_fee' => 0,
 
@@ -71,7 +72,7 @@ class SalesOrderService
             if ($order->paid_amount > 0) {
                 $order->payments()->create([
                     'amount' => $order->paid_amount,
-                    'payment_method' => $data['payment_method'] ?? 'kpay',
+                    'payment_method' => $data['payment_method'] ?? 'cash',
                 ]);
             }
 
@@ -92,6 +93,7 @@ class SalesOrderService
                 'customer_phone',
                 'delivery_address',
                 'note',
+                'delivery_note',
                 'tracking_number',
                 'discount_reason',
                 'discount_type',
@@ -103,6 +105,7 @@ class SalesOrderService
             if (isset($data['courier_service_fee'])) $order->courier_service_fee = (float) $data['courier_service_fee'];
             if (isset($data['discount_value'])) $order->discount_value = (float) $data['discount_value'];
             if (isset($data['overcharge'])) $order->overcharge = (float) $data['overcharge'];
+            if (isset($data['extra_fee'])) $order->extra_fee = (float) $data['extra_fee'];
             if (isset($data['paid_amount'])) $order->paid_amount = (float) $data['paid_amount'];
 
             // Calculate changes before saving
@@ -168,6 +171,7 @@ class SalesOrderService
 
             if (isset($data['delivery_fee'])) $order->delivery_fee = (float) $data['delivery_fee'];
             if (isset($data['courier_service_fee'])) $order->courier_service_fee = (float) $data['courier_service_fee'];
+            if (isset($data['overcharge'])) $order->overcharge = (float) $data['overcharge'];
 
             if (isset($data['is_deli_prepaid'])) $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
             if (isset($data['money_collected_by'])) $order->money_collected_by = $data['money_collected_by'];
@@ -211,7 +215,7 @@ class SalesOrderService
                     throw new Exception("Order is already settled.");
                 }
 
-                $amountToPay = $order->customer_grand_total - $order->paid_amount;
+                $amountToPay = $order->net_revenue - $order->paid_amount;
                 if ($amountToPay > 0) {
                     $order->payments()->create([
                         'amount' => $amountToPay,
@@ -222,7 +226,7 @@ class SalesOrderService
                 $order->update([
                     'settlement_status' => 'settled',
                     'payment_status' => 'paid',
-                    'paid_amount' => $order->customer_grand_total,
+                    'paid_amount' => $order->net_revenue,
                     'status' => 'completed'
                 ]);
             }
@@ -235,7 +239,7 @@ class SalesOrderService
                 if ($amountToPay > 0) {
                     $order->payments()->create([
                         'amount' => $amountToPay,
-                        'payment_method' => $paymentMethod ?? 'kpay',
+                        'payment_method' => $paymentMethod ?? 'cash',
                     ]);
                 }
 
@@ -528,23 +532,25 @@ class SalesOrderService
         $netRevenue = 0;
 
         if ($order->money_collected_by === 'courier') {
-            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge;
+            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge + $order->extra_fee;
             $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
             $order->settlement_status = 'unpaid';
         } elseif ($order->is_deli_prepaid) {
-            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge;
-            $netRevenue = $afterDiscount + $order->overcharge + $order->delivery_fee - $order->courier_service_fee;
+            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge + $order->extra_fee;
+            $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
         } else {
-            $customerGrandTotal = $afterDiscount + $order->overcharge;
+            $customerGrandTotal = $afterDiscount + $order->overcharge + $order->extra_fee;
             $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
         }
 
         return [$customerGrandTotal, $netRevenue];
     }
 
-    private function determinePaymentStatus(SalesOrder $order, $customerGrandTotal)
+    private function determinePaymentStatus(SalesOrder $order, $customerGrandTotal, $netRevenue)
     {
-        if ($order->paid_amount >= $customerGrandTotal) {
+        $targetAmount = ($order->money_collected_by === 'courier') ? $netRevenue : $customerGrandTotal;
+
+        if ($order->paid_amount >= $targetAmount) {
             return 'paid';
         } elseif ($order->paid_amount > 0) {
             return 'partial';
@@ -562,7 +568,7 @@ class SalesOrderService
 
         [$customerGrandTotal, $netRevenue] = $this->calculateLogistics($order, $afterDiscount);
 
-        $order->payment_status = $this->determinePaymentStatus($order, $customerGrandTotal);
+        $order->payment_status = $this->determinePaymentStatus($order, $customerGrandTotal, $netRevenue);
 
         $order->subtotal = $subtotal;
         $order->total_cost = $totalCost;

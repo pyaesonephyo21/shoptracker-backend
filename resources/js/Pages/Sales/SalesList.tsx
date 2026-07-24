@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import { SalesOrder } from '@/types/sales';
 import { PaginatedData } from '@/types/pagination';
 import Pagination from '@/components/Pagination';
@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Filter } from 'lucide-react';
 
 export default function SalesList({ orders, filters = { status: '', settlement_status: '', search: '', start_date: '', end_date: '' } }: { orders: PaginatedData<SalesOrder>, filters: { status: string, settlement_status: string, search: string, start_date: string, end_date: string } }) {
+    const paymentMethods = usePage<any>().props.auth?.payment_methods || [];
     const [searchVal, setSearchVal] = useState(filters.search || '');
     const [activeStatus, setActiveStatus] = useState(filters.status || '');
     const [activeSettlement, setActiveSettlement] = useState(filters.settlement_status || '');
@@ -18,6 +19,14 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
     const [startDate, setStartDate] = useState<Date | undefined>(filters.start_date ? new Date(filters.start_date) : undefined);
     const [endDate, setEndDate] = useState<Date | undefined>(filters.end_date ? new Date(filters.end_date) : undefined);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
+
+    const hasActiveFilters = Boolean(
+        filters.status ||
+        filters.settlement_status ||
+        (filters as any).payment_method ||
+        filters.start_date ||
+        filters.end_date
+    );
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -124,9 +133,12 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
                     </form>
 
                     <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                        <DialogTrigger className="h-11 px-4 flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors shrink-0">
-                            <Filter className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-300 hidden sm:block">Filters</span>
+                        <DialogTrigger className={`h-11 px-4 flex items-center justify-center gap-2 rounded-xl transition-colors shrink-0 relative ${hasActiveFilters ? 'bg-black dark:bg-white' : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
+                            <Filter className={`w-4 h-4 ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`} />
+                            <span className={`text-xs font-bold uppercase tracking-widest hidden sm:block ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`}>Filters</span>
+                            {hasActiveFilters && (
+                                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 shadow-sm ring-2 ring-white dark:ring-black" />
+                            )}
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
                             <DialogHeader>
@@ -207,16 +219,14 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
                                     <div className="flex flex-wrap items-center gap-2">
                                         {[
                                             { key: '', label: 'All' },
-                                            { key: 'cash', label: 'Cash' },
-                                            { key: 'kpay', label: 'KBZPay' },
-                                            { key: 'ayapay', label: 'AYAPay' }
+                                            ...paymentMethods.map((m: any) => ({ key: m.code, label: m.name }))
                                         ].map(item => {
                                             const active = activePaymentMethod === item.key;
                                             return (
                                                 <button
                                                     key={item.key}
                                                     onClick={() => setActivePaymentMethod(item.key)}
-                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none ${active ? 'bg-blue-600 text-white dark:bg-blue-600 dark:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none ${active ? 'bg-black text-white dark:bg-black dark:text-white' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
                                                 >
                                                     {item.label}
                                                 </button>
@@ -269,7 +279,7 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
                                                 </span>
                                                 {(item as any).financials?.payment_method && (item as any).financials?.payment_status !== 'unpaid' && (
                                                     <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wide whitespace-nowrap border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/50">
-                                                        {(item as any).financials.payment_method === 'kpay' ? 'KPay' : (item as any).financials.payment_method === 'ayapay' ? 'AYAPay' : 'Cash'}
+                                                        {paymentMethods.find((m: any) => m.code === (item as any).financials.payment_method)?.name || (item as any).financials.payment_method}
                                                     </span>
                                                 )}
                                             </div>

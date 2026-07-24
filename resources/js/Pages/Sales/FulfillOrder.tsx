@@ -14,6 +14,7 @@ interface Courier {
     name: string;
     contact_info?: string;
     default_service_fee: number;
+    default_overcharge: number;
 }
 
 export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrder, couriers: Courier[] }) {
@@ -22,6 +23,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
         tracking_number: '',
         delivery_fee: '',
         courier_service_fee: '',
+        overcharge: '',
         delivery_note: '',
         money_collected_by: 'courier' as 'seller' | 'courier',
         is_deli_prepaid: false
@@ -65,7 +67,8 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                             setData(data => ({
                                 ...data,
                                 courier_id: val,
-                                courier_service_fee: selected ? String(Number(selected.default_service_fee)) : data.courier_service_fee
+                                courier_service_fee: selected ? String(Number(selected.default_service_fee)) : data.courier_service_fee,
+                                overcharge: selected ? String(Number(selected.default_overcharge)) : data.overcharge
                             }));
                         }}>
                             <SelectTrigger>
@@ -109,6 +112,18 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                                             {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
                                         </div>
                                     )}
+
+                                    {!isSelfManaged && (
+                                        <div className="flex flex-col gap-2">
+                                            <Label>Overcharge (Charge to Customer) (Optional)</Label>
+                                            <FormattedNumberInput
+                                                value={data.overcharge}
+                                                onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
+                                                placeholder="e.g. 500"
+                                            />
+                                            {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -128,40 +143,46 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                             {!isSelfManaged && (
                                 <div className="flex flex-col gap-4">
                                     <Label className="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-100 dark:border-zinc-800 pb-2">
-                                        Money Collection
+                                        Payment & Delivery Scenario
                                     </Label>
                                     
-                                    <div className="flex gap-2">
+                                    <div className="flex flex-col gap-3">
                                         <button
                                             type="button"
-                                            onClick={() => setData('money_collected_by', 'seller')}
-                                            className={twMerge("flex-1 py-4 rounded-xl border-2 font-bold text-xs uppercase tracking-wider transition-all", 
-                                                data.money_collected_by === 'seller' ? "border-black bg-black text-white dark:bg-white dark:border-white dark:text-black" : "border-zinc-200 bg-transparent text-zinc-400 dark:border-zinc-800")}
+                                            onClick={() => { setData('money_collected_by', 'courier'); setData('is_deli_prepaid', false); }}
+                                            className={twMerge("p-4 rounded-xl border-2 text-left transition-all", 
+                                                data.money_collected_by === 'courier' ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
                                         >
-                                            I Collect
+                                            <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'courier' ? "text-black dark:text-white" : "")}>
+                                                COD (Courier Collects All)
+                                            </span>
+                                            <span className="text-xs text-zinc-500">Customer pays items & delivery fee to the courier in cash.</span>
                                         </button>
+
                                         <button
                                             type="button"
-                                            onClick={() => setData('money_collected_by', 'courier')}
-                                            className={twMerge("flex-1 py-4 rounded-xl border-2 font-bold text-xs uppercase tracking-wider transition-all", 
-                                                data.money_collected_by === 'courier' ? "border-black bg-black text-white dark:bg-white dark:border-white dark:text-black" : "border-zinc-200 bg-transparent text-zinc-400 dark:border-zinc-800")}
+                                            onClick={() => { setData('money_collected_by', 'seller'); setData('is_deli_prepaid', false); }}
+                                            className={twMerge("p-4 rounded-xl border-2 text-left transition-all", 
+                                                data.money_collected_by === 'seller' && !data.is_deli_prepaid ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
                                         >
-                                            Courier Collects
+                                            <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'seller' && !data.is_deli_prepaid ? "text-black dark:text-white" : "")}>
+                                                Items Prepaid (Deli Separate)
+                                            </span>
+                                            <span className="text-xs text-zinc-500">Customer paid us for items. Customer pays delivery fee to courier.</span>
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => { setData('money_collected_by', 'seller'); setData('is_deli_prepaid', true); }}
+                                            className={twMerge("p-4 rounded-xl border-2 text-left transition-all", 
+                                                data.money_collected_by === 'seller' && data.is_deli_prepaid ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
+                                        >
+                                            <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'seller' && data.is_deli_prepaid ? "text-black dark:text-white" : "")}>
+                                                Fully Prepaid (Deli Included)
+                                            </span>
+                                            <span className="text-xs text-zinc-500">Customer paid us for everything. We pay the courier.</span>
                                         </button>
                                     </div>
-
-                                    {data.money_collected_by === 'seller' && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setData('is_deli_prepaid', !data.is_deli_prepaid)}
-                                            className={twMerge("p-4 rounded-xl border-2 text-left transition-colors flex justify-between items-center", 
-                                                data.is_deli_prepaid ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 dark:border-zinc-800 bg-transparent")}
-                                        >
-                                            <span className={twMerge("font-bold text-sm", data.is_deli_prepaid ? "text-black dark:text-white" : "text-zinc-500")}>
-                                                {data.is_deli_prepaid ? "✓ Deli Fee Included in Payment" : "Deli Fee is Separate (COD)"}
-                                            </span>
-                                        </button>
-                                    )}
                                 </div>
                             )}
 

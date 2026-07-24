@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, Link, usePage, useForm } from '@inertiajs/react';
 import { SalesOrder } from '@/types/sales';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { twMerge } from 'tailwind-merge';
+
 const formatLogValue = (val: any) => {
     if (val === null || val === undefined || val === '') return 'none';
     if (typeof val === 'number') return val.toLocaleString();
@@ -21,6 +22,7 @@ const formatLogValue = (val: any) => {
 };
 
 export default function SalesDetail({ order }: { order: SalesOrder }) {
+    const paymentMethods = usePage<any>().props.auth?.payment_methods || [];
     const [modalAction, setModalAction] = useState<{
         type: "settle" | "cancel" | "return";
         itemId?: number;
@@ -199,7 +201,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-3">Logistics</span>
                             <div className="flex justify-between mb-2">
                                 <span className="text-sm text-zinc-500">Courier</span>
-                                <span className="text-sm font-bold text-black dark:text-white">{order.delivery.courier_name}</span>
+                                <span className="text-sm font-bold text-black dark:text-white">{order.delivery.courier_name || '-'}</span>
                             </div>
                             {order.delivery.tracking && (
                                 <div className="flex justify-between mb-2">
@@ -207,54 +209,95 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                     <span className="text-sm font-bold text-black dark:text-white">{order.delivery.tracking}</span>
                                 </div>
                             )}
+                            
+                            {order.delivery.courier_name && order.delivery.courier_name !== '-' && (
+                                <div className="flex justify-between mb-2">
+                                    <span className="text-sm text-zinc-500">Delivery Payment</span>
+                                    <span className="text-sm font-bold text-black dark:text-white uppercase">
+                                        {order.delivery.collected_by === 'courier' ? 'COD' : (order.delivery.is_prepaid ? 'Fully Prepaid' : 'Items Prepaid')}
+                                    </span>
+                                </div>
+                            )}
+
                             {order.note && (
                                 <div className="mt-4 p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-100 dark:border-yellow-900/30">
-                                    <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-500 uppercase block mb-1">Note</span>
-                                    <p className="text-sm text-yellow-800 dark:text-yellow-400">{order.note}</p>
+                                    <span className="text-[10px] font-bold text-yellow-700 dark:text-yellow-500 uppercase block mb-1">Order Note</span>
+                                    <p className="text-sm text-yellow-800 dark:text-yellow-400 whitespace-pre-wrap">{order.note}</p>
+                                </div>
+                            )}
+
+                            {order.delivery.note && (
+                                <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-900/30">
+                                    <span className="text-[10px] font-bold text-blue-700 dark:text-blue-500 uppercase block mb-1">Delivery Note</span>
+                                    <p className="text-sm text-blue-800 dark:text-blue-400 whitespace-pre-wrap">{order.delivery.note}</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* 4. FINANCIAL SUMMARY */}
-                    <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
-                        <div>
-                            <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-4">Financials</span>
-                            <CostRow label="Subtotal" value={order.financials.subtotal} />
+                    <div className="flex flex-col gap-8">
+                        {/* 4a. CUSTOMER RECEIPT */}
+                        <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+                            <div>
+                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-4">Customer Receipt</span>
+                                <CostRow label="Subtotal" value={order.financials.subtotal} />
 
-                            {order.financials.discount > 0 && (
-                                <div className="mb-2">
-                                    <div className="flex justify-between">
-                                        <div className="flex items-center">
-                                            <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Order Discount</span>
-                                            {renderDiscountBadge(order.financials.discount_type, order.financials.discount_value)}
+                                {order.financials.discount > 0 && (
+                                    <div className="mb-2">
+                                        <div className="flex justify-between">
+                                            <div className="flex items-center">
+                                                <span className="text-xs font-bold text-zinc-700 dark:text-zinc-300">Order Discount</span>
+                                                {renderDiscountBadge(order.financials.discount_type, order.financials.discount_value)}
+                                            </div>
+                                            <span className="text-xs font-medium text-green-600 dark:text-green-500">-{formatMMK(order.financials.discount)} MMK</span>
                                         </div>
-                                        <span className="text-xs font-medium text-green-600 dark:text-green-500">-{formatMMK(order.financials.discount)} MMK</span>
+                                        {order.financials.discount_reason && (
+                                            <p className="text-[10px] text-zinc-400 italic mt-0.5">{order.financials.discount_reason}</p>
+                                        )}
                                     </div>
-                                    {order.financials.discount_reason && (
-                                        <p className="text-[10px] text-zinc-400 italic mt-0.5">{order.financials.discount_reason}</p>
-                                    )}
-                                </div>
-                            )}
+                                )}
 
-                            {order.financials.overcharge > 0 && <CostRow label="Overcharge" value={order.financials.overcharge} />}
+                                {order.financials.extra_fee > 0 && <CostRow label="Extra Fee (Payment)" value={order.financials.extra_fee} />}
+                                {order.financials.overcharge > 0 && <CostRow label="Overcharge" value={order.financials.overcharge} />}
 
-                            {order.delivery.fee > 0 && <CostRow label="Delivery Fee" value={order.delivery.fee} />}
-                        </div>
-
-                        <div>
-                            <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
-
-                            <div className="flex justify-between items-center mb-2">
-                                <span className="text-black dark:text-white font-black text-sm uppercase">Grand Total</span>
-                                <span className="text-black dark:text-white font-black text-xl">{formatMMK(order.financials.grand_total)} MMK</span>
+                                {order.delivery.fee > 0 && <CostRow label="Delivery Fee" value={order.delivery.fee} />}
                             </div>
 
-                            <div className="flex justify-between items-center">
-                                <span className="text-zinc-500 text-xs uppercase font-bold">Paid So Far</span>
-                                <span className={twMerge("font-bold text-sm", order.financials.payment_status === "paid" ? "text-black dark:text-white" : "text-zinc-600 dark:text-zinc-400")}>
-                                    {formatMMK(order.financials.paid_amount)} MMK
-                                </span>
+                            <div>
+                                <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
+
+                                <div className="flex justify-between items-center">
+                                    <span className="text-black dark:text-white font-black text-sm uppercase">Grand Total</span>
+                                    <span className="text-black dark:text-white font-black text-xl">{formatMMK(order.financials.grand_total)} MMK</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 4b. COLLECTION & PAYMENTS */}
+                        <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 flex flex-col justify-between">
+                            <div>
+                                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-4">Collection & Payments</span>
+                                
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-zinc-500 text-sm font-medium">Target Collection</span>
+                                    <span className="text-black dark:text-white font-bold text-sm">
+                                        {order.delivery.collected_by === 'courier' ? formatMMK(order.financials.net_revenue) : formatMMK(order.financials.grand_total)} MMK
+                                    </span>
+                                </div>
+
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-zinc-500 text-sm font-medium">Paid So Far</span>
+                                    <span className={twMerge("font-bold text-sm", order.financials.payment_status === "paid" ? "text-green-600 dark:text-green-500" : "text-orange-500")}>
+                                        {formatMMK(order.financials.paid_amount)} MMK
+                                    </span>
+                                </div>
+                                
+                                <div className="flex justify-between items-center pt-4 border-t border-zinc-200 dark:border-zinc-800">
+                                    <span className="text-black dark:text-white font-black text-sm uppercase">Balance Due</span>
+                                    <span className={twMerge("font-black text-xl", Math.abs(order.financials.balance) < 1 ? "text-black dark:text-white" : "text-orange-500")}>
+                                        {formatMMK(Math.abs(order.financials.balance))} MMK
+                                    </span>
+                                </div>
                             </div>
 
                             {order.payments && order.payments.length > 0 && (
@@ -266,7 +309,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                                 <div className="flex items-center gap-2 text-zinc-500 dark:text-zinc-400">
                                                     <span className="text-[10px] tabular-nums font-mono">{payment.date}</span>
                                                     <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 bg-zinc-50 dark:bg-zinc-900/50">
-                                                        {payment.method === 'kpay' ? 'KBZPay' : payment.method === 'ayapay' ? 'AYAPay' : 'Cash'}
+                                                        {paymentMethods.find((m: any) => m.code === payment.method)?.name || payment.method}
                                                     </span>
                                                 </div>
                                                 <span className="font-bold text-black dark:text-white tabular-nums">+{formatMMK(payment.amount)}</span>
@@ -433,17 +476,20 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                     {isRefundNeeded ? `Issue refund of ${formatMMK(Math.abs(balance))} MMK?` : `Received remaining ${formatMMK(balance)} MMK?`}
                                 </DialogDescription>
                             </DialogHeader>
-                            <div className="flex gap-3 mt-4">
-                                <Button onClick={() => handleSettle("cash")} variant="outline" className="flex-1 bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800">
-                                    Cash
-                                </Button>
-                                <Button onClick={() => handleSettle("kpay")} variant="outline" className="flex-1 bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800">
-                                    KBZPay
-                                </Button>
-                                <Button onClick={() => handleSettle("ayapay")} variant="outline" className="flex-1 bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800">
-                                    AYAPay
-                                </Button>
-                            </div>
+                            <div className="flex flex-wrap gap-2 mt-4">
+                                                {paymentMethods.length > 0 ? paymentMethods.map((method: any) => (
+                                                    <Button 
+                                                        key={method.code}
+                                                        onClick={() => handleSettle(method.code)} 
+                                                        variant="outline" 
+                                                        className="flex-1 min-w-[80px] bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800"
+                                                    >
+                                                        {method.name}
+                                                    </Button>
+                                                )) : (
+                                                    <div className="text-sm text-zinc-500 italic py-2">No payment methods configured.</div>
+                                                )}
+                                            </div>
                         </>
                     )}
 

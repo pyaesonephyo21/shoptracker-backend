@@ -1,0 +1,1 @@
+- **Mobile First:** The main layout must prioritize mobile view (iPhone and iPad). Always design and test for mobile first.

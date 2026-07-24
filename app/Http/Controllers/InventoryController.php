@@ -14,7 +14,7 @@ use Inertia\Inertia;
 
 class InventoryController extends Controller
 {
-    public function index(\Illuminate\Http\Request $request)
+    public function index(Request $request)
     {
         $query = Product::with(['category', 'variants'])
             ->withSum('variants', 'stock_quantity')
@@ -152,7 +152,7 @@ class InventoryController extends Controller
         ]);
     }
 
-    public function update(\Illuminate\Http\Request $request, Product $product)
+    public function update(Request $request, Product $product)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',

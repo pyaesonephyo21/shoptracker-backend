@@ -21,6 +21,7 @@ class SalesOrder extends Model
         'discount_value' => 'float',
         'delivery_fee' => 'float',
         'courier_service_fee' => 'float',
+        'extra_fee' => 'float',
         'paid_amount' => 'float',
     ];
 

@@ -4,10 +4,11 @@ namespace App\Providers;
 
 use App\Models\Shop;
 use App\Models\User;
-use Google\Service\Drive;
 use Google\Client;
+use Google\Service\Drive;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -63,6 +64,7 @@ class AppServiceProvider extends ServiceProvider
                     'user' => $user ? $user->only('id', 'name', 'email', 'role', 'shop_id') : null,
                     'shop' => $user && $user->shop ? $user->shop->only('id', 'name', 'settings') : null,
                     'all_shops' => $user ? ($user->role === 'superadmin' ? Shop::select('id', 'name')->get() : $user->shops()->select('shops.id', 'shops.name')->get()) : [],
+                    'payment_methods' => $user && $user->shop && Schema::hasTable('payment_methods') ? $user->shop->paymentMethods()->where('is_active', true)->select('id', 'name', 'code')->get() : [],
                 ];
             },
             'flash' => function () {

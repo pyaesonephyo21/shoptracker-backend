@@ -26,6 +26,7 @@ export interface SalesOrder {
         return_cost: number;
         profit: number;
         overcharge: number;
+        extra_fee: number;
     };
 
     delivery: {
@@ -36,6 +37,7 @@ export interface SalesOrder {
         is_prepaid: boolean;
         collected_by: string;
         settlement_status: string;
+        note?: string | null;
     };
 
     items: {
@@ -87,6 +89,7 @@ export interface CreateSaleRequest {
     discount_value: number;
     discount_reason?: string;
     overcharge?: number | '';
+    extra_fee?: number | '';
 
     note?: string;
     items: SaleItemInput[];

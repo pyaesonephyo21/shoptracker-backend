@@ -16,4 +16,9 @@ class Shop extends Model
     {
         return $this->belongsToMany(User::class, 'shop_user');
     }
+
+    public function paymentMethods()
+    {
+        return $this->hasMany(PaymentMethod::class);
+    }
 }

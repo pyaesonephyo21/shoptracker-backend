@@ -20,6 +20,13 @@ export default function PurchaseOrderList({ orders, filters = { search: '', stat
     const [endDate, setEndDate] = useState<Date | undefined>(filters.end_date ? new Date(filters.end_date) : undefined);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
 
+    const hasActiveFilters = Boolean(
+        filters.status ||
+        filters.payment_status ||
+        filters.start_date ||
+        filters.end_date
+    );
+
     useEffect(() => {
         const timer = setTimeout(() => {
             // Only trigger if local search differs from current URL search
@@ -122,9 +129,12 @@ export default function PurchaseOrderList({ orders, filters = { search: '', stat
                     </form>
 
                     <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                        <DialogTrigger className="h-11 px-4 flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors shrink-0">
-                            <Filter className="w-4 h-4 text-zinc-600 dark:text-zinc-300" />
-                            <span className="text-xs font-bold uppercase tracking-widest text-zinc-600 dark:text-zinc-300 hidden sm:block">Filters</span>
+                        <DialogTrigger className={`h-11 px-4 flex items-center justify-center gap-2 rounded-xl transition-colors shrink-0 relative ${hasActiveFilters ? 'bg-black dark:bg-white' : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
+                            <Filter className={`w-4 h-4 ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`} />
+                            <span className={`text-xs font-bold uppercase tracking-widest hidden sm:block ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`}>Filters</span>
+                            {hasActiveFilters && (
+                                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 shadow-sm ring-2 ring-white dark:ring-black" />
+                            )}
                         </DialogTrigger>
                         <DialogContent className="sm:max-w-[425px]">
                             <DialogHeader>

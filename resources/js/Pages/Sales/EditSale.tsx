@@ -21,8 +21,10 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         discount_type: string;
         discount_value: string | number;
         discount_reason: string;
+        extra_fee: string | number;
         overcharge: string | number;
         note: string;
+        delivery_note: string;
         paid_amount: string | number;
         courier_id: string;
         tracking_number: string;
@@ -35,8 +37,10 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         discount_type: order.discount_type || 'none',
         discount_value: order.discount_value || '',
         discount_reason: order.discount_reason || '',
+        extra_fee: order.extra_fee || '',
         overcharge: order.overcharge || '',
         note: order.note || '',
+        delivery_note: order.delivery_note || '',
         paid_amount: order.paid_amount || '',
         courier_id: order.courier_id ? String(order.courier_id) : 'none',
         tracking_number: order.tracking_number || '',
@@ -68,10 +72,16 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         return 0;
     }, [subtotal, data.discount_type, data.discount_value]);
 
-    const grandTotal = Math.max(0, subtotal - orderDiscountAmount + Number(data.overcharge || 0) + Number(data.delivery_fee || 0));
+    const grandTotal = Math.max(0, subtotal - orderDiscountAmount + Number(data.extra_fee || 0) + Number(data.overcharge || 0) + Number(data.delivery_fee || 0));
+
+    const isCourier = order.delivery?.collected_by === 'courier';
+    const targetTotal = isCourier
+        ? grandTotal - Number(data.delivery_fee || 0) - Number(data.courier_service_fee || 0)
+        : grandTotal;
+
     const paidNum = Number(data.paid_amount) || 0;
-    const remaining = grandTotal - paidNum;
-    const isOverpaid = paidNum > grandTotal + 0.1;
+    const remaining = targetTotal - paidNum;
+    const isOverpaid = paidNum > targetTotal + 0.1;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -201,7 +211,11 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                                     <Label>Courier</Label>
                                     <Select value={data.courier_id} onValueChange={(val) => setData('courier_id', val || 'none')}>
                                         <SelectTrigger>
-                                            <SelectValue placeholder="Select a courier..." />
+                                            <SelectValue placeholder="Select a courier...">
+                                                {data.courier_id === 'none'
+                                                    ? 'None'
+                                                    : (couriers.find(c => String(c.id) === data.courier_id)?.name || "Select a courier...")}
+                                            </SelectValue>
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem value="none">None</SelectItem>
@@ -229,12 +243,31 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                                     {errors.delivery_fee && <span className="text-red-500 text-xs">{errors.delivery_fee}</span>}
                                 </div>
                                 <div className="flex flex-col gap-2">
+                                    <Label>Courier Overcharge</Label>
+                                    <FormattedNumberInput
+                                        value={data.overcharge}
+                                        onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
+                                    />
+                                    {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
+                                </div>
+                                <div className="flex flex-col gap-2">
                                     <Label>Courier Service Fee (Cost to Shop)</Label>
                                     <FormattedNumberInput
                                         value={data.courier_service_fee}
                                         onChange={(val) => { setData('courier_service_fee', val); clearErrors('courier_service_fee'); }}
                                     />
                                     {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
+                                </div>
+                                <div className="flex flex-col gap-2 md:col-span-2">
+                                    <Label htmlFor="delivery_note">Delivery Note (Optional)</Label>
+                                    <textarea
+                                        id="delivery_note"
+                                        placeholder="Optional instructions for delivery..."
+                                        value={data.delivery_note}
+                                        onChange={(e) => { setData('delivery_note', e.target.value); clearErrors('delivery_note'); }}
+                                        className="flex min-h-[80px] w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:placeholder:text-zinc-400 dark:focus-visible:ring-zinc-300 resize-y"
+                                    />
+                                    {errors.delivery_note && <span className="text-red-500 text-xs">{errors.delivery_note}</span>}
                                 </div>
                             </div>
                         </section>
@@ -281,14 +314,14 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                             )}
 
                             <div className="flex justify-between items-center mt-4 mb-2">
-                                <span className="text-zinc-500 text-sm font-medium">Overcharge</span>
+                                <span className="text-zinc-500 text-sm font-medium">Extra Fee (e.g. KPay %)</span>
                                 <FormattedNumberInput
                                     placeholder="0"
-                                    value={data.overcharge}
-                                    onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
+                                    value={data.extra_fee}
+                                    onChange={(val) => { setData('extra_fee', val); clearErrors('extra_fee'); }}
                                     className="w-32 h-8 text-right font-bold"
                                 />
-                                {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
+                                {errors.extra_fee && <span className="text-red-500 text-xs">{errors.extra_fee}</span>}
                             </div>
 
                             <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />

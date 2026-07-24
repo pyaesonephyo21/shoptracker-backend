@@ -30,6 +30,11 @@ export default function Expenses({ expenses, filters = { start_date: '', end_dat
     const [endDate, setEndDate] = useState<Date | undefined>(filters.end_date ? new Date(filters.end_date) : undefined);
     const [isFilterOpen, setIsFilterOpen] = useState(false);
 
+    const hasActiveFilters = Boolean(
+        filters?.start_date ||
+        filters?.end_date
+    );
+
     const handleFilterChange = (start?: Date, end?: Date) => {
         router.get('/management/expenses', {
             start_date: start ? start.toISOString().split('T')[0] : undefined,
@@ -119,14 +124,16 @@ export default function Expenses({ expenses, filters = { start_date: '', end_dat
                             <Link href="/management/couriers" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Couriers</Link>
                             <Link href="/management/categories" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Categories</Link>
                             <Link href="/management/expenses" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-black dark:text-white border-b-2 border-black dark:border-white pb-4">Other Expenses</Link>
+                            <Link href="/management/payment-methods" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Payment Methods</Link>
                         </div>
                     </div>
                     <div className="flex items-center gap-2 mb-1 mt-2 sm:mt-0">
                         <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
-                            <DialogTrigger asChild>
-                                <button className="h-9 px-3 flex items-center justify-center gap-2 bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors shrink-0">
-                                    <Filter className="w-3.5 h-3.5 text-zinc-600 dark:text-zinc-300" />
-                                </button>
+                            <DialogTrigger className={`h-9 px-3 flex items-center justify-center gap-2 rounded-xl transition-colors shrink-0 relative ${hasActiveFilters ? 'bg-black dark:bg-white' : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
+                                <Filter className={`w-3.5 h-3.5 ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`} />
+                                {hasActiveFilters && (
+                                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-red-500 shadow-sm ring-2 ring-white dark:ring-black" />
+                                )}
                             </DialogTrigger>
                             <DialogContent className="sm:max-w-[425px]">
                                 <DialogHeader>

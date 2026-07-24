@@ -24,11 +24,13 @@ class CourierController extends Controller
             'name' => 'required|string|max:255',
             'contact' => 'nullable|string|max:255',
             'default_fee' => 'nullable|numeric|min:0',
+            'default_overcharge' => 'nullable|numeric|min:0',
         ]);
 
         // Map fields
         $validated['contact_info'] = $validated['contact'] ?? null;
         $validated['default_service_fee'] = $validated['default_fee'] ?? 0;
+        $validated['default_overcharge'] = $validated['default_overcharge'] ?? 0;
         unset($validated['contact'], $validated['default_fee']);
 
         Courier::create($validated);
@@ -42,12 +44,14 @@ class CourierController extends Controller
             'name' => 'required|string|max:255',
             'contact' => 'nullable|string|max:255',
             'default_fee' => 'nullable|numeric|min:0',
+            'default_overcharge' => 'nullable|numeric|min:0',
         ]);
 
         $updateData = [
             'name' => $validated['name'],
             'contact_info' => $validated['contact'] ?? null,
             'default_service_fee' => $validated['default_fee'] ?? 0,
+            'default_overcharge' => $validated['default_overcharge'] ?? 0,
         ];
 
         $courier->update($updateData);

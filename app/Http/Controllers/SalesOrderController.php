@@ -32,7 +32,11 @@ class SalesOrderController extends Controller
         }
 
         if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->payment_method);
+            $pm = $request->payment_method;
+            $query->whereHas('payments', function ($pq) use ($pm) {
+                $pq->where('payment_method', $pm)
+                   ->whereRaw('sales_order_payments.id = (select max(id) from sales_order_payments as sop where sop.sales_order_id = sales_orders.id)');
+            });
         }
 
         if ($request->filled('search')) {
@@ -56,7 +60,7 @@ class SalesOrderController extends Controller
 
         $paginatedOrders->getCollection()->transform(function ($order) {
             $latestPayment = $order->payments->sortByDesc('created_at')->first();
-            $paymentMethod = $latestPayment ? $latestPayment->payment_method : $order->payment_method;
+            $paymentMethod = $latestPayment ? $latestPayment->payment_method : null;
 
             // Map the data structure to what SalesList.tsx expects
             return [
@@ -100,7 +104,11 @@ class SalesOrderController extends Controller
         }
 
         if ($request->filled('payment_method')) {
-            $query->where('payment_method', $request->payment_method);
+            $pm = $request->payment_method;
+            $query->whereHas('payments', function ($pq) use ($pm) {
+                $pq->where('payment_method', $pm)
+                   ->whereRaw('sales_order_payments.id = (select max(id) from sales_order_payments as sop where sop.sales_order_id = sales_orders.id)');
+            });
         }
 
         if ($request->filled('search')) {
@@ -155,8 +163,8 @@ class SalesOrderController extends Controller
             'discount_reason' => 'nullable|string',
             'note' => 'nullable|string',
             'paid_amount' => 'nullable|numeric|min:0',
-            'payment_method' => 'nullable|in:kpay,cash,ayapay',
-            'overcharge' => 'nullable|numeric|min:0',
+            'payment_method' => 'nullable|string|max:50',
+            'extra_fee' => 'nullable|numeric|min:0',
         ]);
 
         // Map frontend structure to what the service expects
@@ -167,10 +175,10 @@ class SalesOrderController extends Controller
             'discount_type' => $validated['discount_type'] ?? 'none',
             'discount_value' => $validated['discount_value'] ?? 0,
             'discount_reason' => $validated['discount_reason'] ?? '',
+            'extra_fee' => $validated['extra_fee'] ?? 0,
             'note' => $validated['note'] ?? '',
             'paid_amount' => $validated['paid_amount'] ?? 0,
-            'payment_method' => $validated['payment_method'] ?? 'kpay',
-            'overcharge' => $validated['overcharge'] ?? 0,
+            'payment_method' => $validated['payment_method'] ?? 'cash',
         ];
 
         $this->service->createOrder($orderData, $validated['cart']);
@@ -199,15 +207,17 @@ class SalesOrderController extends Controller
                 'discount_type' => $orderModel->discount_type,
                 'discount_value' => (float)$orderModel->discount_value,
                 'discount_reason' => $orderModel->discount_reason,
+                'extra_fee' => (float)$orderModel->extra_fee,
+                'overcharge' => (float)$orderModel->overcharge,
                 'paid_amount' => (float)$orderModel->paid_amount,
-                'balance' => (float)($orderModel->customer_grand_total - $orderModel->paid_amount),
+                'balance' => (float)($orderModel->money_collected_by === 'courier' ? $orderModel->net_revenue - $orderModel->paid_amount : $orderModel->customer_grand_total - $orderModel->paid_amount),
                 'payment_status' => $orderModel->payment_status,
                 'grand_total' => (float)$orderModel->customer_grand_total,
                 'net_revenue' => (float)$orderModel->net_revenue,
                 'total_cost' => (float)$orderModel->total_cost,
                 'return_cost' => (float)$orderModel->return_cost,
                 'profit' => (float)$orderModel->net_profit,
-                'overcharge' => (float)$orderModel->overcharge,
+
             ],
             'delivery' => [
                 'courier_name' => $orderModel->courier ? $orderModel->courier->name : ($orderModel->courier_id ? 'Unknown Courier' : 'None'),
@@ -217,6 +227,7 @@ class SalesOrderController extends Controller
                 'is_prepaid' => (bool)$orderModel->is_deli_prepaid,
                 'collected_by' => $orderModel->money_collected_by,
                 'settlement_status' => $orderModel->settlement_status,
+                'note' => $orderModel->delivery_note,
             ],
             'items' => collect($orderModel->items)->map(function ($item) {
                 return [
@@ -275,8 +286,9 @@ class SalesOrderController extends Controller
             'discount_value' => 'nullable|numeric|min:0',
             'discount_reason' => 'nullable|string',
             'note' => 'nullable|string',
+            'delivery_note' => 'nullable|string',
             'paid_amount' => 'nullable|numeric|min:0',
-            'overcharge' => 'nullable|numeric|min:0',
+            'extra_fee' => 'nullable|numeric|min:0',
             'courier_id' => 'nullable|exists:couriers,id',
             'tracking_number' => 'nullable|string',
             'delivery_fee' => 'nullable|numeric|min:0',
@@ -306,6 +318,7 @@ class SalesOrderController extends Controller
             'tracking_number' => 'nullable|string',
             'delivery_fee' => 'nullable|numeric|min:0',
             'courier_service_fee' => 'nullable|numeric|min:0',
+            'overcharge' => 'nullable|numeric|min:0',
             'delivery_note' => 'nullable|string',
             'money_collected_by' => 'required|in:seller,courier',
             'is_deli_prepaid' => 'boolean',

@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, usePage } from '@inertiajs/react';
 import { Input } from '@/components/ui/input';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Button } from '@/components/ui/button';
@@ -20,11 +20,19 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         discount_type: 'none' as 'none' | 'fixed' | 'percent',
         discount_value: '',
         discount_reason: '',
-        overcharge: '',
+        extra_fee: '',
         note: '',
         paid_amount: '',
-        payment_method: 'kpay' as 'kpay' | 'cash' | 'ayapay'
+        payment_method: ''
     });
+
+    const paymentMethods = usePage<any>().props.auth?.payment_methods || [];
+
+    React.useEffect(() => {
+        if (!data.payment_method && paymentMethods.length > 0) {
+            setData('payment_method', paymentMethods[0].code);
+        }
+    }, [paymentMethods]);
 
     const [selectedProduct, setSelectedProduct] = useState<string>('');
 
@@ -177,7 +185,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         return 0;
     }, [subtotal, data.discount_type, data.discount_value]);
 
-    const grandTotal = Math.max(0, subtotal - orderDiscountAmount + Number(data.overcharge || 0));
+    const grandTotal = Math.max(0, subtotal - orderDiscountAmount + Number(data.extra_fee || 0));
     const paidNum = Number(data.paid_amount) || 0;
     const remaining = grandTotal - paidNum;
     const isOverpaid = paidNum > grandTotal + 0.1;
@@ -462,14 +470,14 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                             )}
 
                             <div className="flex justify-between items-center mt-4 mb-2">
-                                <span className="text-zinc-500 text-sm font-medium">Overcharge</span>
+                                <span className="text-zinc-500 text-sm font-medium">Extra Fee (e.g. KPay %)</span>
                                 <FormattedNumberInput
                                     placeholder="0"
-                                    value={data.overcharge}
-                                    onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
+                                    value={data.extra_fee}
+                                    onChange={(val) => { setData('extra_fee', val); clearErrors('extra_fee'); }}
                                     className="w-32 h-8 text-right font-bold"
                                 />
-                                {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
+                                {errors.extra_fee && <span className="text-red-500 text-xs">{errors.extra_fee}</span>}
                             </div>
 
                             <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
@@ -495,10 +503,19 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                 {Number(data.paid_amount) > 0 && (
                                     <div className="mt-5 pt-5 border-t border-zinc-800">
                                         <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest block mb-2">Deposit Method</span>
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={() => setData('payment_method', 'cash')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${data.payment_method === 'cash' ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}`}>Cash</button>
-                                            <button type="button" onClick={() => setData('payment_method', 'kpay')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${data.payment_method === 'kpay' ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}`}>KPay</button>
-                                            <button type="button" onClick={() => setData('payment_method', 'ayapay')} className={`flex-1 py-2.5 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all ${data.payment_method === 'ayapay' ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'}`}>AYA</button>
+                                        <div className="flex flex-wrap gap-2">
+                                            {paymentMethods.length > 0 ? paymentMethods.map((method: any) => (
+                                                <button 
+                                                    key={method.code}
+                                                    type="button" 
+                                                    onClick={() => setData('payment_method', method.code)} 
+                                                    className={twMerge("flex-1 min-w-[60px] py-2.5 px-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center whitespace-nowrap", data.payment_method === method.code ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200')}
+                                                >
+                                                    {method.name}
+                                                </button>
+                                            )) : (
+                                                <span className="text-xs text-zinc-500 italic py-2">No payment methods configured.</span>
+                                            )}
                                         </div>
                                     </div>
                                 )}

@@ -4,16 +4,21 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 use Illuminate\Support\Facades\Auth;
 use App\Traits\BelongsToShop;
 
 class PurchaseOrder extends Model
 {
-    use HasFactory, BelongsToShop;
+    use HasFactory, BelongsToShop, LogsActivity;
 
     // 1. Allow Mass Assignment
     // This lets us do PurchaseOrder::create($data) safely
     protected $guarded = ['id'];
+
+    // Disable automatic Spatie logging since we manually call logAction()
+    protected static $recordEvents = [];
 
     protected $casts = [
         'exchange_rate' => 'float',
@@ -27,7 +32,7 @@ class PurchaseOrder extends Model
         'grand_total' => 'float',
         'paid_amount' => 'float',
         'adjustment_amount' => 'float',
-        'audit_log' => 'array',
+        'is_paid' => 'boolean',
     ];
 
     protected $appends = ['supplier_name'];
@@ -51,15 +56,23 @@ class PurchaseOrder extends Model
 
     public function logAction($action, $details = [])
     {
-        $log = $this->audit_log ?? [];
-        $log[] = [
-            'action' => $action,
-            'by' => Auth::user()->name ?? 'System',
-            'at' => now()->toIso8601String(),
-            'details' => $details
-        ];
-        $this->audit_log = $log;
-        $this->saveQuietly();
+        // Wrap Spatie's activity log to maintain backwards compatibility
+        activity()
+            ->performedOn($this)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'by' => Auth::user()->name ?? 'System',
+                'details' => $details
+            ])
+            ->log($action);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'payment_status', 'total_goods_cost', 'total_discount', 'paid_amount', 'grand_total'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
     }
 
     public function shop()

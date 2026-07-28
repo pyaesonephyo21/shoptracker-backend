@@ -53,11 +53,14 @@ export interface SalesOrder {
 
     note: string | null;
 
-    audit_log?: {
-        action: string;
-        by: string;
-        at: string;
-        details?: Record<string, unknown>;
+    activities?: {
+        description: string;
+        created_at: string;
+        properties: {
+            by?: string;
+            details?: Record<string, unknown>;
+        };
+        causer?: { name: string };
     }[];
 }
 

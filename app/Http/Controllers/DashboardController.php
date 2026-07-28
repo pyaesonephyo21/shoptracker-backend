@@ -9,6 +9,8 @@ use App\Models\Expense;
 use App\Models\PurchaseOrder;
 use App\Models\ProductVariant;
 use App\Models\ProductBatch;
+use App\Models\SalesOrderPayment;
+use App\Models\PaymentMethod;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -25,10 +27,19 @@ class DashboardController extends Controller
             ? Carbon::parse($request->input('end_date'))->endOfDay() 
             : Carbon::now()->endOfDay();
 
+        $statusFilter = $request->input('revenue_status', 'completed');
+        
+        $statusMap = [
+            'completed' => ['completed'],
+            'delivered' => ['delivered', 'completed'],
+            'all' => ['pending', 'delivery_added', 'delivered', 'completed']
+        ];
+
+        $revenueStatus = $statusMap[$statusFilter] ?? ['completed'];
+
         // 2. Financial Metrics within date range
-        // Only count completed or money_collected orders for actual revenue/profit
         $ordersInRange = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
-            ->whereIn('status', ['completed', 'money_collected'])
+            ->whereIn('status', $revenueStatus)
             ->get();
 
         $netRevenue = $ordersInRange->sum('net_revenue');
@@ -51,9 +62,16 @@ class DashboardController extends Controller
         $netProfit = $grossProfit - $totalExpenses;
 
         // Orders needing delivery (status = pending)
-        $ordersNeedingDeliveryCount = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
-            ->where('status', 'pending')
-            ->count();
+        $pendingOrdersQuery = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', 'pending');
+        $pendingOrdersCount = $pendingOrdersQuery->count();
+        $pendingOrdersValue = $pendingOrdersQuery->sum('customer_grand_total');
+
+        // Delivery in progress (status = delivery_added)
+        $deliveryAddedQuery = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', 'delivery_added');
+        $deliveryAddedCount = $deliveryAddedQuery->count();
+        $deliveryAddedValue = $deliveryAddedQuery->sum('customer_grand_total');
 
         // 3. Inventory Value (All Time Active)
         $variants = ProductVariant::with('product')
@@ -93,51 +111,71 @@ class DashboardController extends Controller
             return $a['stock_quantity'] <=> $b['stock_quantity'];
         });
 
-        // 4. Unsettled Deliveries (Any Date, or maybe bounded by date? Better to show all unsettled so none are missed)
-        // Or if the user wants it bounded by date, we will apply the date range.
-        // User said: "I also wanna see delivered orders that are not settled. lets also add date range filter so that I can check however I want."
-        // Let's bind it to the date range so it filters alongside everything else.
-        $unsettledDeliveriesQuery = SalesOrder::with(['courier'])
-            ->whereBetween('created_at', [$startDate, $endDate])
+        // 4. Unsettled Deliveries (Bounded by date as requested)
+        $unsettledDeliveriesQuery = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
             ->where('status', 'delivered')
-            ->where('settlement_status', 'unpaid')
-            ->orderBy('created_at', 'desc');
+            ->where('settlement_status', 'unpaid');
 
         $totalUnsettledCount = $unsettledDeliveriesQuery->count();
-        $unsettledDeliveries = $unsettledDeliveriesQuery
-            ->take(50)
-            ->get()
-            ->map(function ($order) {
-                return [
-                    'id' => $order->id,
-                    'date' => $order->created_at->format('M d, Y'),
-                    'customer_name' => $order->customer_name ?: 'Walk-in',
-                    'courier_name' => optional($order->courier)->name ?: 'N/A',
-                    'balance' => $order->customer_grand_total - $order->paid_amount,
-                ];
-            });
+        $totalUnsettledValue = $unsettledDeliveriesQuery->selectRaw('SUM(customer_grand_total - paid_amount) as total')->value('total') ?? 0;
+
+        // 5. Cash Flow Breakdown (Payments in date range)
+        $paymentsInRange = SalesOrderPayment::whereBetween('created_at', [$startDate, $endDate])
+            ->selectRaw('payment_method, sum(amount) as total')
+            ->groupBy('payment_method')
+            ->get();
+
+        $activeMethods = PaymentMethod::all()->keyBy('code');
+        $cashFlow = [];
+        $totalCollected = 0;
+        foreach ($paymentsInRange as $payment) {
+            $methodName = isset($activeMethods[$payment->payment_method]) ? $activeMethods[$payment->payment_method]->name : ucfirst($payment->payment_method);
+            $cashFlow[] = [
+                'method' => $methodName,
+                'amount' => $payment->total
+            ];
+            $totalCollected += $payment->total;
+        }
+
+        // Sort cashFlow descending by amount
+        usort($cashFlow, function ($a, $b) {
+            return $b['amount'] <=> $a['amount'];
+        });
 
         return Inertia::render('Dashboard', [
             'filters' => [
                 'start_date' => $startDate->format('Y-m-d'),
                 'end_date' => $endDate->format('Y-m-d'),
+                'revenue_status' => $statusFilter,
             ],
             'metrics' => [
                 'net_revenue' => $netRevenue,
                 'gross_profit' => $grossProfit,
                 'total_expenses' => $totalExpenses,
                 'net_profit' => $netProfit,
-                'pending_orders_count' => $ordersNeedingDeliveryCount,
                 'inventory_cost' => $totalStockCost,
                 'inventory_retail' => $totalStockRetail,
             ],
-            'lowStockProducts' => [
-                'items' => array_slice($lowStockProducts, 0, 50),
-                'total_count' => count($lowStockProducts),
+            'alerts' => [
+                'pending_orders' => [
+                    'total_count' => $pendingOrdersCount,
+                    'total_value' => $pendingOrdersValue,
+                ],
+                'delivery_added' => [
+                    'total_count' => $deliveryAddedCount,
+                    'total_value' => $deliveryAddedValue,
+                ],
+                'unsettled_deliveries' => [
+                    'total_count' => $totalUnsettledCount,
+                    'total_value' => $totalUnsettledValue,
+                ],
+                'low_stock' => [
+                    'total_count' => count($lowStockProducts),
+                ]
             ],
-            'unsettledDeliveries' => [
-                'items' => $unsettledDeliveries,
-                'total_count' => $totalUnsettledCount,
+            'cashFlow' => [
+                'items' => $cashFlow,
+                'total' => $totalCollected,
             ],
         ]);
     }

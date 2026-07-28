@@ -93,10 +93,11 @@ class PurchaseOrderController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        $orders = $query->latest()->get();
+        // Pass the query builder directly for FromQuery chunking
+        $query->latest();
         $date = now()->format('Y_m_d');
 
-        return Excel::download(new PurchaseOrderExport($orders), "purchase_orders_{$date}.xlsx");
+        return Excel::download(new PurchaseOrderExport($query), "purchase_orders_{$date}.xlsx");
     }
 
     public function create()
@@ -153,7 +154,7 @@ class PurchaseOrderController extends Controller
 
     public function show(PurchaseOrder $purchaseOrder)
     {
-        $order = $purchaseOrder->load(['items.productVariant.product', 'supplier']);
+        $order = $purchaseOrder->load(['items.productVariant.product', 'supplier', 'activities']);
 
         // If order arrived, fetch associated batches to get the retail price that was set
         $batches = collect();
@@ -194,8 +195,7 @@ class PurchaseOrderController extends Controller
             $item->pending_retail_price = $pendingItem ? $pendingItem->retail_price : null;
         }
 
-        // Add audit_log handling if needed specifically, but the model has it natively now.
-        $order->audit_log = $order->audit_log ?? [];
+
 
         return Inertia::render('Inventory/PurchaseOrderDetail', [
             'order' => $order

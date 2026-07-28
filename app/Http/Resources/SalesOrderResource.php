@@ -68,8 +68,7 @@ class SalesOrderResource extends JsonResource
                     'discount_reason' => $item->discount_reason
                 ];
             }),
-
-            'audit_log' => $this->audit_log,
+            'activities' => $this->activities,
         ];
     }
 }

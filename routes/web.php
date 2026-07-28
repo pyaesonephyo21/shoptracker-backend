@@ -10,6 +10,7 @@ use App\Http\Controllers\Management\CourierController;
 use App\Http\Controllers\Management\CategoryController;
 use App\Http\Controllers\Management\ExpenseController;
 use App\Http\Controllers\Management\PaymentMethodController;
+use App\Http\Controllers\Finance\CashFlowController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\PurchaseOrderController;
@@ -49,6 +50,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/inventory/variants/{variant}/restore', [InventoryController::class, 'restoreVariant']);
     Route::delete('/inventory/{product}', [InventoryController::class, 'destroy']);
 
+    Route::get('/sales/settlements', [App\Http\Controllers\CourierSettlementController::class, 'index']);
+    Route::post('/sales/settlements', [App\Http\Controllers\CourierSettlementController::class, 'process']);
     Route::get('/sales', [SalesOrderController::class, 'index']);
     Route::get('/sales/export', [SalesOrderController::class, 'export']);
     Route::post('/sales', [SalesOrderController::class, 'store']);
@@ -89,4 +92,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/management/expenses', [ExpenseController::class, 'store']);
     Route::put('/management/expenses/{expense}', [ExpenseController::class, 'update']);
     Route::delete('/management/expenses/{expense}', [ExpenseController::class, 'destroy']);
+    
+    // Finance
+    Route::get('/finance/cash-flow', [CashFlowController::class, 'index']);
+    Route::post('/finance/cash-flow/manual', [CashFlowController::class, 'storeManual']);
 });

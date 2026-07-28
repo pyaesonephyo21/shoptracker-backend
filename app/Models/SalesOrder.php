@@ -5,15 +5,20 @@ namespace App\Models;
 use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 use Illuminate\Support\Facades\Auth;
 
 class SalesOrder extends Model
 {
+    use LogsActivity;
     use HasFactory, BelongsToShop;
     protected $guarded = ['id'];
 
+    // Disable automatic Spatie logging since we manually call logAction()
+    protected static $recordEvents = [];
+
     protected $casts = [
-        'audit_log' => 'array',
         'is_deli_prepaid' => 'boolean',
         'created_at' => 'datetime',
         // Cast decimals to ensure math accuracy in PHP
@@ -41,15 +46,24 @@ class SalesOrder extends Model
     // Helper to log changes cleanly
     public function logAction($action, $details = [])
     {
-        $log = $this->audit_log ?? [];
-        $log[] = [
-            'action' => $action,
-            'by' => Auth::user()->name ?? 'System',
-            'at' => now()->toIso8601String(),
-            'details' => $details
-        ];
-        $this->audit_log = $log;
-        $this->saveQuietly();
+        // Wrap Spatie's activity log to maintain backwards compatibility
+        // with all existing Service classes that call this method.
+        activity()
+            ->performedOn($this)
+            ->causedBy(Auth::user())
+            ->withProperties([
+                'by' => Auth::user()->name ?? 'System',
+                'details' => $details
+            ])
+            ->log($action);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status', 'payment_status', 'delivery_fee', 'discount_total', 'paid_amount', 'net_revenue'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs();
     }
 
     public function payments()

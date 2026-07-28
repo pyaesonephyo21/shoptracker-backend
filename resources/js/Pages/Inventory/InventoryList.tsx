@@ -7,17 +7,24 @@ import { PaginatedData } from '../../types/pagination';
 import Pagination from '@/components/Pagination';
 
 import { router } from '@inertiajs/react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
+import { Filter } from 'lucide-react';
 
 export default function InventoryList({ products, filters = { search: '', type: '', filter: '', status: 'active' } }: { products: PaginatedData<Product>, filters: { search: string, type: string, filter: string, status?: string } }) {
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
     const [activeType, setActiveType] = useState(filters.type || '');
     const [activeFilter, setActiveFilter] = useState(filters.filter || '');
     const [activeStatus, setActiveStatus] = useState(filters.status || 'active');
-    const [showFilters, setShowFilters] = useState(false);
+    const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+
+    const hasActiveFilters = Boolean(
+        filters.type ||
+        filters.filter ||
+        (filters.status && filters.status !== 'active')
+    );
 
     useEffect(() => {
         const timer = setTimeout(() => {
@@ -44,6 +51,19 @@ export default function InventoryList({ products, filters = { search: '', type: 
         handleFilterChange(searchQuery, activeType, activeFilter, activeStatus);
     };
 
+    const applyFilters = () => {
+        handleFilterChange(searchQuery, activeType, activeFilter, activeStatus);
+        setIsFilterOpen(false);
+    };
+
+    const clearFilters = () => {
+        setActiveType('');
+        setActiveFilter('');
+        setActiveStatus('active');
+        handleFilterChange(searchQuery, '', '', 'active');
+        setIsFilterOpen(false);
+    };
+
     const handleDelete = () => {
         if (!productToDelete) return;
         router.delete(`/inventory/${productToDelete.id}`, {
@@ -64,110 +84,117 @@ export default function InventoryList({ products, filters = { search: '', type: 
 			<div className="flex flex-col gap-6">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4">
                     <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">
-                        Inventory.
+                        Inventory
                     </h1>
                 </div>
 
-                <form onSubmit={handleSearchSubmit} className="bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 h-11 flex items-center transition-all duration-200 focus-within:bg-white dark:focus-within:bg-black focus-within:border-black dark:focus-within:border-white">
-                    <input
-                        className="flex-1 bg-transparent text-sm font-medium text-black dark:text-white outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
-                        placeholder="Search by name or SKU..."
-                        value={searchQuery}
-                        onChange={(e) => setSearchQuery(e.target.value)}
-                    />
-                    <button type="submit" className="text-xs font-bold uppercase text-zinc-400 hover:text-black dark:hover:text-white">Search</button>
-                </form>
+                <div className="flex items-center gap-2">
+                    <form onSubmit={handleSearchSubmit} className="flex-1 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-3 h-11 flex items-center transition-all duration-200 focus-within:bg-white dark:focus-within:bg-black focus-within:border-black dark:focus-within:border-white">
+                        <input
+                            className="flex-1 bg-transparent text-sm font-medium text-black dark:text-white outline-none placeholder:text-zinc-400 dark:placeholder:text-zinc-600"
+                            placeholder="Search by name or SKU..."
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                        />
+                        <button type="submit" className="text-xs font-bold uppercase text-zinc-400 hover:text-black dark:hover:text-white">Search</button>
+                    </form>
 
-                {/* COMPACT FILTERS */}
-                <div className="flex flex-col gap-3">
-                    <button 
-                        onClick={() => setShowFilters(!showFilters)}
-                        className="lg:hidden flex items-center justify-between bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl px-4 py-3 text-xs font-bold uppercase text-zinc-600 dark:text-zinc-400"
-                    >
-                        <span>Filter Options</span>
-                        <svg className={twMerge("w-4 h-4 transition-transform", showFilters && "rotate-180")} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" /></svg>
-                    </button>
+                    <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
+                        <DialogTrigger className={`h-11 px-4 flex items-center justify-center gap-2 rounded-xl transition-colors shrink-0 relative ${hasActiveFilters ? 'bg-black dark:bg-white' : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
+                            <Filter className={`w-4 h-4 ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`} />
+                            <span className={`text-xs font-bold uppercase tracking-widest hidden sm:block ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`}>Filters</span>
+                            {hasActiveFilters && (
+                                <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-red-500 shadow-sm ring-2 ring-white dark:ring-black" />
+                            )}
+                        </DialogTrigger>
+                        <DialogContent className="sm:max-w-[425px]">
+                            <DialogHeader>
+                                <DialogTitle className="font-black text-xl uppercase tracking-widest">Filters</DialogTitle>
+                            </DialogHeader>
+                            <div className="flex flex-col gap-6 py-4">
+                                {/* Product Type Filter */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Type</span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {[
+                                            { key: '', label: 'All' },
+                                            { key: 'local', label: 'Local' },
+                                            { key: 'global', label: 'Global' }
+                                        ].map(item => {
+                                            const active = activeType === item.key;
+                                            return (
+                                                <button
+                                                    key={item.key}
+                                                    onClick={() => {
+                                                        const nextType = activeType === item.key ? '' : item.key;
+                                                        setActiveType(nextType);
+                                                    }}
+                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
 
-                    <div className={twMerge("flex-col lg:flex-row lg:flex gap-4 lg:gap-6", showFilters ? "flex" : "hidden")}>
-                        {/* Product Type Filter */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Type:</span>
-                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
-                                {[
-                                    { key: '', label: 'All' },
-                                    { key: 'local', label: 'Local' },
-                                    { key: 'global', label: 'Global' }
-                                ].map(item => {
-                                    const active = activeType === item.key;
-                                    return (
-                                        <button
-                                            key={item.key}
-                                            onClick={() => {
-                                                const nextType = activeType === item.key ? '' : item.key;
-                                                setActiveType(nextType);
-                                                handleFilterChange(searchQuery, nextType, activeFilter, activeStatus);
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
-                                        >
-                                            {item.label}
-                                        </button>
-                                    );
-                                })}
+                                {/* Stock Alert Filter */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Stock</span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {[
+                                            { key: '', label: 'All' },
+                                            { key: 'low_stock', label: 'Low Stock' }
+                                        ].map(item => {
+                                            const active = activeFilter === item.key;
+                                            return (
+                                                <button
+                                                    key={item.key}
+                                                    onClick={() => {
+                                                        const nextFilter = activeFilter === item.key ? '' : item.key;
+                                                        setActiveFilter(nextFilter);
+                                                    }}
+                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="flex flex-col gap-2">
+                                    <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Status</span>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        {[
+                                            { key: 'active', label: 'Active' },
+                                            { key: 'archived', label: 'Archived' },
+                                            { key: '', label: 'All' }
+                                        ].map(item => {
+                                            const active = activeStatus === item.key;
+                                            return (
+                                                <button
+                                                    key={item.key}
+                                                    onClick={() => {
+                                                        const nextStatus = activeStatus === item.key ? 'active' : item.key;
+                                                        setActiveStatus(nextStatus);
+                                                    }}
+                                                    className={`px-4 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                >
+                                                    {item.label}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        {/* Stock Alert Filter */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Stock:</span>
-                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
-                                {[
-                                    { key: '', label: 'All' },
-                                    { key: 'low_stock', label: 'Low Stock' }
-                                ].map(item => {
-                                    const active = activeFilter === item.key;
-                                    return (
-                                        <button
-                                            key={item.key}
-                                            onClick={() => {
-                                                const nextFilter = activeFilter === item.key ? '' : item.key;
-                                                setActiveFilter(nextFilter);
-                                                handleFilterChange(searchQuery, activeType, nextFilter, activeStatus);
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
-                                        >
-                                            {item.label}
-                                        </button>
-                                    );
-                                })}
+                            <div className="flex justify-end gap-3 mt-4 pt-4 border-t border-zinc-100 dark:border-zinc-800">
+                                <Button variant="outline" onClick={clearFilters} className="font-bold uppercase tracking-widest text-[10px]">Clear</Button>
+                                <Button onClick={applyFilters} className="font-bold uppercase tracking-widest text-[10px]">Apply Filters</Button>
                             </div>
-                        </div>
-
-                        {/* Status Filter */}
-                        <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-black uppercase text-zinc-400 dark:text-zinc-500 tracking-wider select-none shrink-0">Status:</span>
-                            <div className="flex items-center gap-1.5 overflow-x-auto pb-1 flex-1 scrollbar-none">
-                                {[
-                                    { key: 'active', label: 'Active' },
-                                    { key: 'archived', label: 'Archived' },
-                                    { key: 'all', label: 'All' }
-                                ].map(item => {
-                                    const active = activeStatus === item.key;
-                                    return (
-                                        <button
-                                            key={item.key}
-                                            onClick={() => {
-                                                setActiveStatus(item.key);
-                                                handleFilterChange(searchQuery, activeType, activeFilter, item.key);
-                                            }}
-                                            className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black shadow-sm' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
-                                        >
-                                            {item.label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                        </div>
-                    </div>
+                        </DialogContent>
+                    </Dialog>
                 </div>
 
                 <div className="flex gap-3">
@@ -196,13 +223,7 @@ export default function InventoryList({ products, filters = { search: '', type: 
                             title="No Products Found" 
                             description="There are no products matching your search or filters."
                             action={
-                                <Button variant="outline" onClick={() => {
-                                    setSearchQuery('');
-                                    setActiveType('');
-                                    setActiveFilter('');
-                                    setActiveStatus('active');
-                                    handleFilterChange('', '', '', 'active');
-                                }} className="text-xs font-bold uppercase tracking-widest">
+                                <Button variant="outline" onClick={clearFilters} className="text-xs font-bold uppercase tracking-widest">
                                     Clear Filters
                                 </Button>
                             }

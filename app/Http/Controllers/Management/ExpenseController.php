@@ -6,9 +6,9 @@ use App\Http\Controllers\Controller;
 use App\Models\Expense;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Illuminate\Support\Facades\Auth;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\ExpenseExport;
+use App\Services\CashFlowService;
 
 class ExpenseController extends Controller
 {
@@ -27,7 +27,7 @@ class ExpenseController extends Controller
         $expenses = $query->orderBy('incurred_at', 'desc')
             ->orderBy('created_at', 'desc')
             ->paginate(15)->withQueryString();
-            
+
         return Inertia::render('Management/Expenses', [
             'expenses' => $expenses,
             'filters' => [
@@ -49,13 +49,12 @@ class ExpenseController extends Controller
             $query->whereDate('incurred_at', '<=', $request->end_date);
         }
 
-        $expenses = $query->orderBy('incurred_at', 'desc')
-            ->orderBy('created_at', 'desc')
-            ->get();
-            
+        $query->orderBy('incurred_at', 'desc')
+            ->orderBy('created_at', 'desc');
+
         $date = now()->format('Y_m_d');
 
-        return Excel::download(new ExpenseExport($expenses), "expenses_{$date}.xlsx");
+        return Excel::download(new ExpenseExport($query), "expenses_{$date}.xlsx");
     }
 
     public function store(Request $request)
@@ -70,7 +69,16 @@ class ExpenseController extends Controller
 
 
 
-        Expense::create($validated);
+        $expense = Expense::create($validated);
+
+        app(CashFlowService::class)->recordOutflow(
+            $expense->shop_id,
+            $expense->amount,
+            'expense',
+            $expense->title,
+            Expense::class,
+            $expense->id
+        );
 
         return redirect()->back()->with('success', 'Expense recorded successfully.');
     }
@@ -88,11 +96,20 @@ class ExpenseController extends Controller
 
         $expense->update($validated);
 
+        app(CashFlowService::class)->updateTransaction(
+            Expense::class,
+            $expense->id,
+            $expense->amount,
+            $expense->title
+        );
+
         return redirect()->back()->with('success', 'Expense updated successfully.');
     }
 
     public function destroy(Expense $expense)
     {
+        app(CashFlowService::class)->deleteTransaction(Expense::class, $expense->id);
+
         $expense->delete();
 
         return redirect()->back()->with('success', 'Expense deleted successfully.');

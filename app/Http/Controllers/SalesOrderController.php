@@ -93,7 +93,7 @@ class SalesOrderController extends Controller
 
     public function export(Request $request)
     {
-        $query = SalesOrder::with(['items.productVariant.product']);
+        $query = SalesOrder::with(['items.productVariant.product', 'payments', 'courier']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -128,10 +128,11 @@ class SalesOrderController extends Controller
             $query->whereDate('created_at', '<=', $request->end_date);
         }
 
-        $orders = $query->latest()->get();
+        // Order by latest and pass the query builder directly to the export (FromQuery)
+        $query->latest();
         $date = now()->format('Y_m_d');
 
-        return Excel::download(new SalesOrderExport($orders), "sales_orders_{$date}.xlsx");
+        return Excel::download(new SalesOrderExport($query), "sales_orders_{$date}.xlsx");
     }
 
     public function create()
@@ -188,7 +189,7 @@ class SalesOrderController extends Controller
 
     public function show(SalesOrder $salesOrder)
     {
-        $orderModel = $salesOrder->load(['items.productVariant.product', 'courier', 'payments']);
+        $orderModel = $salesOrder->load(['items.productVariant.product', 'payments', 'courier', 'activities']);
 
         // Map to what SalesDetail.tsx expects
         $order = [
@@ -246,7 +247,7 @@ class SalesOrderController extends Controller
                 ];
             }),
             'note' => $orderModel->note,
-            'audit_log' => $orderModel->audit_log ?? [],
+            'activities' => $orderModel->activities,
             'payments' => collect($orderModel->payments)->map(function ($payment) {
                 return [
                     'id' => $payment->id,

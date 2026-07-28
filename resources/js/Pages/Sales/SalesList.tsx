@@ -101,6 +101,14 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
                     </h1>
 
                     <div className="flex items-center gap-2">
+                        <Link
+                            href="/sales/settlements"
+                            className="bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-800 px-4 py-2 rounded-lg hover:scale-[1.02] active:scale-95 transition-all shadow-sm flex items-center justify-center shrink-0"
+                        >
+                            <span className="text-[10px] font-bold text-orange-600 dark:text-orange-500 uppercase tracking-widest">
+                                Batch Settle
+                            </span>
+                        </Link>
                         <a
                             href={`/sales/export?${new URLSearchParams(filters as any).toString()}`}
                             className="bg-zinc-100 dark:bg-zinc-800 px-4 py-2 rounded-lg hover:scale-[1.02] active:scale-95 transition-all shadow-sm flex items-center justify-center shrink-0"

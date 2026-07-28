@@ -118,7 +118,7 @@ export interface PurchaseOrder {
     paid_amount: number;
     note: string | null;
     cancel_reason?: string | null;
-    audit_log?: any[];
+    activities?: any[];
     created_at: string;
     updated_at: string;
     foreign_deli_fee?: number;

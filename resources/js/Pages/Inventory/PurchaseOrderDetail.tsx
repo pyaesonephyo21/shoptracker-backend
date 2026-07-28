@@ -482,24 +482,24 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
             <div className="mt-12 mb-20 max-w-4xl mx-auto w-full px-4 md:px-0">
                 <h3 className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-6">Order History</h3>
                 <div className="relative border-l-2 border-zinc-200 dark:border-zinc-800 ml-3 md:ml-4">
-                    {Array.isArray(order.audit_log) && order.audit_log.length > 0 ? (
-                        order.audit_log.map((log: any, idx: number) => (
+                    {Array.isArray(order.activities) && order.activities.length > 0 ? (
+                        order.activities.map((log: any, idx: number) => (
                             <div key={idx} className="mb-8 ml-6 relative">
                                 <div className="absolute -left-[31px] top-1 h-3 w-3 rounded-full bg-blue-500 border-2 border-white dark:border-black"></div>
                                 <div className="flex flex-col md:flex-row md:items-baseline gap-1 md:gap-3 mb-1">
                                     <h4 className="font-bold text-black dark:text-white uppercase tracking-wide text-sm">
-                                        {log.action.replace(/_/g, ' ')}
+                                        {log.description.replace(/_/g, ' ')}
                                     </h4>
                                     <span className="text-xs text-zinc-500 font-medium">
-                                        {new Date(log.at).toLocaleString()}
+                                        {new Date(log.created_at).toLocaleString()}
                                     </span>
                                 </div>
                                 <div className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">
-                                    By: <span className="font-bold text-black dark:text-white">{log.by}</span>
+                                    By: <span className="font-bold text-black dark:text-white">{log.causer?.name || log.properties?.by || 'System'}</span>
                                 </div>
-                                {log.details && Object.keys(log.details).length > 0 && (
+                                {log.properties?.details && Object.keys(log.properties.details).length > 0 && (
                                     <div className="mt-3 p-3 bg-zinc-50 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg text-xs font-mono overflow-x-auto flex flex-col gap-1">
-                                        {Object.entries(log.details).map(([key, value]: any) => {
+                                        {Object.entries(log.properties.details).map(([key, value]: any) => {
                                             if (key === 'changes' && typeof value === 'object' && value !== null) {
                                                 return Object.entries(value).map(([changeKey, changeVal]: [string, any]) => (
                                                     <div key={changeKey} className="flex gap-4">

@@ -10,6 +10,7 @@ use App\Models\ProductVariant;
 use App\Models\ProductBatch;
 use Illuminate\Support\Facades\DB;
 use Exception;
+use App\Services\CashFlowService;
 
 class PurchaseOrderService
 {
@@ -69,6 +70,17 @@ class PurchaseOrderService
                 'paid_amount' => $paidAmount,
                 'note' => $data['note'] ?? null,
             ]);
+
+            if ($paidAmount > 0) {
+                app(CashFlowService::class)->recordOutflow(
+                    $po->shop_id,
+                    $paidAmount,
+                    'purchase',
+                    'Payment for PO ' . $po->batch_name,
+                    PurchaseOrder::class,
+                    $po->id
+                );
+            }
 
             // Create the items
             foreach ($data['items'] as $item) {
@@ -215,13 +227,27 @@ class PurchaseOrderService
                 'note' => $data['note'] ?? null,
             ]);
 
+            app(CashFlowService::class)->syncOutflow(
+                $po->shop_id,
+                $paidAmount,
+                'purchase',
+                'Payment for PO ' . $po->batch_name,
+                PurchaseOrder::class,
+                $po->id
+            );
+
             $changes = [];
             foreach ($po->getDirty() as $key => $newValue) {
                 if ($key === 'audit_log' || $key === 'updated_at') continue;
-                $changes[$key] = [
-                    'old' => $po->getOriginal($key),
-                    'new' => $newValue
-                ];
+                
+                $oldValue = $po->getOriginal($key);
+                // loose comparison to ignore "0" vs 0, and null vs ""
+                if ($oldValue != $newValue && !(empty($oldValue) && empty($newValue))) {
+                    $changes[$key] = [
+                        'old' => $oldValue,
+                        'new' => $newValue
+                    ];
+                }
             }
 
             // For PO edits, we always rebuild items, so we'll just indicate items were updated.
@@ -404,6 +430,15 @@ class PurchaseOrderService
             $po->payment_status = 'paid';
             $po->status = 'arrived';
             $po->save();
+
+            app(CashFlowService::class)->syncOutflow(
+                $po->shop_id,
+                $po->paid_amount,
+                'purchase',
+                'Full Payment for PO ' . $po->batch_name,
+                PurchaseOrder::class,
+                $po->id
+            );
 
             $po->logAction('arrived', [
                 'adjustment_amount' => $adjustmentAmount,

@@ -2,45 +2,41 @@
 
 namespace App\Exports;
 
-use Maatwebsite\Excel\Concerns\FromCollection;
+use Illuminate\Database\Eloquent\Builder;
+use Maatwebsite\Excel\Concerns\FromQuery;
 use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
 use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
+use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Events\AfterSheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
-use Illuminate\Support\Collection;
 
-class ExpenseExport implements FromCollection, WithHeadings, ShouldAutoSize, WithStyles, WithColumnFormatting
+class ExpenseExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles, WithColumnFormatting, WithEvents
 {
-    protected $expenses;
+    protected $query;
 
-    public function __construct(Collection $expenses)
+    public function __construct(Builder $query)
     {
-        $this->expenses = $expenses;
+        $this->query = $query;
     }
 
-    public function collection()
+    public function query()
     {
-        $data = $this->expenses->map(function ($expense) {
-            return [
-                $expense->incurred_at ? $expense->incurred_at->format('Y-m-d') : '',
-                $expense->title,
-                $expense->category ?? '-',
-                $expense->amount,
-                $expense->note ?? '-',
-            ];
-        });
+        return $this->query;
+    }
 
-        $data->push([
-            'Total',
-            '',
-            '',
-            $this->expenses->sum('amount'),
-            '',
-        ]);
-
-        return $data;
+    public function map($expense): array
+    {
+        return [
+            $expense->incurred_at ? $expense->incurred_at->format('Y-m-d') : '',
+            $expense->title,
+            $expense->category ?? '-',
+            $expense->amount,
+            $expense->note ?? '-',
+        ];
     }
 
     public function headings(): array
@@ -49,52 +45,59 @@ class ExpenseExport implements FromCollection, WithHeadings, ShouldAutoSize, Wit
             'Date Incurred',
             'Title',
             'Category',
-            'Amount (MMK)',
+            'Amount',
             'Note',
         ];
     }
 
     public function styles(Worksheet $sheet)
     {
-        // Set default row height for all data rows
         $sheet->getDefaultRowDimension()->setRowHeight(25);
-        
-        // Set header height
         $sheet->getRowDimension(1)->setRowHeight(30);
-
-        // Vertically center all data
         $sheet->getStyle($sheet->calculateWorksheetDimension())->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
 
-        $styles = [
-            1    => [
-                'font' => [
-                    'bold' => true,
-                    'color' => ['argb' => 'FF374151'], // text-gray-700
-                ],
+        return [
+            1 => [
+                'font' => ['bold' => true, 'color' => ['argb' => 'FF374151']],
                 'fill' => [
                     'fillType' => Fill::FILL_SOLID,
-                    'startColor' => ['argb' => 'FFF3F4F6'], // bg-gray-100
+                    'startColor' => ['argb' => 'FFF3F4F6'],
                 ],
             ],
         ];
-
-        // Style the total row at the very bottom
-        $lastRow = $this->expenses->count() + 2; // +1 for header, +1 for total row
-        $styles[$lastRow] = [
-            'font' => ['bold' => true, 'color' => ['argb' => 'FF374151']],
-            'fill' => [
-                'fillType' => Fill::FILL_SOLID,
-                'startColor' => ['argb' => 'FFF3F4F6'],
-            ],
-        ];
-
-        return $styles;
     }
 
     public function columnFormats(): array
     {
         return [
-            'D' => '#,##0', // Amount
+            'D' => '#,##0',
+        ];
+    }
+
+    public function registerEvents(): array
+    {
+        return [
+            AfterSheet::class => function (AfterSheet $event) {
+                $sheet = $event->sheet->getDelegate();
+                
+                // Add Total Row via SQL Aggregation to avoid memory leak
+                $totals = (clone $this->query)->selectRaw('
+                    SUM(amount) as sum_amount
+                ')->first();
+                
+                $rowIndex = $sheet->getHighestRow() + 1;
+
+                $sheet->setCellValue('A' . $rowIndex, 'Total');
+                $sheet->setCellValue('D' . $rowIndex, $totals->sum_amount ?? 0);
+
+                $sheet->getStyle('A' . $rowIndex . ':E' . $rowIndex)->applyFromArray([
+                    'font' => ['bold' => true, 'color' => ['argb' => 'FF374151']],
+                    'fill' => [
+                        'fillType' => Fill::FILL_SOLID,
+                        'startColor' => ['argb' => 'FFF3F4F6'],
+                    ],
+                ]);
+            }
         ];
     }
 }

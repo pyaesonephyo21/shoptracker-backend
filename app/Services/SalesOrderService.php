@@ -41,8 +41,7 @@ class SalesOrderService
                 // Initial Payment
                 'paid_amount' => (float) ($data['paid_amount'] ?? 0),
 
-                // Audit
-                'audit_log' => [['action' => 'created', 'by' => Auth::user()?->name ?? 'System', 'at' => now()->toIso8601String()]]
+                'paid_amount' => (float) ($data['paid_amount'] ?? 0),
             ]);
 
             $isPreorder = false;
@@ -74,7 +73,18 @@ class SalesOrderService
                     'amount' => $order->paid_amount,
                     'payment_method' => $data['payment_method'] ?? 'cash',
                 ]);
+
+                app(CashFlowService::class)->recordInflow(
+                    $order->shop_id,
+                    $order->paid_amount,
+                    'sale',
+                    'Initial payment for Order #' . $order->id,
+                    SalesOrder::class,
+                    $order->id
+                );
             }
+
+            $order->logAction('created');
 
             return $order->load(['items.productVariant.product', 'payments']);
         });
@@ -112,10 +122,15 @@ class SalesOrderService
             $changes = [];
             foreach ($order->getDirty() as $key => $newValue) {
                 if ($key === 'audit_log' || $key === 'updated_at') continue;
-                $changes[$key] = [
-                    'old' => $order->getOriginal($key),
-                    'new' => $newValue
-                ];
+                
+                $oldValue = $order->getOriginal($key);
+                // loose comparison to ignore "0" vs 0, and null vs ""
+                if ($oldValue != $newValue && !(empty($oldValue) && empty($newValue))) {
+                    $changes[$key] = [
+                        'old' => $oldValue,
+                        'new' => $newValue
+                    ];
+                }
             }
 
             // Always recalculate totals when editing to ensure consistency
@@ -124,10 +139,14 @@ class SalesOrderService
             // recalculated totals might add to getDirty()
             foreach ($order->getDirty() as $key => $newValue) {
                 if ($key === 'audit_log' || $key === 'updated_at' || isset($changes[$key])) continue;
-                $changes[$key] = [
-                    'old' => $order->getOriginal($key),
-                    'new' => $newValue
-                ];
+                
+                $oldValue = $order->getOriginal($key);
+                if ($oldValue != $newValue && !(empty($oldValue) && empty($newValue))) {
+                    $changes[$key] = [
+                        'old' => $oldValue,
+                        'new' => $newValue
+                    ];
+                }
             }
 
             if (!empty($changes)) {
@@ -221,6 +240,15 @@ class SalesOrderService
                         'amount' => $amountToPay,
                         'payment_method' => $paymentMethod,
                     ]);
+
+                    app(CashFlowService::class)->recordInflow(
+                        $order->shop_id,
+                        $amountToPay,
+                        'sale',
+                        'Courier settlement for Order #' . $order->id,
+                        SalesOrder::class,
+                        $order->id
+                    );
                 }
 
                 $order->update([
@@ -241,6 +269,15 @@ class SalesOrderService
                         'amount' => $amountToPay,
                         'payment_method' => $paymentMethod ?? 'cash',
                     ]);
+
+                    app(CashFlowService::class)->recordInflow(
+                        $order->shop_id,
+                        $amountToPay,
+                        'sale',
+                        'Direct customer payment for Order #' . $order->id,
+                        SalesOrder::class,
+                        $order->id
+                    );
                 }
 
                 $order->update([
@@ -252,6 +289,18 @@ class SalesOrderService
 
             $order->logAction('settled');
             return $order;
+        });
+    }
+
+    public function batchSettle(array $orderIds, $paymentMethod)
+    {
+        return DB::transaction(function () use ($orderIds, $paymentMethod) {
+            $settledCount = 0;
+            foreach ($orderIds as $id) {
+                $this->settle($id, $paymentMethod);
+                $settledCount++;
+            }
+            return $settledCount;
         });
     }
 

@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { twMerge } from 'tailwind-merge';
+import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 
 const formatLogValue = (val: any) => {
     if (val === null || val === undefined || val === '') return 'none';
@@ -22,13 +23,18 @@ const formatLogValue = (val: any) => {
 };
 
 export default function SalesDetail({ order }: { order: SalesOrder }) {
-    const paymentMethods = usePage<any>().props.auth?.payment_methods || [];
+    const { props } = usePage<any>();
+    const paymentMethods = props.auth?.payment_methods || [];
     const [modalAction, setModalAction] = useState<{
-        type: "settle" | "cancel" | "return";
+        type: "settle" | "cancel" | "return" | "refund";
         itemId?: number;
         maxQty?: number;
     } | null>(null);
     const [cancelReason, setCancelReason] = useState("");
+    const [cancellationFee, setCancellationFee] = useState("");
+    const [cancellationFeeReason, setCancellationFeeReason] = useState("");
+    const [refundAmount, setRefundAmount] = useState<string | number>("");
+    const [paymentMethod, setPaymentMethod] = useState("");
 
     const { data: returnData, setData: setReturnData, post: postReturn, processing: returning, clearErrors, errors: returnErrors } = useForm({
         quantity: '',
@@ -58,18 +64,18 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
     let settleButtonText = "";
     if (order.delivery.collected_by === "courier" && order.delivery.settlement_status === "unpaid") {
         settleButtonText = "CONFIRM COURIER TRANSFER";
-    } else if (isRefundNeeded) {
-        settleButtonText = `ISSUE REFUND (${Math.abs(balance).toLocaleString()})`;
+    } else if (Math.abs(balance) < 1) {
+        settleButtonText = "MARK AS COMPLETED";
     } else {
         settleButtonText = `COLLECT BALANCE (${balance.toLocaleString()})`;
     }
 
     const isCourierUnpaid = order.delivery.collected_by === "courier" && order.delivery.settlement_status === "unpaid";
-    const canSettle = isRefundNeeded || (!isFullyPaid && (
+    const canSettle = (!isCompleted && !isRefundNeeded) && (
         isCourierUnpaid 
             ? order.status.toLowerCase() === 'delivered' 
             : ['pending', 'delivery_added', 'delivered'].includes(order.status.toLowerCase())
-    ));
+    );
 
     const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
@@ -92,19 +98,50 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
         }
     };
 
-    const handleSettle = (method: string) => {
-        router.post(`/sales/${order.id}/settle`, { payment_method: method }, {
+    const handleRefund = () => {
+        router.post(`/sales/${order.id}/refund`, {
+            refund_amount: refundAmount,
+            payment_method: paymentMethod
+        }, {
             preserveScroll: true,
-            onSuccess: () => setModalAction(null)
+            onSuccess: () => {
+                setModalAction(null);
+                setRefundAmount("");
+                setPaymentMethod("");
+            }
+        });
+    };
+
+    const handleSettle = () => {
+        router.post(`/sales/${order.id}/settle`, {
+            payment_method: paymentMethod,
+            refund_amount: refundAmount
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setModalAction(null);
+                setPaymentMethod("");
+                setRefundAmount("");
+            }
         });
     };
 
     const handleCancel = () => {
-        router.post(`/sales/${order.id}/cancel`, { cancel_reason: cancelReason }, {
+        router.post(`/sales/${order.id}/cancel`, {
+            cancel_reason: cancelReason,
+            cancellation_fee: cancellationFee,
+            cancellation_fee_reason: cancellationFeeReason,
+            refund_amount: refundAmount,
+            payment_method: paymentMethod
+        }, {
             preserveScroll: true,
             onSuccess: () => {
                 setModalAction(null);
                 setCancelReason("");
+                setCancellationFee("");
+                setCancellationFeeReason("");
+                setRefundAmount("");
+                setPaymentMethod("");
             }
         });
     };
@@ -279,9 +316,9 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-4">Collection & Payments</span>
                                 
                                 <div className="flex justify-between items-center mb-4">
-                                    <span className="text-zinc-500 text-sm font-medium">Target Collection</span>
-                                    <span className="text-black dark:text-white font-bold text-sm">
-                                        {order.delivery.collected_by === 'courier' ? formatMMK(order.financials.net_revenue) : formatMMK(order.financials.grand_total)} MMK
+                                    <span className="text-zinc-500 font-medium text-sm">Target Collection</span>
+                                    <span className="font-bold text-black dark:text-white text-sm tabular-nums">
+                                        {formatMMK(order.delivery.collected_by === 'courier' ? order.financials.net_revenue : order.financials.grand_total)} MMK
                                     </span>
                                 </div>
 
@@ -291,7 +328,16 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                         {formatMMK(order.financials.paid_amount)} MMK
                                     </span>
                                 </div>
-                                
+
+                                {order.financials.retained_revenue > 0 && (
+                                    <div className="flex justify-between items-center mb-4">
+                                        <span className="text-zinc-500 text-sm font-medium">Retained Revenue</span>
+                                        <span className="text-green-600 dark:text-green-500 font-bold text-sm">
+                                            +{formatMMK(order.financials.retained_revenue)} MMK
+                                        </span>
+                                    </div>
+                                )}
+
                                 <div className="flex justify-between items-center pt-4 border-t border-zinc-200 dark:border-zinc-800">
                                     <span className="text-black dark:text-white font-black text-sm uppercase">Balance Due</span>
                                     <span className={twMerge("font-black text-xl", Math.abs(order.financials.balance) < 1 ? "text-black dark:text-white" : "text-orange-500")}>
@@ -312,7 +358,9 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                                         {paymentMethods.find((m: any) => m.code === payment.method)?.name || payment.method}
                                                     </span>
                                                 </div>
-                                                <span className="font-bold text-black dark:text-white tabular-nums">+{formatMMK(payment.amount)}</span>
+                                                <span className="font-bold text-black dark:text-white tabular-nums">
+                                                    {payment.amount > 0 ? `+${formatMMK(payment.amount)}` : `${formatMMK(payment.amount)}`}
+                                                </span>
                                             </div>
                                         ))}
                                     </div>
@@ -379,7 +427,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                     <div className="mb-8 p-6 bg-zinc-100 dark:bg-zinc-800/50 rounded-2xl border-2 border-dashed border-zinc-300 dark:border-zinc-700">
                         <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest block mb-4">Manager View (Internal)</span>
 
-                        <CostRow label="Total Revenue (Cash In)" value={order.financials.net_revenue} isBold />
+                        <CostRow label="Total Revenue (Cash In)" value={order.financials.net_revenue + order.financials.retained_revenue} isBold />
                         <CostRow label="Total Item Cost" value={order.financials.total_cost} color="text-zinc-500 dark:text-zinc-400" />
 
                         {order.delivery.courier_service_fee > 0 && (
@@ -406,14 +454,20 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                             </Button>
                         )}
 
+                        {isRefundNeeded && (
+                            <Button onClick={() => setModalAction({ type: "refund" })} variant="default" className="h-12 w-full font-bold">
+                                ISSUE REFUND ({Math.abs(balance).toLocaleString()})
+                            </Button>
+                        )}
+
                         {canSettle && (
-                            <Button onClick={() => setModalAction({ type: "settle" })} variant={isRefundNeeded ? "destructive" : "default"} className="h-12 w-full font-bold">
+                            <Button onClick={() => setModalAction({ type: "settle" })} variant="default" className="h-12 w-full font-bold">
                                 {settleButtonText}
                             </Button>
                         )}
 
                         {!isSettled && !isCompleted && (
-                            <Button onClick={() => setModalAction({ type: "cancel" })} variant="outline" className="h-12 w-full font-bold border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:hover:bg-red-900/20">
+                            <Button onClick={() => setModalAction({ type: "cancel" })} variant="outline" className="h-12 w-full font-bold">
                                 CANCEL ORDER
                             </Button>
                         )}
@@ -466,30 +520,88 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
             </div>
 
             {/* MODALS using Shadcn Dialog */}
-            <Dialog open={modalAction !== null} onOpenChange={(open) => { if (!open) { setModalAction(null); clearErrors(); setReturnData({ quantity: '', reason: '' }); setCancelReason(''); } }}>
+            <Dialog open={modalAction !== null} onOpenChange={(open) => { if (!open) { setModalAction(null); clearErrors(); setReturnData({ quantity: '', reason: '' }); setCancelReason(''); setRefundAmount(""); setPaymentMethod(""); } }}>
                 <DialogContent>
+                    {modalAction?.type === "refund" && (
+                        <>
+                            <DialogHeader>
+                                <DialogTitle>Confirm Refund</DialogTitle>
+                                <DialogDescription>Issue refund of {formatMMK(Math.abs(balance))} MMK?</DialogDescription>
+                            </DialogHeader>
+                            <div className="flex flex-col gap-4 mt-4">
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex flex-col gap-1">
+                                        <div className="flex justify-between items-center">
+                                            <Label>Refund Amount</Label>
+                                            <span className="text-[10px] text-zinc-400">Type 0 for no refund</span>
+                                        </div>
+                                        <span className="text-[10px] text-zinc-500">Default: {formatMMK(Math.abs(balance))} MMK</span>
+                                    </div>
+                                    <FormattedNumberInput
+                                        placeholder={Math.abs(balance).toString()}
+                                        value={refundAmount}
+                                        onChange={(val) => setRefundAmount(val)}
+                                    />
+                                    <p className="text-xs text-zinc-500">
+                                        If you issue a partial refund, the difference will be retained as revenue (cancellation/restocking fee).
+                                    </p>
+                                </div>
+                                {(refundAmount === "" || Number(refundAmount) > 0) && (
+                                    <div className="flex flex-col gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+                                        <Label>Payment Method</Label>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {paymentMethods.map((method: any) => (
+                                                <Button
+                                                    key={method.id}
+                                                    variant={paymentMethod === method.code ? "default" : "outline"}
+                                                    onClick={() => setPaymentMethod(method.code)}
+                                                    className="flex-1 text-[11px] h-9"
+                                                >
+                                                    {method.name.toUpperCase()}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <DialogFooter className="mt-4">
+                                <Button disabled={((refundAmount === "" || Number(refundAmount) > 0) && !paymentMethod)} variant="default" onClick={handleRefund} className="w-full">
+                                    CONFIRM REFUND
+                                </Button>
+                            </DialogFooter>
+                        </>
+                    )}
+
                     {modalAction?.type === "settle" && (
                         <>
                             <DialogHeader>
-                                <DialogTitle>{isRefundNeeded ? "Confirm Refund" : "Confirm Payment"}</DialogTitle>
-                                <DialogDescription>
-                                    {isRefundNeeded ? `Issue refund of ${formatMMK(Math.abs(balance))} MMK?` : `Received remaining ${formatMMK(balance)} MMK?`}
-                                </DialogDescription>
+                                <DialogTitle>{Math.abs(balance) < 1 && !isCourierUnpaid ? "Complete Order" : "Confirm Payment"}</DialogTitle>
+                                <DialogDescription>{Math.abs(balance) < 1 && !isCourierUnpaid ? "Mark this order as completed?" : `Received remaining ${formatMMK(balance > 0 ? balance : 0)} MMK?`}</DialogDescription>
                             </DialogHeader>
-                            <div className="flex flex-wrap gap-2 mt-4">
-                                                {paymentMethods.length > 0 ? paymentMethods.map((method: any) => (
-                                                    <Button 
-                                                        key={method.code}
-                                                        onClick={() => handleSettle(method.code)} 
-                                                        variant="outline" 
-                                                        className="flex-1 min-w-[80px] bg-white text-black dark:bg-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800"
-                                                    >
-                                                        {method.name}
-                                                    </Button>
-                                                )) : (
-                                                    <div className="text-sm text-zinc-500 italic py-2">No payment methods configured.</div>
-                                                )}
-                                            </div>
+                            <div className="flex flex-col gap-4 mt-4">
+                                {(Math.abs(balance) >= 1) && (
+                                    <div className="flex flex-col gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4 mt-2">
+                                        <Label>Payment Method</Label>
+                                        <div className="flex gap-2 flex-wrap">
+                                            {paymentMethods.map((method: any) => (
+                                                <Button
+                                                    key={method.id}
+                                                    variant={paymentMethod === method.code ? "default" : "outline"}
+                                                    onClick={() => setPaymentMethod(method.code)}
+                                                    className="flex-1 text-[11px] h-9"
+                                                >
+                                                    {method.name.toUpperCase()}
+                                                </Button>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            <DialogFooter className="mt-4">
+                                <Button disabled={!paymentMethod && balance >= 1} onClick={handleSettle} className="w-full">
+                                    {Math.abs(balance) < 1 && !isCourierUnpaid ? "COMPLETE ORDER" : "CONFIRM PAYMENT"}
+                                </Button>
+                            </DialogFooter>
                         </>
                     )}
 
@@ -499,16 +611,75 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 <DialogTitle>Cancel Order?</DialogTitle>
                                 <DialogDescription>This action cannot be undone.</DialogDescription>
                             </DialogHeader>
-                            <div className="flex flex-col gap-2 mt-4">
-                                <Label>Cancel Reason (Optional)</Label>
-                                <Input
-                                    placeholder="e.g. Customer changed mind"
-                                    value={cancelReason}
-                                    onChange={(e) => setCancelReason(e.target.value)}
-                                />
+                            <div className="flex flex-col gap-4 mt-4">
+                                <div className="flex flex-col gap-2">
+                                    <Label>Cancel Reason (Optional)</Label>
+                                    <Input
+                                        placeholder="e.g. Customer changed mind"
+                                        value={cancelReason}
+                                        onChange={(e) => setCancelReason(e.target.value)}
+                                    />
+                                </div>
+                                {order.paid_amount > 0 && (
+                                    <>
+                                        <div className="flex flex-col gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4">
+                                            <div className="flex flex-col gap-1">
+                                                <div className="flex justify-between items-center">
+                                                    <Label>Refund Amount</Label>
+                                                    <span className="text-[10px] text-zinc-400">Type 0 for no refund</span>
+                                                </div>
+                                                <span className="text-[10px] text-zinc-500">Max: {formatMMK(order.paid_amount)} MMK</span>
+                                            </div>
+                                            <FormattedNumberInput
+                                                placeholder={order.paid_amount.toString()}
+                                                value={refundAmount}
+                                                onChange={(val) => setRefundAmount(val)}
+                                            />
+                                            <p className="text-xs text-zinc-500">
+                                                If you issue a partial refund, the difference will be retained as revenue. Leave blank to refund the full paid amount.
+                                            </p>
+                                        </div>
+                                        {(refundAmount === "" || Number(refundAmount) > 0) && (
+                                            <div className="flex flex-col gap-2 pt-2">
+                                                <Label>Payment Method</Label>
+                                                <div className="flex gap-2 flex-wrap">
+                                                    {paymentMethods.map((method: any) => (
+                                                        <Button
+                                                            key={method.id}
+                                                            variant={paymentMethod === method.code ? "default" : "outline"}
+                                                            onClick={() => setPaymentMethod(method.code)}
+                                                            className="flex-1 text-[11px] h-9"
+                                                        >
+                                                            {method.name.toUpperCase()}
+                                                        </Button>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                                <div className="flex flex-col gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4 mt-2">
+                                    <Label>Cancellation Fee / Sunk Cost (Optional)</Label>
+                                    <FormattedNumberInput
+                                        placeholder="0"
+                                        value={cancellationFee}
+                                        onChange={(val) => setCancellationFee(val)}
+                                    />
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                    <Label>Fee Reason</Label>
+                                    <Input
+                                        placeholder="e.g. Courier Pickup Fee"
+                                        value={cancellationFeeReason}
+                                        onChange={(e) => setCancellationFeeReason(e.target.value)}
+                                        disabled={!cancellationFee}
+                                        required={!!cancellationFee}
+                                    />
+                                    {props.errors?.cancellation_fee_reason && <span className="text-red-500 text-xs">{props.errors.cancellation_fee_reason}</span>}
+                                </div>
                             </div>
                             <DialogFooter className="mt-4">
-                                <Button variant="destructive" onClick={handleCancel} className="w-full">
+                                <Button disabled={order.paid_amount > 0 && (refundAmount === "" || Number(refundAmount) > 0) && !paymentMethod} variant="default" onClick={handleCancel} className="w-full">
                                     YES, CANCEL ORDER
                                 </Button>
                             </DialogFooter>
@@ -544,7 +715,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 </div>
                             </div>
                             <DialogFooter className="mt-4">
-                                <Button variant="destructive" onClick={confirmReturn} disabled={returning} className="w-full">
+                                <Button disabled={returning || !returnData.quantity} variant="default" onClick={confirmReturn} className="w-full">
                                     CONFIRM RETURN
                                 </Button>
                             </DialogFooter>

@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\Expense;
 use App\Models\InventoryLog;
+use App\Models\ProductBatch;
+use App\Models\ProductVariant;
+use App\Models\PurchaseOrderItem;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use Exception;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use App\Models\ProductVariant;
-use App\Models\ProductBatch;
-use App\Models\PurchaseOrderItem;
 
 class SalesOrderService
 {
@@ -116,7 +116,22 @@ class SalesOrderService
             if (isset($data['discount_value'])) $order->discount_value = (float) $data['discount_value'];
             if (isset($data['overcharge'])) $order->overcharge = (float) $data['overcharge'];
             if (isset($data['extra_fee'])) $order->extra_fee = (float) $data['extra_fee'];
+
+            $oldPaidAmount = $order->paid_amount;
             if (isset($data['paid_amount'])) $order->paid_amount = (float) $data['paid_amount'];
+            $paidAmountDiff = $order->paid_amount - $oldPaidAmount;
+
+            if ($paidAmountDiff != 0) {
+                $order->payments()->create([
+                    'amount' => $paidAmountDiff,
+                    'payment_method' => 'correction'
+                ]);
+                if ($paidAmountDiff > 0) {
+                    app(CashFlowService::class)->recordInflow($order->shop_id, $paidAmountDiff, 'sale', 'Correction: Prepaid Amount increased for Order #' . $order->id, SalesOrder::class, $order->id);
+                } else {
+                    app(CashFlowService::class)->recordOutflow($order->shop_id, abs($paidAmountDiff), 'refund', 'Correction: Prepaid Amount decreased for Order #' . $order->id, SalesOrder::class, $order->id);
+                }
+            }
 
             // Calculate changes before saving
             $changes = [];
@@ -223,22 +238,25 @@ class SalesOrderService
         });
     }
 
-    public function settle($id, $paymentMethod)
+    public function settle($id, $paymentMethod = null, $refundAmount = null)
     {
-        return DB::transaction(function () use ($id, $paymentMethod) {
+        return DB::transaction(function () use ($id, $paymentMethod, $refundAmount) {
             $order = SalesOrder::findOrFail($id);
 
             // Case 1: Courier Settlement
             if ($order->money_collected_by === 'courier') {
-                if ($order->settlement_status === 'settled') {
+                $amountToPay = $order->net_revenue - $order->paid_amount;
+
+                if ($order->settlement_status === 'settled' && $amountToPay == 0) {
                     throw new Exception("Order is already settled.");
                 }
 
-                $amountToPay = $order->net_revenue - $order->paid_amount;
+                $newPaidAmount = $order->paid_amount;
+
                 if ($amountToPay > 0) {
                     $order->payments()->create([
                         'amount' => $amountToPay,
-                        'payment_method' => $paymentMethod,
+                        'payment_method' => $paymentMethod ?? 'cash',
                     ]);
 
                     app(CashFlowService::class)->recordInflow(
@@ -249,21 +267,56 @@ class SalesOrderService
                         SalesOrder::class,
                         $order->id
                     );
+                    $newPaidAmount += $amountToPay;
+                } elseif ($amountToPay < 0) {
+                    $owed = abs($amountToPay);
+                    $refundToIssue = $refundAmount ?? $owed;
+                    $retained = $owed - $refundToIssue;
+
+                    if ($refundToIssue > 0) {
+                        $order->payments()->create([
+                            'amount' => -$refundToIssue,
+                            'payment_method' => $paymentMethod ?? 'cash',
+                        ]);
+                        app(CashFlowService::class)->recordOutflow(
+                            $order->shop_id,
+                            $refundToIssue,
+                            'refund',
+                            'Refund for Courier overpayment: Order #' . $order->id,
+                            SalesOrder::class,
+                            $order->id
+                        );
+                        $newPaidAmount -= $refundToIssue;
+                    }
+                    if ($retained > 0) {
+                        $order->retained_revenue += $retained;
+                        $newPaidAmount -= $retained;
+                        $order->save();
+                    }
                 }
 
                 $order->update([
                     'settlement_status' => 'settled',
                     'payment_status' => 'paid',
-                    'paid_amount' => $order->net_revenue,
+                    'paid_amount' => $newPaidAmount,
                     'status' => 'completed'
                 ]);
             }
             // Case 2: Direct Customer Payment
             else {
-                if ($order->payment_status === 'paid') {
-                    throw new Exception("Order is already fully paid.");
-                }
                 $amountToPay = $order->customer_grand_total - $order->paid_amount;
+
+                if ($order->payment_status === 'paid' && $amountToPay == 0) {
+                    if ($order->status !== 'completed') {
+                        $order->update(['status' => 'completed']);
+                        $order->logAction('settled');
+                        return $order;
+                    }
+                    throw new Exception("Order is already fully paid and completed.");
+                }
+
+                $newPaidAmount = $order->paid_amount;
+
                 if ($amountToPay > 0) {
                     $order->payments()->create([
                         'amount' => $amountToPay,
@@ -278,16 +331,89 @@ class SalesOrderService
                         SalesOrder::class,
                         $order->id
                     );
+                    $newPaidAmount += $amountToPay;
+                } elseif ($amountToPay < 0) {
+                    $owed = abs($amountToPay);
+                    $refundToIssue = $refundAmount ?? $owed;
+                    $retained = $owed - $refundToIssue;
+
+                    if ($refundToIssue > 0) {
+                        $order->payments()->create([
+                            'amount' => -$refundToIssue,
+                            'payment_method' => $paymentMethod ?? 'cash',
+                        ]);
+                        app(CashFlowService::class)->recordOutflow(
+                            $order->shop_id,
+                            $refundToIssue,
+                            'refund',
+                            'Refund for Direct overpayment: Order #' . $order->id,
+                            SalesOrder::class,
+                            $order->id
+                        );
+                        $newPaidAmount -= $refundToIssue;
+                    }
+                    if ($retained > 0) {
+                        $order->retained_revenue += $retained;
+                        $newPaidAmount -= $retained;
+                        $order->save();
+                    }
                 }
 
                 $order->update([
                     'payment_status' => 'paid',
-                    'paid_amount' => $order->customer_grand_total,
+                    'paid_amount' => $newPaidAmount,
                     'status' => 'completed'
                 ]);
             }
 
+            $this->recalculateTotals($order);
+
             $order->logAction('settled');
+            return $order;
+        });
+    }
+
+    public function issueRefund($id, $paymentMethod = null, $refundAmount = null)
+    {
+        return DB::transaction(function () use ($id, $paymentMethod, $refundAmount) {
+            $order = SalesOrder::findOrFail($id);
+
+            $targetAmount = $order->money_collected_by === 'courier' ? $order->net_revenue : $order->customer_grand_total;
+            $owed = $order->paid_amount - $targetAmount;
+
+            if ($owed <= 0) {
+                throw new Exception("No refund is due.");
+            }
+
+            $refundToIssue = $refundAmount ?? $owed;
+            $retained = $owed - $refundToIssue;
+
+            if ($refundToIssue > 0) {
+                $order->payments()->create([
+                    'amount' => -$refundToIssue,
+                    'payment_method' => $paymentMethod ?? 'cash',
+                ]);
+
+                app(CashFlowService::class)->recordOutflow(
+                    $order->shop_id,
+                    $refundToIssue,
+                    'refund',
+                    'Refund for Order #' . $order->id,
+                    SalesOrder::class,
+                    $order->id
+                );
+                $order->paid_amount -= $refundToIssue;
+            }
+
+            if ($retained > 0) {
+                $order->retained_revenue += $retained;
+                $order->paid_amount -= $retained;
+            }
+
+            $order->save();
+            $this->recalculateTotals($order);
+
+            $order->logAction('refund_issued');
             return $order;
         });
     }
@@ -306,9 +432,9 @@ class SalesOrderService
 
     // --- 4. CANCELLATION & RETURNS ---
 
-    public function cancelOrder($id, $reason = "Manual Cancellation")
+    public function cancelOrder($id, $reason = "Manual Cancellation", $cancellationFee = 0, $cancellationFeeReason = null, $refundAmount = null, $paymentMethod = null)
     {
-        return DB::transaction(function () use ($id, $reason) {
+        return DB::transaction(function () use ($id, $reason, $cancellationFee, $cancellationFeeReason, $refundAmount, $paymentMethod) {
             $order = SalesOrder::with('items')->findOrFail($id);
             if ($order->status === 'cancelled') throw new Exception("Order is already cancelled.");
 
@@ -322,10 +448,54 @@ class SalesOrderService
                 $this->restoreBatches($item);
             }
 
+            $refundToIssue = $refundAmount ?? $order->paid_amount;
+            $retained = $order->paid_amount - $refundToIssue;
+
+            if ($refundToIssue > 0) {
+                $order->payments()->create([
+                    'amount' => -$refundToIssue,
+                    'payment_method' => $paymentMethod ?? 'cash',
+                ]);
+                app(CashFlowService::class)->recordOutflow(
+                    $order->shop_id,
+                    $refundToIssue,
+                    'refund',
+                    'Refund for Cancelled Order #' . $order->id,
+                    SalesOrder::class,
+                    $order->id
+                );
+            }
+            if ($retained > 0) {
+                $order->retained_revenue += $retained;
+                $order->save();
+            }
+
             $order->status = 'cancelled';
             $order->cancel_reason = $reason;
+            $order->net_revenue = 0;
+            $order->customer_grand_total = 0;
+            $order->paid_amount = 0;
             $order->logAction('cancelled', ['reason' => $reason]);
             $order->save();
+
+            if ($cancellationFee > 0) {
+                $expense = Expense::create([
+                    'title' => 'Cancel Fee (Order #' . $order->id . '): ' . ($cancellationFeeReason ?? 'No reason provided'),
+                    'amount' => $cancellationFee,
+                    'incurred_at' => now(),
+                    'category' => 'Cancellation Fee',
+                    'note' => 'Fee incurred during order cancellation.',
+                ]);
+
+                app(CashFlowService::class)->recordOutflow(
+                    $expense->shop_id,
+                    $expense->amount,
+                    'expense',
+                    $expense->title,
+                    Expense::class,
+                    $expense->id
+                );
+            }
             return $order;
         });
     }
@@ -624,7 +794,7 @@ class SalesOrderService
         $order->discount_total = $discountAmount;
         $order->customer_grand_total = $customerGrandTotal;
         $order->net_revenue = $netRevenue;
-        $order->net_profit = $netRevenue - $totalCost - $order->return_cost;
+        $order->net_profit = $netRevenue + $order->retained_revenue - $totalCost - $order->return_cost;
         $order->save();
     }
 
@@ -673,5 +843,6 @@ class SalesOrderService
         }
 
         $item->batch_breakdown = $breakdown;
+        $item->save();
     }
 }

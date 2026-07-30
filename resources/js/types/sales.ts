@@ -1,4 +1,5 @@
 export interface SalesOrder {
+    paid_amount: number;
     payments: any;
     cancel_reason: boolean;
     id: number;
@@ -27,6 +28,7 @@ export interface SalesOrder {
         profit: number;
         overcharge: number;
         extra_fee: number;
+        retained_revenue: number;
     };
 
     delivery: {

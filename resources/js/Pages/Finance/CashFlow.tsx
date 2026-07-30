@@ -129,7 +129,7 @@ export default function CashFlow({ transactions, totalBalance, filters }: CashFl
                     </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 sm:gap-6">
                     <div className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-2xl shadow-sm flex flex-col justify-center items-center">
                         <p className="text-sm font-bold text-zinc-500 uppercase tracking-widest mb-2">Total Cash in Hand</p>
                         <h2 className={`text-4xl font-black tracking-tighter ${totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -166,7 +166,7 @@ export default function CashFlow({ transactions, totalBalance, filters }: CashFl
                                 </div>
                                 <div className="flex flex-col gap-1 col-span-2 sm:flex-initial mt-1 sm:mt-0">
                                     <Label className="text-[9px] uppercase text-zinc-500 ml-1 font-bold">Type</Label>
-                                    <Select value={typeFilter} onValueChange={setTypeFilter}>
+                                    <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value || 'all')}>
                                         <SelectTrigger className="w-full sm:w-[140px] h-8 shadow-sm bg-white dark:bg-zinc-950 text-xs truncate">
                                             {typeFilter === 'all' ? 'All Types' : typeFilter.replace('_', ' ').toUpperCase()}
                                         </SelectTrigger>

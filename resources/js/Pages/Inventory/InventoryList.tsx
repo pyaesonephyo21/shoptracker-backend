@@ -82,10 +82,15 @@ export default function InventoryList({ products, filters = { search: '', type: 
             <Head title="Inventory" />
 
 			<div className="flex flex-col gap-6">
-                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4">
+                <div className="flex justify-between items-end border-b border-zinc-100 dark:border-zinc-800 pb-4">
                     <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">
                         Inventory
                     </h1>
+                    <Link href="/inventory/adjustments">
+                        <Button variant="outline" className="h-9 px-4">
+                            Adjustments Ledger
+                        </Button>
+                    </Link>
                 </div>
 
                 <div className="flex items-center gap-2">

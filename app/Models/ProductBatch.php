@@ -6,6 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductBatch extends Model
 {
+    use \App\Traits\BelongsToShop;
+
     protected $guarded = ['id'];
 
     protected $casts = [

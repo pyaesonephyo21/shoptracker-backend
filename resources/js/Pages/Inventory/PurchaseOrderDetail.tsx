@@ -28,6 +28,7 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
     const [isReceivingMode, setIsReceivingMode] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
+    const [refundAmount, setRefundAmount] = useState<string | number>("");
     
 
     const { data, setData, post, processing, errors, clearErrors } = useForm({
@@ -106,10 +107,15 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
     };
 
     const handleCancel = () => {
-        router.post(`/inventory/purchase-orders/${order.id}/cancel`, { cancel_reason: cancelReason }, {
+        router.post(`/inventory/purchase-orders/${order.id}/cancel`, { 
+            cancel_reason: cancelReason,
+            refund_amount: refundAmount
+        }, {
+            preserveScroll: true,
             onSuccess: () => {
                 setShowCancelModal(false);
                 setCancelReason("");
+                setRefundAmount("");
             }
         });
     };
@@ -544,12 +550,23 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                             value={cancelReason}
                             onChange={(e) => setCancelReason(e.target.value)}
                         />
-                    </div>
-                    <DialogFooter className="mt-4">
-                        <Button variant="destructive" onClick={handleCancel} className="w-full">
+                        {order.paid_amount > 0 && (
+                            <div className="flex flex-col gap-2 border-t border-zinc-100 dark:border-zinc-800 pt-4 mt-2">
+                                <Label>Refund Amount (Max: {formatMMK(order.paid_amount)} MMK)</Label>
+                                <FormattedNumberInput
+                                    placeholder={order.paid_amount.toString()}
+                                    value={refundAmount}
+                                    onChange={(val) => setRefundAmount(val)}
+                                />
+                                <p className="text-xs text-zinc-500">
+                                    If the supplier issues a partial refund, the difference will be logged as a Sunk Cost Expense. Leave blank to log a full refund.
+                                </p>
+                            </div>
+                        )}
+                        <Button variant="destructive" onClick={handleCancel} className="w-full mt-4">
                             YES, CANCEL PURCHASE ORDER
                         </Button>
-                    </DialogFooter>
+                    </div>
                 </DialogContent>
             </Dialog>
         </AppLayout>

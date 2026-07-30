@@ -379,7 +379,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
 
                     <Button
                         type="submit"
-                        disabled={processing || isOverpaid}
+                        disabled={processing}
                         className="w-full mt-4 h-12 text-sm font-bold tracking-wide"
                     >
                         {processing ? "SAVING..." : "SAVE CHANGES"}

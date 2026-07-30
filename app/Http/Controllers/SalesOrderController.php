@@ -210,6 +210,7 @@ class SalesOrderController extends Controller
                 'discount_reason' => $orderModel->discount_reason,
                 'extra_fee' => (float)$orderModel->extra_fee,
                 'overcharge' => (float)$orderModel->overcharge,
+                'retained_revenue' => (float)$orderModel->retained_revenue,
                 'paid_amount' => (float)$orderModel->paid_amount,
                 'balance' => (float)($orderModel->money_collected_by === 'courier' ? $orderModel->net_revenue - $orderModel->paid_amount : $orderModel->customer_grand_total - $orderModel->paid_amount),
                 'payment_status' => $orderModel->payment_status,
@@ -339,31 +340,57 @@ class SalesOrderController extends Controller
     public function settle(Request $request, SalesOrder $salesOrder)
     {
         $validated = $request->validate([
-            'payment_method' => 'required|string'
+            'payment_method' => 'nullable|string',
+            'refund_amount' => 'nullable|numeric|min:0'
         ]);
 
-        $this->service->settle($salesOrder->id, $validated['payment_method']);
-        return redirect("/sales/{$salesOrder->id}")->with('success', 'Order settled and money collected.');
+        $this->service->settle($salesOrder->id, $validated['payment_method'] ?? null, $validated['refund_amount'] ?? null);
+
+        return redirect()->back()->with('success', 'Order settled successfully.');
+    }
+
+    public function issueRefund(Request $request, SalesOrder $salesOrder)
+    {
+        $validated = $request->validate([
+            'refund_amount' => 'nullable|numeric|min:0',
+            'payment_method' => 'nullable|string',
+        ]);
+
+        $this->service->issueRefund($salesOrder->id, $validated['payment_method'] ?? null, $validated['refund_amount'] ?? null);
+
+        return redirect()->back()->with('success', 'Refund issued successfully.');
     }
 
     public function returnItem(Request $request, SalesOrder $salesOrder, $itemId)
     {
         $validated = $request->validate([
             'quantity' => 'required|integer|min:1',
-            'reason' => 'required|string|max:255',
+            'reason' => 'nullable|string|max:255',
         ]);
 
-        $this->service->returnItem($salesOrder->id, $itemId, $validated['quantity'], $validated['reason']);
+        $this->service->returnItem($salesOrder->id, $itemId, $validated['quantity'], $validated['reason'] ?? "Customer Return");
 
         return redirect("/sales/{$salesOrder->id}")->with('success', 'Item returned successfully.');
     }
 
-    public function cancel(Request $request, SalesOrder $salesOrder)
+    public function cancel(Request $request, SalesOrder $salesOrder, SalesOrderService $service)
     {
         $validated = $request->validate([
-            'cancel_reason' => 'nullable|string|max:255'
+            'cancel_reason' => 'nullable|string',
+            'cancellation_fee' => 'nullable|numeric|min:0',
+            'cancellation_fee_reason' => 'required_with:cancellation_fee|nullable|string',
+            'refund_amount' => 'nullable|numeric|min:0',
+            'payment_method' => 'nullable|string'
         ]);
-        $this->service->cancelOrder($salesOrder->id, $validated['cancel_reason'] ?: 'Manual Cancellation');
+        
+        $order = $service->cancelOrder(
+            $salesOrder->id, 
+            $validated['cancel_reason'] ?? "Manual Cancellation",
+            $validated['cancellation_fee'] ?? 0,
+            $validated['cancellation_fee_reason'] ?? null,
+            $validated['refund_amount'] ?? null,
+            $validated['payment_method'] ?? null
+        );
         return back()->with('success', 'Order cancelled successfully.');
     }
 }

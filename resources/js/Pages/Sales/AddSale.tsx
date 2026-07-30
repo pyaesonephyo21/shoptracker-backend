@@ -554,7 +554,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
 
                     <Button
                         type="submit"
-                        disabled={processing || isOverpaid || data.cart.length === 0}
+                        disabled={processing || data.cart.length === 0}
                         className="w-full mt-4 h-12 text-sm font-bold tracking-wide"
                     >
                         {processing ? "CREATING..." : "CREATE ORDER"}

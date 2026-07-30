@@ -42,8 +42,17 @@ class DashboardController extends Controller
             ->whereIn('status', $revenueStatus)
             ->get();
 
-        $netRevenue = $ordersInRange->sum('net_revenue');
+        $netRevenue = $ordersInRange->sum('net_revenue') + $ordersInRange->sum('retained_revenue');
         $grossProfit = $ordersInRange->sum('net_profit'); // Before expenses
+        
+        // Include retained revenue from cancelled orders
+        $cancelledRetained = SalesOrder::whereBetween('created_at', [$startDate, $endDate])
+            ->where('status', 'cancelled')
+            ->where('retained_revenue', '>', 0)
+            ->get();
+            
+        $netRevenue += $cancelledRetained->sum('retained_revenue');
+        $grossProfit += $cancelledRetained->sum('retained_revenue');
 
         // 2.5 Calculate Other Expenses
         $expensesInRange = Expense::whereBetween('incurred_at', [$startDate, $endDate])->get();
@@ -121,6 +130,7 @@ class DashboardController extends Controller
 
         // 5. Cash Flow Breakdown (Payments in date range)
         $paymentsInRange = SalesOrderPayment::whereBetween('created_at', [$startDate, $endDate])
+            ->whereHas('salesOrder')
             ->selectRaw('payment_method, sum(amount) as total')
             ->groupBy('payment_method')
             ->get();

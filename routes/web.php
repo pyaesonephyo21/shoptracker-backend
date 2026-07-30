@@ -27,6 +27,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/', [DashboardController::class, 'index']);
 
     Route::get('/inventory', [InventoryController::class, 'index']);
+    Route::get('/inventory/adjustments', [StockAdjustmentController::class, 'index']);
     Route::get('/inventory/create', [InventoryController::class, 'create']);
     Route::post('/inventory', [InventoryController::class, 'store']);
 
@@ -64,6 +65,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/sales/{salesOrder}/deliver', [SalesOrderController::class, 'markDelivered']);
     Route::post('/sales/{salesOrder}/cancel', [SalesOrderController::class, 'cancel']);
     Route::post('/sales/{salesOrder}/settle', [SalesOrderController::class, 'settle']);
+    Route::post('/sales/{salesOrder}/refund', [SalesOrderController::class, 'issueRefund']);
     Route::post('/sales/{salesOrder}/items/{itemId}/return', [SalesOrderController::class, 'returnItem']);
 
     Route::redirect('/management', '/management/suppliers');

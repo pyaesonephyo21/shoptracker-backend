@@ -452,9 +452,9 @@ class PurchaseOrderService
     /**
      * Cancel a Purchase Order.
      */
-    public function cancelOrder(PurchaseOrder $po, string $reason = "Manual Cancellation"): PurchaseOrder
+    public function cancelOrder(PurchaseOrder $po, string $reason = "Manual Cancellation", $refundAmount = null): PurchaseOrder
     {
-        return DB::transaction(function () use ($po, $reason) {
+        return DB::transaction(function () use ($po, $reason, $refundAmount) {
             if ($po->status !== 'pending') {
                 throw new Exception("Only pending purchase orders can be cancelled.");
             }
@@ -477,9 +477,34 @@ class PurchaseOrderService
 
                 $variant->update(['pending_stock' => $newPendingStock]);
             }
+            
+            $refundToReceive = $refundAmount ?? $po->paid_amount;
+            $lossAmount = $po->paid_amount - $refundToReceive;
+            
+            if ($refundToReceive > 0) {
+                app(\App\Services\CashFlowService::class)->recordInflow(
+                    $po->shop_id,
+                    $refundToReceive,
+                    'refund',
+                    'Refund for Cancelled Purchase Order #' . $po->id,
+                    PurchaseOrder::class,
+                    $po->id
+                );
+            }
+            if ($lossAmount > 0) {
+                \App\Models\Expense::create([
+                    'shop_id' => $po->shop_id,
+                    'title' => 'Sunk Cost on PO Cancellation (Order #' . $po->id . ')',
+                    'amount' => $lossAmount,
+                    'incurred_at' => now(),
+                    'category' => 'PO Sunk Cost',
+                    'note' => 'Loss from un-refunded PO payment.',
+                ]);
+            }
 
             $po->status = 'cancelled';
             $po->cancel_reason = $reason;
+            $po->paid_amount = 0;
             $po->save();
 
             $po->logAction('cancelled', [

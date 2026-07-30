@@ -293,11 +293,12 @@ class PurchaseOrderController extends Controller
     public function cancel(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderService $service)
     {
         $validated = $request->validate([
-            'cancel_reason' => 'nullable|string|max:255'
+            'cancel_reason' => 'nullable|string',
+            'refund_amount' => 'nullable|numeric|min:0'
         ]);
 
         try {
-            $service->cancelOrder($purchaseOrder, $validated['cancel_reason'] ?: 'Manual Cancellation');
+            $service->cancelOrder($purchaseOrder, $validated['cancel_reason'] ?? "Manual Cancellation", $validated['refund_amount'] ?? null);
             return back()->with('success', 'Purchase order cancelled successfully.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);

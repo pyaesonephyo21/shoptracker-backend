@@ -58,6 +58,15 @@ class AuthController extends Controller
             $user->save();
         }
         
+        $previousPath = parse_url(url()->previous(), PHP_URL_PATH);
+        
+        // If the previous URL contains a numeric ID segment (e.g., /sales/28 or /inventory/products/123/edit),
+        // it is a detail page specific to the old shop. Returning back will cause a 404. 
+        // Redirect to dashboard instead.
+        if ($previousPath && preg_match('/\/(\d+)(\/|$)/', $previousPath)) {
+            return redirect('/');
+        }
+        
         return back();
     }
 }

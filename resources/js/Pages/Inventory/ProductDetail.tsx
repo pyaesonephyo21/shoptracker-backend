@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
 import { Product, InventoryLog } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
@@ -120,9 +120,19 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                             <div className="w-24 h-24 bg-white dark:bg-black rounded-2xl mb-4 items-center justify-center shadow-sm flex">
                                 <span className="text-4xl">📦</span>
                             </div>
-                            <h2 className={twMerge("text-2xl font-black mb-6", product.is_active ? "text-black dark:text-white" : "text-zinc-500 line-through decoration-zinc-300 dark:decoration-zinc-600")}>
+                            <h2 className={twMerge("text-2xl font-black mb-2", product.is_active ? "text-black dark:text-white" : "text-zinc-500 line-through decoration-zinc-300 dark:decoration-zinc-600")}>
                                 {product.name}
                             </h2>
+
+                            {product.category && (
+                                <Link
+                                    href={`/inventory?category_id=${product.category.id}`}
+                                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 text-xs font-semibold hover:bg-zinc-100 dark:hover:bg-zinc-700 shadow-xs border border-zinc-200 dark:border-zinc-700 mb-6 transition-colors"
+                                >
+                                    <span className="text-[10px] text-zinc-400">Category:</span>
+                                    <span>{product.category.name}</span>
+                                </Link>
+                            )}
 
                             <Button
                                 variant={product.is_active ? "outline" : "default"}

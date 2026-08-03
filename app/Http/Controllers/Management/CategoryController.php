@@ -9,11 +9,22 @@ use App\Models\Category;
 
 class CategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::latest()->paginate(15)->withQueryString();
+        $query = Category::withCount('products');
+
+        if ($request->filled('search')) {
+            $search = $request->search;
+            $query->where('name', 'like', "%{$search}%");
+        }
+
+        $categories = $query->latest()->paginate(15)->withQueryString();
+
         return Inertia::render('Management/Categories', [
-            'categories' => $categories
+            'categories' => $categories,
+            'filters' => [
+                'search' => $request->search ?? '',
+            ]
         ]);
     }
 

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { EmptyState } from '@/components/ui/empty-state';
 import { PaginatedData } from '@/types/pagination';
 import Pagination from '@/components/Pagination';
+import ManagementHeader from '@/components/ManagementHeader';
 import { DatePicker } from '@/components/ui/date-picker';
 import { Filter } from 'lucide-react';
 
@@ -116,18 +117,8 @@ export default function Expenses({ expenses, filters = { start_date: '', end_dat
             <Head title="Manage Expenses" />
 
             <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full pb-20">
-                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                    <div className="flex flex-col gap-6 w-full min-w-0">
-                        <h1 className="text-3xl font-black text-black dark:text-white tracking-tight shrink-0">Management</h1>
-                        <div className="flex gap-4 sm:gap-6 w-full overflow-x-auto no-scrollbar pb-[17px] -mb-[17px]">
-                            <Link href="/management/suppliers" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Suppliers</Link>
-                            <Link href="/management/couriers" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Couriers</Link>
-                            <Link href="/management/categories" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Categories</Link>
-                            <Link href="/management/expenses" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-black dark:text-white border-b-2 border-black dark:border-white pb-4">Other Expenses</Link>
-                            <Link href="/management/payment-methods" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Payment Methods</Link>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-2 mb-1 mt-2 sm:mt-0">
+                <ManagementHeader>
+                    <div className="flex items-center gap-2">
                         <Dialog open={isFilterOpen} onOpenChange={setIsFilterOpen}>
                             <DialogTrigger className={`h-9 px-3 flex items-center justify-center gap-2 rounded-xl transition-colors shrink-0 relative ${hasActiveFilters ? 'bg-black dark:bg-white' : 'bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700'}`}>
                                 <Filter className={`w-3.5 h-3.5 ${hasActiveFilters ? 'text-white dark:text-black' : 'text-zinc-600 dark:text-zinc-300'}`} />
@@ -140,7 +131,6 @@ export default function Expenses({ expenses, filters = { start_date: '', end_dat
                                     <DialogTitle className="font-black text-xl uppercase tracking-widest">Filters</DialogTitle>
                                 </DialogHeader>
                                 <div className="flex flex-col gap-6 py-4">
-                                    {/* Date Range */}
                                     <div className="flex flex-col gap-2">
                                         <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Date Range</span>
                                         <div className="grid grid-cols-2 gap-2 w-full [&_button]:w-full">
@@ -163,8 +153,7 @@ export default function Expenses({ expenses, filters = { start_date: '', end_dat
                                 </div>
                             </DialogContent>
                         </Dialog>
-
-                        <a
+                        <a 
                             href={`/management/expenses/export?start_date=${filters?.start_date || ''}&end_date=${filters?.end_date || ''}`}
                             className="bg-zinc-100 dark:bg-zinc-800 px-4 py-2 h-9 rounded-lg hover:scale-[1.02] active:scale-95 transition-all shadow-sm flex items-center justify-center shrink-0"
                         >
@@ -176,7 +165,7 @@ export default function Expenses({ expenses, filters = { start_date: '', end_dat
                             + New Expense
                         </Button>
                     </div>
-                </div>
+                </ManagementHeader>
 
                 <div className="flex flex-col">
                     {expenses.data.length === 0 ? (

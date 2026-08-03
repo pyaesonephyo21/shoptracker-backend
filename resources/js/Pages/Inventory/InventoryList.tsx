@@ -12,10 +12,32 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { Filter } from 'lucide-react';
 
-export default function InventoryList({ products, filters = { search: '', type: '', filter: '', status: 'active' } }: { products: PaginatedData<Product>, filters: { search: string, type: string, filter: string, status?: string } }) {
+interface CategoryItem {
+    id: number;
+    name: string;
+}
+
+interface InventoryFilters {
+    search: string;
+    type: string;
+    filter: string;
+    category_id?: string;
+    status?: string;
+}
+
+export default function InventoryList({ 
+    products, 
+    categories = [],
+    filters = { search: '', type: '', filter: '', category_id: '', status: 'active' } 
+}: { 
+    products: PaginatedData<Product>, 
+    categories?: CategoryItem[],
+    filters: InventoryFilters 
+}) {
     const [searchQuery, setSearchQuery] = useState(filters.search || '');
     const [activeType, setActiveType] = useState(filters.type || '');
     const [activeFilter, setActiveFilter] = useState(filters.filter || '');
+    const [activeCategory, setActiveCategory] = useState(filters.category_id || '');
     const [activeStatus, setActiveStatus] = useState(filters.status || 'active');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [productToDelete, setProductToDelete] = useState<Product | null>(null);
@@ -23,6 +45,7 @@ export default function InventoryList({ products, filters = { search: '', type: 
     const hasActiveFilters = Boolean(
         filters.type ||
         filters.filter ||
+        filters.category_id ||
         (filters.status && filters.status !== 'active')
     );
 
@@ -30,37 +53,45 @@ export default function InventoryList({ products, filters = { search: '', type: 
         const timer = setTimeout(() => {
             // Only trigger if local search differs from current URL search
             if (searchQuery !== (filters.search || '')) {
-                handleFilterChange(searchQuery, activeType, activeFilter, activeStatus);
+                handleFilterChange(searchQuery, activeType, activeFilter, activeStatus, activeCategory);
             }
         }, 300);
         return () => clearTimeout(timer);
     }, [searchQuery]); // Only trigger on searchQuery change
 
-    const handleFilterChange = (search: string, type: string, filter: string, status: string) => {
+    const handleFilterChange = (search: string, type: string, filter: string, status: string, categoryId: string = activeCategory) => {
         router.get('/inventory', {
             search: search || undefined,
             type: type || undefined,
             filter: filter || undefined,
+            category_id: categoryId || undefined,
             status: status || undefined,
             page: 1
         }, { preserveState: true, replace: true });
     };
 
+    const handleCategoryClick = (catId: string) => {
+        const nextCategory = activeCategory === catId ? '' : catId;
+        setActiveCategory(nextCategory);
+        handleFilterChange(searchQuery, activeType, activeFilter, activeStatus, nextCategory);
+    };
+
     const handleSearchSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        handleFilterChange(searchQuery, activeType, activeFilter, activeStatus);
+        handleFilterChange(searchQuery, activeType, activeFilter, activeStatus, activeCategory);
     };
 
     const applyFilters = () => {
-        handleFilterChange(searchQuery, activeType, activeFilter, activeStatus);
+        handleFilterChange(searchQuery, activeType, activeFilter, activeStatus, activeCategory);
         setIsFilterOpen(false);
     };
 
     const clearFilters = () => {
         setActiveType('');
         setActiveFilter('');
+        setActiveCategory('');
         setActiveStatus('active');
-        handleFilterChange(searchQuery, '', '', 'active');
+        handleFilterChange(searchQuery, '', '', 'active', '');
         setIsFilterOpen(false);
     };
 
@@ -168,6 +199,47 @@ export default function InventoryList({ products, filters = { search: '', type: 
                                     </div>
                                 </div>
 
+                                {/* Category Filter */}
+                                {categories.length > 0 && (
+                                    <div className="flex flex-col gap-2">
+                                        <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Category</span>
+                                        <div className="flex flex-wrap items-center gap-2 max-h-36 overflow-y-auto no-scrollbar">
+                                            <button
+                                                key="cat-all"
+                                                onClick={() => setActiveCategory('')}
+                                                className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none whitespace-nowrap ${!activeCategory ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                            >
+                                                All
+                                            </button>
+                                            {categories.map(cat => {
+                                                const active = activeCategory === String(cat.id);
+                                                return (
+                                                    <button
+                                                        key={cat.id}
+                                                        onClick={() => {
+                                                            const nextCat = activeCategory === String(cat.id) ? '' : String(cat.id);
+                                                            setActiveCategory(nextCat);
+                                                        }}
+                                                        className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none whitespace-nowrap ${active ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                                    >
+                                                        {cat.name}
+                                                    </button>
+                                                );
+                                            })}
+                                            <button
+                                                key="cat-uncategorized"
+                                                onClick={() => {
+                                                    const nextCat = activeCategory === 'uncategorized' ? '' : 'uncategorized';
+                                                    setActiveCategory(nextCat);
+                                                }}
+                                                className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase transition-all select-none whitespace-nowrap ${activeCategory === 'uncategorized' ? 'bg-black text-white dark:bg-white dark:text-black' : 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400'}`}
+                                            >
+                                                Uncategorized
+                                            </button>
+                                        </div>
+                                    </div>
+                                )}
+
                                 {/* Status Filter */}
                                 <div className="flex flex-col gap-2">
                                     <span className="text-xs font-bold uppercase text-zinc-400 dark:text-zinc-500 tracking-wider">Status</span>
@@ -201,6 +273,51 @@ export default function InventoryList({ products, filters = { search: '', type: 
                         </DialogContent>
                     </Dialog>
                 </div>
+
+                {/* Ultra-Compact Category Pill Bar */}
+                {categories.length > 0 && (
+                    <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 -mx-4 px-4 sm:mx-0 sm:px-0">
+                        <button
+                            onClick={() => handleCategoryClick('')}
+                            className={twMerge(
+                                "h-7 px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none shrink-0 flex items-center justify-center",
+                                !activeCategory
+                                    ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
+                                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400"
+                            )}
+                        >
+                            All
+                        </button>
+                        {categories.map((cat) => {
+                            const active = activeCategory === String(cat.id);
+                            return (
+                                <button
+                                    key={cat.id}
+                                    onClick={() => handleCategoryClick(String(cat.id))}
+                                    className={twMerge(
+                                        "h-7 px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none shrink-0 flex items-center justify-center",
+                                        active
+                                            ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
+                                            : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400"
+                                    )}
+                                >
+                                    {cat.name}
+                                </button>
+                            );
+                        })}
+                        <button
+                            onClick={() => handleCategoryClick('uncategorized')}
+                            className={twMerge(
+                                "h-7 px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none shrink-0 flex items-center justify-center",
+                                activeCategory === 'uncategorized'
+                                    ? "bg-black text-white dark:bg-white dark:text-black shadow-xs"
+                                    : "bg-zinc-100 hover:bg-zinc-200 text-zinc-600 dark:bg-zinc-900 dark:hover:bg-zinc-800 dark:text-zinc-400"
+                            )}
+                        >
+                            Uncategorized
+                        </button>
+                    </div>
+                )}
 
                 <div className="flex gap-3">
                     <Link

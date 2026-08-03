@@ -34,6 +34,14 @@ class InventoryController extends Controller
             $query->where('type', $request->type);
         }
 
+        if ($request->filled('category_id')) {
+            if ($request->category_id === 'uncategorized') {
+                $query->whereNull('category_id');
+            } else {
+                $query->where('category_id', $request->category_id);
+            }
+        }
+
         $status = $request->input('status', 'active');
         if ($status === 'active') {
             $query->where('is_active', true);
@@ -50,13 +58,16 @@ class InventoryController extends Controller
             }, '<=', 5);
         }
         $products = $query->latest()->paginate(15)->withQueryString();
+        $categories = Category::orderBy('name')->get(['id', 'name']);
 
         return Inertia::render('Inventory/InventoryList', [
             'products' => $products,
+            'categories' => $categories,
             'filters' => [
                 'search' => $request->search ?? '',
                 'type' => $request->type ?? '',
                 'filter' => $request->filter ?? '',
+                'category_id' => $request->category_id ?? '',
                 'status' => $status,
             ]
         ]);

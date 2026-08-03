@@ -10,6 +10,7 @@ use App\Http\Controllers\Management\CourierController;
 use App\Http\Controllers\Management\CategoryController;
 use App\Http\Controllers\Management\ExpenseController;
 use App\Http\Controllers\Management\PaymentMethodController;
+use App\Http\Controllers\Management\NoteController;
 use App\Http\Controllers\Finance\CashFlowController;
 use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\StockAdjustmentController;
@@ -69,31 +70,18 @@ Route::middleware('auth')->group(function () {
     Route::post('/sales/{salesOrder}/items/{itemId}/return', [SalesOrderController::class, 'returnItem']);
 
     Route::redirect('/management', '/management/suppliers');
-    Route::get('/management/suppliers', [SupplierController::class, 'index']);
-    Route::post('/management/suppliers', [SupplierController::class, 'store']);
-    Route::put('/management/suppliers/{supplier}', [SupplierController::class, 'update']);
-    Route::delete('/management/suppliers/{supplier}', [SupplierController::class, 'destroy']);
-    
-    Route::get('/management/couriers', [CourierController::class, 'index']);
-    Route::post('/management/couriers', [CourierController::class, 'store']);
-    Route::put('/management/couriers/{courier}', [CourierController::class, 'update']);
-    Route::delete('/management/couriers/{courier}', [CourierController::class, 'destroy']);
-    
-    Route::get('/management/categories', [CategoryController::class, 'index']);
-    Route::post('/management/categories', [CategoryController::class, 'store']);
-    Route::put('/management/categories/{category}', [CategoryController::class, 'update']);
-    Route::delete('/management/categories/{category}', [CategoryController::class, 'destroy']);
-    
-    Route::get('/management/payment-methods', [PaymentMethodController::class, 'index']);
-    Route::post('/management/payment-methods', [PaymentMethodController::class, 'store']);
-    Route::put('/management/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'update']);
-    Route::delete('/management/payment-methods/{paymentMethod}', [PaymentMethodController::class, 'destroy']);
-    
-    Route::get('/management/expenses', [ExpenseController::class, 'index']);
-    Route::get('/management/expenses/export', [ExpenseController::class, 'export']);
-    Route::post('/management/expenses', [ExpenseController::class, 'store']);
-    Route::put('/management/expenses/{expense}', [ExpenseController::class, 'update']);
-    Route::delete('/management/expenses/{expense}', [ExpenseController::class, 'destroy']);
+    Route::prefix('management')->name('management.')->group(function () {
+        Route::resource('suppliers', SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('couriers', CourierController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('categories', CategoryController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('payment-methods', PaymentMethodController::class)
+            ->parameters(['payment-methods' => 'paymentMethod'])
+            ->only(['index', 'store', 'update', 'destroy']);
+        Route::get('expenses/export', [ExpenseController::class, 'export'])->name('expenses.export');
+        Route::resource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::post('notes/{note}/toggle-pin', [NoteController::class, 'togglePin'])->name('notes.toggle-pin');
+        Route::resource('notes', NoteController::class)->only(['index', 'store', 'update', 'destroy']);
+    });
     
     // Finance
     Route::get('/finance/cash-flow', [CashFlowController::class, 'index']);

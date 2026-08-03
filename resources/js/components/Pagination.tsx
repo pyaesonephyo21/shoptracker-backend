@@ -20,12 +20,12 @@ interface PaginationProps {
 }
 
 export default function Pagination({ meta, className = '' }: PaginationProps) {
-    if (!meta.links || meta.links.length <= 3) return null; // Only Previous, Next, and Page 1 (no need to show if only 1 page)
+    if (!meta?.links || meta.links.length <= 3) return null; // Only Previous, Next, and Page 1 (no need to show if only 1 page)
 
     return (
         <div className={twMerge("flex flex-col sm:flex-row items-center justify-between gap-4 mt-6 mb-4", className)}>
             <div className="text-sm text-zinc-500 dark:text-zinc-400">
-                {meta.total > 0 ? (
+                {(meta.total ?? 0) > 0 ? (
                     <>Showing <span className="font-medium text-black dark:text-white">{meta.from}</span> to <span className="font-medium text-black dark:text-white">{meta.to}</span> of <span className="font-medium text-black dark:text-white">{meta.total}</span> results</>
                 ) : (
                     "No results found"

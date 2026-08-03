@@ -10,6 +10,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { router } from '@inertiajs/react';
 import { PaginatedData } from '@/types/pagination';
 import Pagination from '@/components/Pagination';
+import ManagementHeader from '@/components/ManagementHeader';
 
 interface Supplier {
     id: number;
@@ -83,21 +84,11 @@ export default function Suppliers({ suppliers, showForeignOptions = true }: { su
             <Head title="Manage Suppliers" />
 
             <div className="flex flex-col gap-6 max-w-4xl mx-auto w-full pb-20">
-                <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
-                    <div className="flex flex-col gap-6 w-full min-w-0">
-                        <h1 className="text-3xl font-black text-black dark:text-white tracking-tight shrink-0">Management</h1>
-                        <div className="flex gap-4 sm:gap-6 w-full overflow-x-auto no-scrollbar pb-[17px] -mb-[17px]">
-                            <Link href="/management/suppliers" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-black dark:text-white border-b-2 border-black dark:border-white pb-4">Suppliers</Link>
-                            <Link href="/management/couriers" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Couriers</Link>
-                            <Link href="/management/categories" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Categories</Link>
-                            <Link href="/management/expenses" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Other Expenses</Link>
-                            <Link href="/management/payment-methods" className="shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white pb-4 transition-colors">Payment Methods</Link>
-                        </div>
-                    </div>
-                    <Button onClick={openAdd} className="uppercase tracking-widest text-[10px] font-bold px-4 py-2 h-9 mb-1 shrink-0 mt-2 sm:mt-0">
+                <ManagementHeader>
+                    <Button onClick={openAdd} className="uppercase tracking-widest text-[10px] font-bold px-4 py-2 h-9">
                         + New Supplier
                     </Button>
-                </div>
+                </ManagementHeader>
 
                 <div className="flex flex-col">
                     {suppliers.data.length === 0 ? (

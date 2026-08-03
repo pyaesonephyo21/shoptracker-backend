@@ -65,7 +65,7 @@ class Product extends Model implements HasMedia
         return $this->hasMany(ProductVariant::class);
     }
     // Optional: Auto-resize images when uploaded
-    public function registerMediaConversions(\Spatie\MediaLibrary\MediaCollections\Models\Media $media = null): void
+    public function registerMediaConversions(?\Spatie\MediaLibrary\MediaCollections\Models\Media $media = null): void
     {
         $this->addMediaConversion('thumb')
             ->width(150)

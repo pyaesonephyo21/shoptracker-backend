@@ -79,7 +79,7 @@
     </style>
 </head>
 <body>
-    <div class="logo">ShopTracker.</div>
+    <div class="logo">ShopTracker</div>
     <div class="container">
         <h1>System Update</h1>
         <p>ShopTracker is currently undergoing scheduled maintenance to deploy new features and performance improvements. We'll be back online shortly.</p>

@@ -57,7 +57,6 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
             navigator.vibrate?.(15);
         }
         router.reload({
-            preserveScroll: true,
             onFinish: () => {
                 setTimeout(() => {
                     setIsRefreshing(false);

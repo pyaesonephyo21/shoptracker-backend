@@ -140,3 +140,18 @@
     @apply font-sans;
     }
 }
+
+/* Inertia Loading Bar - Positioned cleanly below iOS Status Bar */
+#nprogress {
+    pointer-events: none;
+}
+
+#nprogress .bar {
+    top: env(safe-area-inset-top, 0px) !important;
+    height: 3px !important;
+    z-index: 99999 !important;
+}
+
+#nprogress .spinner {
+    display: none !important;
+}

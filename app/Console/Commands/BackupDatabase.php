@@ -7,10 +7,11 @@ use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Log;
 use ZipArchive;
 
 #[Signature('app:backup-database')]
-#[Description('Backups the SQLite database into a zip file')]
+#[Description('Backups the SQLite database into a zip file and syncs with Google Drive')]
 class BackupDatabase extends Command
 {
     /**
@@ -18,11 +19,15 @@ class BackupDatabase extends Command
      */
     public function handle()
     {
+        Log::info("Starting database backup process...");
+
         // 1. Define paths
         $databasePath = database_path('database.sqlite');
         
         if (!File::exists($databasePath)) {
-            $this->error("Database file not found at: {$databasePath}");
+            $msg = "Database file not found at: {$databasePath}";
+            $this->error($msg);
+            Log::error($msg);
             return Command::FAILURE;
         }
 
@@ -43,13 +48,21 @@ class BackupDatabase extends Command
             $zip->addFile($databasePath, 'database.sqlite');
             $zip->close();
             
-            $this->info("Successfully zipped database to: {$zipFilePath}");
+            $msg = "Successfully zipped database to: {$zipFilePath}";
+            $this->info($msg);
+            Log::info($msg);
         } else {
-            $this->error("Failed to create zip file.");
+            $msg = "Failed to create local zip backup.";
+            $this->error($msg);
+            Log::error($msg);
             return Command::FAILURE;
         }
 
-        // 4. Upload to Google Drive
+        // 4. Cleanup old local backups (Keep last 7 days)
+        $this->cleanupOldLocalBackups($backupDir, 7);
+
+        // 5. Upload to Google Drive
+        $googleUploaded = false;
         try {
             $this->info("Uploading to Google Drive...");
             $fileStream = fopen($zipFilePath, 'r');
@@ -57,21 +70,47 @@ class BackupDatabase extends Command
             if (is_resource($fileStream)) {
                 fclose($fileStream);
             }
-            $this->info("Successfully uploaded backup to Google Drive!");
+            $msg = "Successfully uploaded backup to Google Drive ({$zipFileName})";
+            $this->info($msg);
+            Log::info($msg);
+            $googleUploaded = true;
 
-            // 5. Cleanup local backup
-            File::delete($zipFilePath);
-            $this->info("Cleaned up local zip file.");
+            // 6. Cleanup old backups on Google Drive (Keep last 7 days)
+            $this->cleanupOldBackupsOnDrive(7);
 
         } catch (\Exception $e) {
-            $this->error("Failed to upload to Google Drive: " . $e->getMessage());
+            $msg = "Failed to upload to Google Drive: " . $e->getMessage();
+            $this->error($msg);
+            Log::error($msg);
+            $this->warn("Local backup is preserved at: {$zipFilePath}");
             return Command::FAILURE;
         }
 
-        // 6. Cleanup old backups on Google Drive (Keep last 7 days)
-        $this->cleanupOldBackupsOnDrive(7);
-
         return Command::SUCCESS;
+    }
+
+    private function cleanupOldLocalBackups(string $dir, int $daysToKeep)
+    {
+        try {
+            $files = File::files($dir);
+            $deletedCount = 0;
+
+            foreach ($files as $file) {
+                if (!str_starts_with($file->getFilename(), 'shoptracker_backup_')) continue;
+
+                $fileMTime = $file->getMTime();
+                if (now()->diffInDays(now()->setTimestamp($fileMTime)) > $daysToKeep) {
+                    File::delete($file->getRealPath());
+                    $deletedCount++;
+                }
+            }
+
+            if ($deletedCount > 0) {
+                $this->info("Cleaned up {$deletedCount} old local backup(s).");
+            }
+        } catch (\Exception $e) {
+            Log::warning("Could not cleanup old local backups: " . $e->getMessage());
+        }
     }
 
     private function cleanupOldBackupsOnDrive(int $daysToKeep)
@@ -93,10 +132,14 @@ class BackupDatabase extends Command
             }
 
             if ($deletedCount > 0) {
-                $this->info("Cleaned up {$deletedCount} old backup(s) from Google Drive.");
+                $msg = "Cleaned up {$deletedCount} old backup(s) from Google Drive.";
+                $this->info($msg);
+                Log::info($msg);
             }
         } catch (\Exception $e) {
-            $this->error("Could not cleanup old backups on Drive: " . $e->getMessage());
+            $msg = "Could not cleanup old backups on Drive: " . $e->getMessage();
+            $this->error($msg);
+            Log::warning($msg);
         }
     }
 }

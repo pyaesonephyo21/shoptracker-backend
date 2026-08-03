@@ -64,7 +64,7 @@ class AppServiceProvider extends ServiceProvider
                     'user' => $user ? $user->only('id', 'name', 'email', 'role', 'shop_id') : null,
                     'shop' => $user && $user->shop ? $user->shop->only('id', 'name', 'settings') : null,
                     'all_shops' => $user ? ($user->role === 'superadmin' ? Shop::select('id', 'name')->get() : $user->shops()->select('shops.id', 'shops.name')->get()) : [],
-                    'payment_methods' => $user && $user->shop && Schema::hasTable('payment_methods') ? $user->shop->paymentMethods()->where('is_active', true)->select('id', 'name', 'code')->get() : [],
+                    'payment_methods' => $user && $user->shop ? $user->shop->paymentMethods()->where('is_active', true)->select('id', 'name', 'code')->get() : [],
                 ];
             },
             'flash' => function () {

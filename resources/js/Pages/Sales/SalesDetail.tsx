@@ -173,7 +173,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                 {/* Header */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => router.visit('/sales')} className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</button>
+                        <Link href="/sales" prefetch={['mount', 'hover']} cacheFor="1m" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
                         <div>
                             <div className="flex items-center gap-2">
                                 <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Order #{order.id}</h1>
@@ -187,13 +187,14 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                         </div>
                     </div>
                     {['pending', 'delivery_added'].includes(order.status.toLowerCase()) && (
-                        <Button
-                            variant="outline"
-                            onClick={() => router.visit(`/sales/${order.id}/edit`)}
-                            className="text-xs font-bold uppercase tracking-widest h-9"
+                        <Link
+                            href={`/sales/${order.id}/edit`}
+                            prefetch={['mount', 'hover']}
+                            cacheFor="1m"
+                            className="inline-flex items-center justify-center border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-bold uppercase tracking-widest h-9 px-4 rounded-md transition-colors"
                         >
                             Edit
-                        </Button>
+                        </Link>
                     )}
                 </div>
 

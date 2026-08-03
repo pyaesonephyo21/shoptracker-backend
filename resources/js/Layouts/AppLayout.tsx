@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, usePage, router } from '@inertiajs/react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -40,9 +40,115 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
     const { auth } = props;
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+    const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
+    const [showReconnected, setShowReconnected] = useState(false);
+
+    // Refresh & Pull-to-Refresh State
+    const [isRefreshing, setIsRefreshing] = useState(false);
+    const [pullDistance, setPullDistance] = useState(0);
+    const [isPulling, setIsPulling] = useState(false);
+    const touchStartY = React.useRef(0);
+    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
+
+    const handleRefresh = () => {
+        if (isRefreshing) return;
+        setIsRefreshing(true);
+        if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            navigator.vibrate?.(15);
+        }
+        router.reload({
+            preserveScroll: true,
+            onFinish: () => {
+                setTimeout(() => {
+                    setIsRefreshing(false);
+                    setPullDistance(0);
+                    setIsPulling(false);
+                }, 400);
+            }
+        });
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        if (scrollContainerRef.current && scrollContainerRef.current.scrollTop === 0) {
+            touchStartY.current = e.touches[0].clientY;
+            setIsPulling(true);
+        }
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        if (!isPulling || isRefreshing) return;
+        if (scrollContainerRef.current && scrollContainerRef.current.scrollTop === 0) {
+            const currentY = e.touches[0].clientY;
+            const diff = currentY - touchStartY.current;
+            if (diff > 0) {
+                // Apply elastic resistance
+                const distance = Math.min(diff * 0.45, 80);
+                setPullDistance(distance);
+            } else {
+                setPullDistance(0);
+            }
+        }
+    };
+
+    const handleTouchEnd = () => {
+        if (pullDistance > 50 && !isRefreshing) {
+            handleRefresh();
+        } else {
+            setPullDistance(0);
+            setIsPulling(false);
+        }
+    };
+
+    useEffect(() => {
+        const handleOnline = () => {
+            setIsOffline(false);
+            setShowReconnected(true);
+            const timer = setTimeout(() => setShowReconnected(false), 3000);
+            return () => clearTimeout(timer);
+        };
+        const handleOffline = () => {
+            setIsOffline(true);
+            setShowReconnected(false);
+        };
+
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+
+        // Pre-warm core routes into cache when idle
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            (window as any).requestIdleCallback(() => {
+                try {
+                    router.prefetch('/sales', { method: 'get' }, { cacheFor: '2m' });
+                    router.prefetch('/inventory', { method: 'get' }, { cacheFor: '2m' });
+                    router.prefetch('/finance/cash-flow', { method: 'get' }, { cacheFor: '2m' });
+                } catch (e) {
+                    // prefetch optional
+                }
+            });
+        }
+
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
 
     return (
-        <div className="flex h-screen w-full bg-white text-black selection:bg-black selection:text-white dark:bg-black dark:text-white dark:selection:bg-white dark:selection:text-black font-sans antialiased">
+        <div className="flex h-screen w-full bg-white text-black selection:bg-black selection:text-white dark:bg-black dark:text-white dark:selection:bg-white dark:selection:text-black font-sans antialiased flex-col md:flex-row">
+            {/* Real-time Network Status Banner */}
+            {isOffline && (
+                <div className="fixed top-0 left-0 right-0 z-50 bg-amber-500 text-black text-xs font-bold px-4 py-1.5 text-center flex items-center justify-center gap-2 shadow-md">
+                    <span className="w-2 h-2 rounded-full bg-black animate-pulse"></span>
+                    <span>You are offline. Showing cached data — reconnecting...</span>
+                </div>
+            )}
+            {showReconnected && (
+                <div className="fixed top-0 left-0 right-0 z-50 bg-emerald-500 text-white text-xs font-bold px-4 py-1.5 text-center flex items-center justify-center gap-2 shadow-md animate-in fade-in slide-in-from-top-2">
+                    <span className="w-2 h-2 rounded-full bg-white"></span>
+                    <span>Connection restored. Online.</span>
+                </div>
+            )}
+
             {/* Desktop / Tablet Sidebar */}
             <aside className={twMerge(
                 "hidden md:flex flex-col border-r border-zinc-200 dark:border-zinc-800 h-full p-4 shrink-0 bg-zinc-50 dark:bg-zinc-950 transition-all duration-300 relative",
@@ -70,12 +176,12 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                         auth?.all_shops?.length > 1 ? (
                             <div className="mt-1 mb-2 w-full">
                                 <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
-                                    <SelectTrigger className="font-black text-2xl sm:text-3xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent uppercase tracking-tight shadow-none flex items-center gap-2 w-full truncate">
+                                    <SelectTrigger className="w-fit justify-start font-black text-2xl sm:text-3xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent uppercase tracking-tight shadow-none flex items-center gap-1.5 max-w-full">
                                         <span className="truncate">{auth.shop?.name}</span>
                                     </SelectTrigger>
                                     <SelectContent>
                                         {auth.all_shops?.map((s: any) => (
-                                            <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
+                                             <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
@@ -104,6 +210,8 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                             <Link
                                 key={item.name}
                                 href={item.href}
+                                prefetch={['mount', 'hover']}
+                                cacheFor="1m"
                                 className={twMerge(
                                     'flex items-center rounded-xl transition-all duration-200 group active:scale-[0.98]',
                                     isSidebarCollapsed ? 'p-3 justify-center w-12 h-12' : 'px-4 py-3 gap-3 w-full',
@@ -119,8 +227,23 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                         );
                     })}
                 </nav>
-                {auth?.user && (
-                    <div className={twMerge("mt-auto border-t border-zinc-200 dark:border-zinc-800 pt-4 flex flex-col gap-2 w-full", isSidebarCollapsed ? "items-center" : "")}>
+                
+                {/* Bottom Actions (Refresh & Logout) */}
+                <div className={twMerge("mt-auto border-t border-zinc-200 dark:border-zinc-800 pt-4 flex flex-col gap-2 w-full", isSidebarCollapsed ? "items-center" : "")}>
+                    <button
+                        onClick={handleRefresh}
+                        disabled={isRefreshing}
+                        className={twMerge(
+                            "flex items-center rounded-xl text-left text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-all group",
+                            isSidebarCollapsed ? "w-12 h-12 p-3 justify-center" : "w-full px-4 py-3 gap-3"
+                        )}
+                        title={isSidebarCollapsed ? "Refresh" : undefined}
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={twMerge("opacity-70 group-hover:opacity-100 transition-transform duration-500", isRefreshing && "animate-spin text-black dark:text-white opacity-100")}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 21h5v-5" /></svg>
+                        {!isSidebarCollapsed && <span className="font-medium">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>}
+                    </button>
+
+                    {auth?.user && (
                         <Link 
                             href="/logout" 
                             method="post" 
@@ -134,19 +257,19 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100 transition-opacity"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></svg>
                             {!isSidebarCollapsed && <span className="font-medium">Logout</span>}
                         </Link>
-                    </div>
-                )}
+                    )}
+                </div>
             </aside>
 
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-white dark:bg-black">
-                {/* Mobile Header */}
-                <header className="md:hidden flex items-center justify-between h-16 px-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 sticky top-0 bg-white/80 dark:bg-black/80 backdrop-blur-md z-10">
-                    <div>
+                {/* Mobile Header with Safe Area Notch Padding & Quick Refresh */}
+                <header className="md:hidden flex items-center justify-between min-h-16 pt-[env(safe-area-inset-top,0px)] px-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 sticky top-0 bg-white/90 dark:bg-black/90 backdrop-blur-md z-10">
+                    <div className="py-2 flex-1 min-w-0 pr-2">
                         {auth?.all_shops?.length > 1 ? (
                             <div className="flex flex-col">
                                 <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
-                                    <SelectTrigger className="font-black text-2xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent tracking-tight shadow-none flex items-center gap-2 max-w-[200px] sm:max-w-[300px]">
+                                    <SelectTrigger className="w-fit justify-start font-black text-xl sm:text-2xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent tracking-tight shadow-none flex items-center gap-1.5 max-w-[200px] sm:max-w-[300px]">
                                         <span className="truncate">{auth.shop?.name}</span>
                                     </SelectTrigger>
                                     <SelectContent>
@@ -155,7 +278,7 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <div className="mt-1">
+                                <div className="mt-0.5">
                                     <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
                                         {auth.user?.name}
                                     </span>
@@ -163,9 +286,9 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                             </div>
                         ) : (
                             <div className="flex flex-col">
-                                <h1 className="text-lg font-bold tracking-tight">{title || auth?.shop?.name || 'ShopTracker'}</h1>
+                                <h1 className="text-lg font-bold tracking-tight truncate">{title || auth?.shop?.name || 'ShopTracker'}</h1>
                                 {auth?.user && (
-                                    <div className="mt-1">
+                                    <div className="mt-0.5">
                                         <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
                                             {auth.user.name}
                                         </span>
@@ -174,14 +297,84 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                             </div>
                         )}
                     </div>
-                    {auth?.user && (
-                        <Link href="/logout" method="post" as="button" className="text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-black dark:hover:text-white shrink-0 ml-4">
-                            Logout
-                        </Link>
-                    )}
+                    
+                    {/* Header Right Actions: Refresh + Logout */}
+                    <div className="flex items-center gap-1 shrink-0">
+                        <button
+                            onClick={handleRefresh}
+                            disabled={isRefreshing}
+                            className="p-2 rounded-lg text-zinc-500 hover:text-black dark:hover:text-white active:scale-90 transition-all"
+                            title="Refresh page data"
+                            aria-label="Refresh"
+                        >
+                            <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className={twMerge("transition-transform duration-500", isRefreshing && "animate-spin text-black dark:text-white")}
+                            >
+                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                <path d="M3 3v5h5" />
+                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                                <path d="M16 21h5v-5" />
+                            </svg>
+                        </button>
+                        {auth?.user && (
+                            <Link href="/logout" method="post" as="button" className="text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-black dark:hover:text-white py-2 px-2 rounded-lg active:scale-95">
+                                Logout
+                            </Link>
+                        )}
+                    </div>
                 </header>
 
-                <div className="flex-1 overflow-y-auto pb-20 md:pb-0 scroll-smooth">
+                <div 
+                    ref={scrollContainerRef}
+                    onTouchStart={handleTouchStart}
+                    onTouchMove={handleTouchMove}
+                    onTouchEnd={handleTouchEnd}
+                    className="flex-1 overflow-y-auto pb-24 md:pb-0 scroll-smooth relative"
+                >
+                    {/* Native Pull to Refresh Animated Indicator */}
+                    {(pullDistance > 0 || isRefreshing) && (
+                        <div 
+                            className="md:hidden flex items-center justify-center transition-all duration-200 overflow-hidden w-full"
+                            style={{ height: `${isRefreshing ? 48 : pullDistance}px` }}
+                        >
+                            <div className={twMerge(
+                                "w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center shadow-md",
+                                pullDistance > 50 && "border-black dark:border-white scale-110"
+                            )}>
+                                <svg 
+                                    xmlns="http://www.w3.org/2000/svg" 
+                                    width="16" 
+                                    height="16" 
+                                    viewBox="0 0 24 24" 
+                                    fill="none" 
+                                    stroke="currentColor" 
+                                    strokeWidth="2.5" 
+                                    strokeLinecap="round" 
+                                    strokeLinejoin="round" 
+                                    className={twMerge(
+                                        "text-zinc-600 dark:text-zinc-300 transition-transform duration-200", 
+                                        isRefreshing ? "animate-spin text-black dark:text-white" : ""
+                                    )}
+                                    style={{ transform: isRefreshing ? undefined : `rotate(${pullDistance * 4.5}deg)` }}
+                                >
+                                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                    <path d="M3 3v5h5" />
+                                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                                    <path d="M16 21h5v-5" />
+                                </svg>
+                            </div>
+                        </div>
+                    )}
+
                     {/* Page Content */}
                     <div className="max-w-5xl mx-auto w-full p-4 md:p-8">
                         {children}
@@ -189,17 +382,19 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                 </div>
             </main>
 
-            {/* Mobile Bottom Tab Bar */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 h-16 bg-white/80 dark:bg-black/80 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 z-20 pb-safe">
+            {/* Mobile Bottom Tab Bar with Safe Area Bottom Padding */}
+            <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 z-20">
                 {NAV_ITEMS.map((item) => {
                     const isActive = url === item.href || (item.href !== '/' && url.startsWith(item.href));
                     return (
                         <Link
                             key={item.name}
                             href={item.href}
+                            prefetch={['mount', 'hover']}
+                            cacheFor="1m"
                             className={twMerge(
                                 'flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all',
-                                isActive ? 'text-black dark:text-white' : 'text-zinc-500 dark:text-zinc-500'
+                                isActive ? 'text-black dark:text-white font-bold' : 'text-zinc-500 dark:text-zinc-500'
                             )}
                         >
                             <span className={clsx("transition-all duration-300", isActive ? "scale-110" : "")}>
@@ -218,3 +413,4 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
         </div>
     );
 }
+

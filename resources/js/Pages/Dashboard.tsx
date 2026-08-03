@@ -125,9 +125,9 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                         className={`flex-1 lg:px-12 py-2 rounded-lg text-[11px] font-bold transition-all uppercase tracking-widest flex items-center justify-center gap-2 ${activeTab === 'alerts' ? 'bg-white dark:bg-zinc-800 text-black dark:text-white shadow-sm ring-1 ring-zinc-200 dark:ring-zinc-700' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
                     >
                         Alerts
-                        {(alerts.unsettled_deliveries.total_count + alerts.low_stock.total_count + alerts.pending_orders.total_count + alerts.delivery_added.total_count) > 0 && (
+                        {(alerts.unsettled_deliveries.total_count + alerts.pending_orders.total_count + alerts.delivery_added.total_count) > 0 && (
                             <span className="bg-red-500 text-white text-[10px] px-2 py-0.5 rounded-md leading-none animate-pulse">
-                                {alerts.unsettled_deliveries.total_count + alerts.low_stock.total_count + alerts.pending_orders.total_count + alerts.delivery_added.total_count}
+                                {alerts.unsettled_deliveries.total_count + alerts.pending_orders.total_count + alerts.delivery_added.total_count}
                             </span>
                         )}
                     </button>
@@ -135,7 +135,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
 
                 {activeTab === 'alerts' && (
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-2">
-                        <Link href="/sales?status=pending" className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-blue-500 group relative overflow-hidden">
+                        <Link href="/sales?status=pending" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-blue-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-blue-500 dark:text-blue-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
@@ -148,7 +148,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                             </div>
                         </Link>
 
-                        <Link href="/sales?status=delivery_added" className="bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-purple-500 group relative overflow-hidden">
+                        <Link href="/sales?status=delivery_added" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-purple-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-purple-500 dark:text-purple-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             </div>
@@ -161,7 +161,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                             </div>
                         </Link>
 
-                        <Link href="/sales?status=delivered&settlement_status=unpaid" className="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-orange-500 group relative overflow-hidden">
+                        <Link href="/sales?status=delivered&settlement_status=unpaid" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-orange-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-orange-500 dark:text-orange-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
@@ -174,7 +174,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                             </div>
                         </Link>
 
-                        <Link href="/inventory?filter=low_stock" className="bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-red-500 group relative overflow-hidden">
+                        <Link href="/inventory?filter=low_stock" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-red-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-red-500 dark:text-red-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                             </div>

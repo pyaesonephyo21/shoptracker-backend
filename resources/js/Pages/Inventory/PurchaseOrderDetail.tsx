@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AppLayout from '../../Layouts/AppLayout';
-import { Head, router, useForm } from '@inertiajs/react';
+import { Head, router, useForm, Link } from '@inertiajs/react';
 import { PurchaseOrder } from '@/types/inventory';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -58,34 +58,24 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
 
         // Calculate total received quantity
         let totalQty = 0;
-        data.received_items.forEach(ri => {
-            totalQty += Number(ri.received_quantity) || 0;
+        data.received_items.forEach(item => {
+            totalQty += Number(item.received_quantity) || 0;
         });
 
-        if (totalQty > 0) {
-            const newReceivedItems = data.received_items.map(ri => {
-                const itemQty = Number(ri.received_quantity) || 0;
-                const fraction = itemQty / totalQty;
+        const newItems = data.received_items.map(item => {
+            const itemQty = Number(item.received_quantity) || 0;
+            const cargo = totalQty > 0 ? (itemQty / totalQty) * totalCargo : 0;
+            const adj = totalQty > 0 ? (itemQty / totalQty) * totalAdjustment : 0;
 
-                return {
-                    ...ri,
-                    allocated_cargo_fee: (totalCargo * fraction).toFixed(2),
-                    allocated_adjustment_amount: (totalAdjustment * fraction).toFixed(2)
-                };
-            });
+            return {
+                ...item,
+                allocated_cargo_fee: Math.round(cargo).toString(),
+                allocated_adjustment_amount: Math.round(adj).toString()
+            };
+        });
 
-            // Prevent infinite loop by deep comparing or just updating if different
-            // To be safe, we just set it. But setData triggers re-render, leading to infinite loop if we don't check.
-            const hasChanged = newReceivedItems.some((nRi, idx) =>
-                nRi.allocated_cargo_fee !== data.received_items[idx].allocated_cargo_fee ||
-                nRi.allocated_adjustment_amount !== data.received_items[idx].allocated_adjustment_amount
-            );
-
-            if (hasChanged) {
-                setData('received_items', newReceivedItems);
-            }
-        }
-    }, [data.cargo_fee, data.adjustment_amount, data.received_items, isReceivingMode, manualAllocation, order.items]);
+        setData('received_items', newItems);
+    }, [data.cargo_fee, data.adjustment_amount, isReceivingMode]);
 
     const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
@@ -127,7 +117,7 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
             <div className="flex flex-col max-w-4xl mx-auto w-full pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => router.visit('/inventory/purchase-orders')} type="button" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</button>
+                        <Link href="/inventory/purchase-orders" prefetch={['mount', 'hover']} cacheFor="1m" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">{order.batch_name}</h1>
                             <div className="flex items-center gap-2 mt-1">
@@ -149,13 +139,14 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                         </div>
                     </div>
                     {order.status === 'pending' && (
-                        <Button
-                            variant="outline"
-                            onClick={() => router.visit(`/inventory/purchase-orders/${order.id}/edit`)}
-                            className="text-xs font-bold uppercase tracking-widest h-9"
+                        <Link
+                            href={`/inventory/purchase-orders/${order.id}/edit`}
+                            prefetch={['mount', 'hover']}
+                            cacheFor="1m"
+                            className="inline-flex items-center justify-center border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-bold uppercase tracking-widest h-9 px-4 rounded-md transition-colors"
                         >
                             Edit
-                        </Button>
+                        </Link>
                     )}
                 </div>
 

@@ -269,6 +269,8 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
                                 <Link
                                     key={item.id}
                                     href={`/sales/${item.id}`}
+                                    prefetch={['mount', 'hover']}
+                                    cacheFor="5m"
                                     className="py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-start transition-colors hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group"
                                 >
                                     <div className="flex-1 min-w-0 pr-4">

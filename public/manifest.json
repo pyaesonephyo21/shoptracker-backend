@@ -17,5 +17,28 @@
       "type": "image/png",
       "sizes": "512x512"
     }
+  ],
+  "shortcuts": [
+    {
+      "name": "New Sale",
+      "short_name": "New Sale",
+      "description": "Create a new sales order",
+      "url": "/sales/create",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Needs Delivery",
+      "short_name": "Orders",
+      "description": "View pending delivery orders",
+      "url": "/sales?status=pending",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Unsettled Deliveries",
+      "short_name": "Unsettled",
+      "description": "View delivered orders awaiting courier settlement",
+      "url": "/sales?status=delivered&settlement_status=unpaid",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
   ]
 }

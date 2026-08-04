@@ -126,7 +126,7 @@ class DashboardController extends Controller
             ->where('settlement_status', 'unpaid');
 
         $totalUnsettledCount = $unsettledDeliveriesQuery->count();
-        $totalUnsettledValue = $unsettledDeliveriesQuery->selectRaw('SUM(customer_grand_total - paid_amount) as total')->value('total') ?? 0;
+        $totalUnsettledValue = $unsettledDeliveriesQuery->selectRaw('SUM(CASE WHEN courier_id IS NOT NULL THEN (net_revenue - paid_amount) ELSE (customer_grand_total - paid_amount) END) as total')->value('total') ?? 0;
 
         // 5. Cash Flow Breakdown (Payments in date range)
         $paymentsInRange = SalesOrderPayment::whereBetween('created_at', [$startDate, $endDate])

@@ -10,8 +10,17 @@ import { SearchableSelect } from '@/components/SearchableSelect';
 import { twMerge } from 'tailwind-merge';
 import { SaleItemInput } from '@/types/sales';
 import { Product } from '@/types/inventory';
+import SmartAddressPaste from '@/components/SmartAddressPaste';
 
-export default function AddSale({ products = [] }: { products: Product[] }) {
+interface Courier {
+    id: number;
+    name: string;
+    contact_info?: string;
+    default_service_fee: number;
+    default_overcharge: number;
+}
+
+export default function AddSale({ products = [], couriers = [] }: { products: Product[], couriers?: Courier[] }) {
     const { data, setData, post, processing, errors, clearErrors } = useForm({
         customer_name: '',
         customer_phone: '',
@@ -23,7 +32,16 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         extra_fee: '',
         note: '',
         paid_amount: '',
-        payment_method: ''
+        payment_method: '',
+        // Logistics (Optional)
+        courier_id: '',
+        tracking_number: '',
+        delivery_fee: '',
+        courier_service_fee: '',
+        overcharge: '',
+        delivery_note: '',
+        money_collected_by: 'seller' as 'seller' | 'courier',
+        is_deli_prepaid: false
     });
 
     const paymentMethods = usePage<any>().props.auth?.payment_methods || [];
@@ -35,6 +53,8 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
     }, [paymentMethods]);
 
     const [selectedProduct, setSelectedProduct] = useState<string>('');
+
+    const selectedCourier = couriers.find(c => c.id === Number(data.courier_id));
 
     const productOptions = products.flatMap(p =>
         (p.variants || [])
@@ -106,7 +126,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         let pricesUsed = new Set<number>();
 
         // 1. Draw from In-Stock first (uniform price)
-        const inStock = Math.max(0, variant.stock_quantity); // Handle negative stock if any
+        const inStock = Math.max(0, variant.stock_quantity);
         if (remaining > 0 && inStock > 0) {
             const take = Math.min(inStock, remaining);
             total += take * effectivePrice;
@@ -185,10 +205,28 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
         return 0;
     }, [subtotal, data.discount_type, data.discount_value]);
 
-    const grandTotal = Math.max(0, subtotal - orderDiscountAmount + Number(data.extra_fee || 0));
+    const deliveryFeeNum = Number(data.delivery_fee) || 0;
+    const overchargeNum = Number(data.overcharge) || 0;
+
+    const itemsTotal = Math.max(0, subtotal - orderDiscountAmount + Number(data.extra_fee || 0));
+    const grandTotal = itemsTotal + (data.courier_id ? (deliveryFeeNum + overchargeNum) : 0);
+
+    // Target amount collected directly by shop (deposit / upfront payment)
+    const targetShopCollection = useMemo(() => {
+        if (!data.courier_id) return grandTotal;
+        if (data.money_collected_by === 'seller') {
+            if (data.is_deli_prepaid) return grandTotal;
+            return itemsTotal;
+        }
+        // COD order: shop collects whatever deposit is paid upfront (remaining will be collected by courier)
+        return 0;
+    }, [data.courier_id, data.money_collected_by, data.is_deli_prepaid, grandTotal, itemsTotal]);
+
     const paidNum = Number(data.paid_amount) || 0;
-    const remaining = grandTotal - paidNum;
-    const isOverpaid = paidNum > grandTotal + 0.1;
+    const diff = targetShopCollection - paidNum;
+    const remaining = data.money_collected_by === 'courier' && data.courier_id ? 0 : Math.max(0, diff);
+    const overpaidAmount = targetShopCollection > 0 && paidNum > targetShopCollection ? (paidNum - targetShopCollection) : 0;
+    const isOverpaid = overpaidAmount > 0.1;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -233,6 +271,16 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                         <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6 dark:text-zinc-400">
                             01. Customer
                         </h2>
+
+                        {/* Smart Address Paste */}
+                        <SmartAddressPaste
+                            onApply={({ customer_name, customer_phone, address, delivery_notes }) => {
+                                if (customer_name) setData('customer_name', customer_name);
+                                if (customer_phone) setData('customer_phone', customer_phone);
+                                if (address) setData('address', address);
+                                if (delivery_notes) setData('note', delivery_notes);
+                            }}
+                        />
 
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                             <div className="flex flex-col gap-2">
@@ -283,7 +331,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                     placeholder="Select a product..."
                                 />
                             </div>
-                            <Button type="button" onClick={handleAddToCart} className="h-10 px-8 text-xl">
+                            <Button type="button" onClick={handleAddToCart} className="h-10 px-8 text-xl font-bold">
                                 +
                             </Button>
                         </div>
@@ -360,7 +408,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                                         clearErrors(`cart.${index}.quantity` as any);
                                                     }}
                                                     min="1"
-                                                    max={maxAllowed}
+                                                    max={maxAllowed > 0 ? maxAllowed : 1}
                                                 />
                                                 {errors[`cart.${index}.quantity` as keyof typeof errors] && <span className="text-red-500 text-xs">{errors[`cart.${index}.quantity` as keyof typeof errors]}</span>}
                                             </div>
@@ -375,7 +423,7 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                                                     ) : (
                                                         <>
                                                             <span className={twMerge("font-bold text-lg", hasDiscount ? "text-zinc-400 line-through text-sm" : "text-black dark:text-white")}>
-                                                                    {(variant ? calculateUniformRetailPrice(variant, Number(item.quantity) || 0, parentProduct).average : (item.unit_price_snapshot || 0)).toLocaleString()}
+                                                                {(variant ? calculateUniformRetailPrice(variant, Number(item.quantity) || 0, parentProduct).average : (item.unit_price_snapshot || 0)).toLocaleString()}
                                                             </span>
                                                             {hasDiscount && (
                                                                 <span className="text-black dark:text-white font-bold text-lg">
@@ -429,114 +477,316 @@ export default function AddSale({ products = [] }: { products: Product[] }) {
                         </div>
                     </section>
 
-                    {/* 3. Payment & Totals */}
+                    {/* 3. Delivery & Courier (Optional) */}
                     <section>
-                        <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6 dark:text-zinc-400">
-                            03. Payment
-                        </h2>
-
-                        <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 mb-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <span className="text-zinc-500 text-sm font-medium">Subtotal (After Item Disc.)</span>
-                                <span className="text-black dark:text-white font-bold text-sm">{subtotal.toLocaleString()}</span>
-                            </div>
-
-                            <div className="flex justify-between items-center mb-4">
-                                <div className="flex items-center gap-4">
-                                    <span className="text-zinc-500 text-sm font-medium">Extra Discount</span>
-                                    <div className="flex bg-zinc-200 dark:bg-zinc-800 rounded-lg p-1">
-                                        <button type="button" onClick={() => setData('discount_type', data.discount_type === 'fixed' ? 'none' : 'fixed')} className={twMerge("px-3 py-1 rounded text-[10px] font-bold", data.discount_type === 'fixed' ? "bg-white dark:bg-zinc-700 text-black dark:text-white shadow-sm" : "text-zinc-500")}>$</button>
-                                        <button type="button" onClick={() => setData('discount_type', data.discount_type === 'percent' ? 'none' : 'percent')} className={twMerge("px-3 py-1 rounded text-[10px] font-bold", data.discount_type === 'percent' ? "bg-white dark:bg-zinc-700 text-black dark:text-white shadow-sm" : "text-zinc-500")}>%</button>
-                                    </div>
-                                </div>
-                                <span className="text-green-600 dark:text-green-400 font-bold text-sm">-{orderDiscountAmount.toLocaleString()}</span>
-                            </div>
-
-                            {data.discount_type !== 'none' && (
-                                <div className="grid grid-cols-2 gap-4 mb-4">
-                                    <FormattedNumberInput
-                                        placeholder="Discount Value"
-                                        value={data.discount_value}
-                                        onChange={(val) => { setData('discount_value', val); clearErrors('discount_value'); }}
-                                    />
-                                    {errors.discount_value && <span className="text-red-500 text-xs">{errors.discount_value}</span>}
-                                    <Input
-                                        placeholder="Reason"
-                                        value={data.discount_reason}
-                                        onChange={(e) => { setData('discount_reason', e.target.value); clearErrors('discount_reason'); }}
-                                    />
-                                    {errors.discount_reason && <span className="text-red-500 text-xs">{errors.discount_reason}</span>}
-                                </div>
+                        <div className="flex items-center justify-between mb-6">
+                            <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest dark:text-zinc-400">
+                                03. Delivery & Courier (Optional)
+                            </h2>
+                            {data.courier_id && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setData(d => ({
+                                            ...d,
+                                            courier_id: '',
+                                            tracking_number: '',
+                                            delivery_fee: '',
+                                            courier_service_fee: '',
+                                            overcharge: '',
+                                            delivery_note: '',
+                                            money_collected_by: 'seller',
+                                            is_deli_prepaid: false
+                                        }));
+                                    }}
+                                    className="text-xs font-bold text-zinc-400 hover:text-red-500 transition-colors"
+                                >
+                                    Clear Delivery
+                                </button>
                             )}
-
-                            <div className="flex justify-between items-center mt-4 mb-2">
-                                <span className="text-zinc-500 text-sm font-medium">Extra Fee (e.g. KPay %)</span>
-                                <FormattedNumberInput
-                                    placeholder="0"
-                                    value={data.extra_fee}
-                                    onChange={(val) => { setData('extra_fee', val); clearErrors('extra_fee'); }}
-                                    className="w-32 h-8 text-right font-bold"
-                                />
-                                {errors.extra_fee && <span className="text-red-500 text-xs">{errors.extra_fee}</span>}
-                            </div>
-
-                            <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />
-
-                            <div className="flex justify-between items-center">
-                                <span className="text-black dark:text-white text-lg font-black uppercase">Grand Total</span>
-                                <span className="text-black dark:text-white text-2xl font-black">
-                                    {grandTotal.toLocaleString()} <span className="text-xs font-bold text-zinc-400">MMK</span>
-                                </span>
-                            </div>
                         </div>
 
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-end">
-                            <div className="bg-black dark:bg-zinc-900 p-5 rounded-2xl border border-zinc-800">
-                                <span className="text-zinc-400 text-xs font-bold uppercase block mb-3">Deposit / Paid</span>
-                                <FormattedNumberInput
-                                    value={data.paid_amount}
-                                    onChange={(val) => { setData('paid_amount', val); clearErrors('paid_amount'); }}
-                                    placeholder="0"
-                                    className="bg-transparent shadow-none border-none outline-none text-white font-black text-2xl w-full h-auto px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:ring-0 focus-visible:ring-offset-0"
-                                />
-                                {errors.paid_amount && <span className="text-red-500 text-xs">{errors.paid_amount}</span>}
-                                {Number(data.paid_amount) > 0 && (
-                                    <div className="mt-5 pt-5 border-t border-zinc-800">
-                                        <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest block mb-2">Deposit Method</span>
-                                        <div className="flex flex-wrap gap-2">
-                                            {paymentMethods.length > 0 ? paymentMethods.map((method: any) => (
-                                                <button 
-                                                    key={method.code}
-                                                    type="button" 
-                                                    onClick={() => setData('payment_method', method.code)} 
-                                                    className={twMerge("flex-1 min-w-[60px] py-2.5 px-2 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center whitespace-nowrap", data.payment_method === method.code ? 'bg-white text-black shadow-md' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200')}
-                                                >
-                                                    {method.name}
-                                                </button>
-                                            )) : (
-                                                <span className="text-xs text-zinc-500 italic py-2">No payment methods configured.</span>
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                        <div className="flex flex-col gap-6">
+                            <div className="flex flex-col gap-2">
+                                <Label>Select Method / Courier</Label>
+                                <Select
+                                    value={data.courier_id}
+                                    onValueChange={(val) => {
+                                        if (!val) return;
+                                        const selected = couriers.find(c => c.id === Number(val));
+                                        setData(d => ({
+                                            ...d,
+                                            courier_id: val,
+                                            courier_service_fee: selected ? String(Number(selected.default_service_fee || 0)) : d.courier_service_fee,
+                                            overcharge: selected ? String(Number(selected.default_overcharge || 0)) : d.overcharge
+                                        }));
+                                    }}
+                                >
+                                    <SelectTrigger>
+                                        <SelectValue placeholder="Choose a courier (or leave empty to arrange later)...">
+                                            {selectedCourier ? selectedCourier.name : "Choose a courier (or leave empty to arrange later)..."}
+                                        </SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {couriers.map(c => (
+                                            <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
 
-                            <div className="flex flex-col items-end justify-center py-4">
-                                {isOverpaid ? (
-                                    <>
-                                        <span className="text-[10px] text-zinc-400 uppercase font-bold">Overpaid</span>
-                                        <span className="text-orange-500 font-bold text-lg">{Math.abs(remaining).toLocaleString()} MMK</span>
-                                    </>
-                                ) : remaining > 0 ? (
-                                    <>
-                                        <span className="text-[10px] text-zinc-400 uppercase font-bold">Remaining</span>
-                                        <span className="text-orange-500 font-black text-2xl">{remaining.toLocaleString()} MMK</span>
-                                    </>
-                                ) : (
-                                    <div className="bg-green-100 dark:bg-green-900/30 px-4 py-2 rounded-xl border border-green-200 dark:border-green-800">
-                                        <span className="text-green-700 dark:text-green-400 text-sm font-black">✓ Fully Paid</span>
+                            {data.courier_id && (
+                                <div className="flex flex-col gap-6 p-5 bg-zinc-50 dark:bg-zinc-900 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                        <div className="flex flex-col gap-2">
+                                            <Label>Deli Fee (Customer)</Label>
+                                            <FormattedNumberInput
+                                                value={data.delivery_fee}
+                                                onChange={(val) => { setData('delivery_fee', val); clearErrors('delivery_fee'); }}
+                                                placeholder="e.g. 3500"
+                                            />
+                                            {errors.delivery_fee && <span className="text-red-500 text-xs">{errors.delivery_fee}</span>}
+                                        </div>
+
+                                        <div className="flex flex-col gap-2">
+                                            <Label>Overcharge (Income)</Label>
+                                            <FormattedNumberInput
+                                                value={data.overcharge}
+                                                onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
+                                                placeholder="0"
+                                            />
+                                            {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
+                                        </div>
+
+                                        <div className="flex flex-col gap-2">
+                                            <Label>Service Fee (Cost)</Label>
+                                            <FormattedNumberInput
+                                                value={data.courier_service_fee}
+                                                onChange={(val) => { setData('courier_service_fee', val); clearErrors('courier_service_fee'); }}
+                                                placeholder="0"
+                                            />
+                                            {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-2">
+                                        <Label>Tracking No. (Optional)</Label>
+                                        <Input
+                                            value={data.tracking_number}
+                                            onChange={(e) => { setData('tracking_number', e.target.value); clearErrors('tracking_number'); }}
+                                            placeholder="e.g. TRK12345"
+                                        />
+                                    </div>
+
+                                    <div className="flex flex-col gap-3">
+                                        <Label className="text-xs font-bold text-zinc-400 uppercase tracking-widest border-b border-zinc-200 dark:border-zinc-800 pb-2">
+                                            Payment & Delivery Scenario
+                                        </Label>
+
+                                        <div className="flex flex-col gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => { setData('money_collected_by', 'seller'); setData('is_deli_prepaid', true); }}
+                                                className={twMerge("p-4 rounded-xl border-2 text-left transition-all",
+                                                    data.money_collected_by === 'seller' && data.is_deli_prepaid ? "border-black bg-white dark:border-white dark:bg-zinc-800" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
+                                            >
+                                                <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'seller' && data.is_deli_prepaid ? "text-black dark:text-white" : "")}>
+                                                    Fully Prepaid (Deli Included)
+                                                </span>
+                                                <span className="text-xs text-zinc-500">Customer paid us for everything (items + deli fee). Shop pays courier.</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => { setData('money_collected_by', 'seller'); setData('is_deli_prepaid', false); }}
+                                                className={twMerge("p-4 rounded-xl border-2 text-left transition-all",
+                                                    data.money_collected_by === 'seller' && !data.is_deli_prepaid ? "border-black bg-white dark:border-white dark:bg-zinc-800" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
+                                            >
+                                                <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'seller' && !data.is_deli_prepaid ? "text-black dark:text-white" : "")}>
+                                                    Items Prepaid (Deli Separate)
+                                                </span>
+                                                <span className="text-xs text-zinc-500">Customer paid us for items. Customer pays delivery fee to courier.</span>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const selected = couriers.find(c => c.id === Number(data.courier_id));
+                                                    setData(d => ({
+                                                        ...d,
+                                                        money_collected_by: 'courier',
+                                                        is_deli_prepaid: false,
+                                                        overcharge: selected ? String(Number(selected.default_overcharge || 0)) : d.overcharge
+                                                    }));
+                                                }}
+                                                className={twMerge("p-4 rounded-xl border-2 text-left transition-all",
+                                                    data.money_collected_by === 'courier' ? "border-black bg-white dark:border-white dark:bg-zinc-800" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
+                                            >
+                                                <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'courier' ? "text-black dark:text-white" : "")}>
+                                                    COD (Courier Collects All)
+                                                </span>
+                                                <span className="text-xs text-zinc-500">Customer pays items & delivery fee to the courier in cash.</span>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex flex-col gap-2">
+                                        <Label>Delivery Instructions (Optional)</Label>
+                                        <Input
+                                            value={data.delivery_note}
+                                            onChange={(e) => { setData('delivery_note', e.target.value); clearErrors('delivery_note'); }}
+                                            placeholder="e.g. Call before arrival..."
+                                        />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </section>
+
+                    {/* 4. Payment */}
+                    <section>
+                        <h2 className="text-xs font-bold text-zinc-500 uppercase tracking-widest mb-6 dark:text-zinc-400">
+                            04. Payment
+                        </h2>
+
+                        <div className="bg-zinc-50 dark:bg-zinc-900/50 rounded-3xl border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-sm">
+                            <div className="p-6 md:p-8">
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-zinc-500 text-sm font-medium">Subtotal (After Item Disc.)</span>
+                                    <span className="text-black dark:text-white font-bold text-sm">{subtotal.toLocaleString()} MMK</span>
+                                </div>
+
+                                <div className="flex justify-between items-center mb-4">
+                                    <div className="flex items-center gap-4">
+                                        <span className="text-zinc-500 text-sm font-medium">Extra Discount</span>
+                                        <div className="flex bg-zinc-200 dark:bg-zinc-800 rounded-lg p-1">
+                                            <button type="button" onClick={() => setData('discount_type', data.discount_type === 'fixed' ? 'none' : 'fixed')} className={twMerge("px-3 py-1 rounded text-[10px] font-bold transition-all", data.discount_type === 'fixed' ? "bg-white dark:bg-zinc-700 text-black dark:text-white shadow-sm" : "text-zinc-500 hover:text-black dark:hover:text-white")}>$</button>
+                                            <button type="button" onClick={() => setData('discount_type', data.discount_type === 'percent' ? 'none' : 'percent')} className={twMerge("px-3 py-1 rounded text-[10px] font-bold transition-all", data.discount_type === 'percent' ? "bg-white dark:bg-zinc-700 text-black dark:text-white shadow-sm" : "text-zinc-500 hover:text-black dark:hover:text-white")}>%</button>
+                                        </div>
+                                    </div>
+                                    <span className="text-green-600 dark:text-green-400 font-bold text-sm">-{orderDiscountAmount.toLocaleString()} MMK</span>
+                                </div>
+
+                                {data.discount_type !== 'none' && (
+                                    <div className="grid grid-cols-2 gap-4 mb-4">
+                                        <FormattedNumberInput
+                                            placeholder="Discount Value"
+                                            value={data.discount_value}
+                                            onChange={(val) => { setData('discount_value', val); clearErrors('discount_value'); }}
+                                        />
+                                        <Input
+                                            placeholder="Reason"
+                                            value={data.discount_reason}
+                                            onChange={(e) => { setData('discount_reason', e.target.value); clearErrors('discount_reason'); }}
+                                        />
                                     </div>
                                 )}
+
+                                <div className="flex justify-between items-center mb-4">
+                                    <span className="text-zinc-500 text-sm font-medium">Extra Fee (e.g. KPay %)</span>
+                                    <div className="flex flex-col items-end">
+                                        <FormattedNumberInput
+                                            placeholder="0"
+                                            value={data.extra_fee}
+                                            onChange={(val) => { setData('extra_fee', val); clearErrors('extra_fee'); }}
+                                            className="w-32 h-8 text-right font-bold bg-white dark:bg-zinc-950 border-zinc-200 dark:border-zinc-800"
+                                        />
+                                        {errors.extra_fee && <span className="text-red-500 text-xs mt-1">{errors.extra_fee}</span>}
+                                    </div>
+                                </div>
+
+                                {data.courier_id && (deliveryFeeNum > 0 || overchargeNum > 0) && (
+                                    <>
+                                        {deliveryFeeNum > 0 && (
+                                            <div className="flex justify-between items-center mb-4">
+                                                <span className="text-zinc-500 text-sm font-medium">Delivery Fee</span>
+                                                <span className="text-black dark:text-white font-bold text-sm">+{deliveryFeeNum.toLocaleString()} MMK</span>
+                                            </div>
+                                        )}
+                                        {overchargeNum > 0 && (
+                                            <div className="flex justify-between items-center mb-4">
+                                                <span className="text-zinc-500 text-sm font-medium">Courier Overcharge</span>
+                                                <span className="text-black dark:text-white font-bold text-sm">+{overchargeNum.toLocaleString()} MMK</span>
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+
+                                <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-6" />
+
+                                <div className="flex justify-between items-center">
+                                    <span className="text-black dark:text-white text-lg font-black uppercase tracking-tight">Grand Total</span>
+                                    <span className="text-black dark:text-white text-3xl font-black tracking-tight">
+                                        {grandTotal.toLocaleString()} <span className="text-sm font-bold text-zinc-400">MMK</span>
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="bg-white dark:bg-zinc-950/50 p-6 md:p-8 border-t border-zinc-200 dark:border-zinc-800 flex flex-col md:flex-row gap-8 justify-between items-center">
+                                <div className="w-full md:w-1/2 bg-black dark:bg-zinc-900 p-5 rounded-2xl shadow-inner border border-zinc-800">
+                                    <div className="flex justify-between items-center mb-3">
+                                        <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">Deposit / Paid</span>
+                                        {targetShopCollection > 0 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setData('paid_amount', String(targetShopCollection))}
+                                                className="text-[10px] font-bold text-zinc-400 hover:text-white uppercase tracking-widest transition-colors"
+                                            >
+                                                Full Amount
+                                            </button>
+                                        )}
+                                    </div>
+                                    <FormattedNumberInput
+                                        value={data.paid_amount}
+                                        onChange={(val) => { setData('paid_amount', val); clearErrors('paid_amount'); }}
+                                        placeholder="0"
+                                        className="bg-transparent shadow-none border-none outline-none text-white font-black text-3xl w-full h-auto px-0 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none focus-visible:ring-0 focus-visible:ring-offset-0"
+                                    />
+                                    {errors.paid_amount && <span className="text-red-500 text-xs">{errors.paid_amount}</span>}
+                                    
+                                    {Number(data.paid_amount) > 0 && (
+                                        <div className="mt-5 pt-5 border-t border-zinc-800/50">
+                                            <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest block mb-3">Deposit Method</span>
+                                            <div className="flex flex-wrap gap-2">
+                                                {paymentMethods.length > 0 ? paymentMethods.map((method: any) => (
+                                                    <button
+                                                        key={method.code}
+                                                        type="button"
+                                                        onClick={() => setData('payment_method', method.code)}
+                                                        className={twMerge("flex-1 min-w-[60px] py-2 px-3 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all text-center whitespace-nowrap", data.payment_method === method.code ? 'bg-white text-black shadow-md scale-105' : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 active:scale-95')}
+                                                    >
+                                                        {method.name}
+                                                    </button>
+                                                )) : (
+                                                    <span className="text-xs text-zinc-500 italic py-2">No payment methods configured.</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="w-full md:w-1/2 flex flex-col items-center md:items-end justify-center py-4">
+                                    {isOverpaid ? (
+                                        <>
+                                            <span className="text-xs text-zinc-400 uppercase font-bold tracking-widest mb-1">Extra Payment</span>
+                                            <span className="text-orange-500 font-black text-3xl">+{overpaidAmount.toLocaleString()} <span className="text-sm">MMK</span></span>
+                                        </>
+                                    ) : remaining > 0 ? (
+                                        <>
+                                            <span className="text-xs text-zinc-400 uppercase font-bold tracking-widest mb-1">Remaining Due</span>
+                                            <span className="text-orange-500 font-black text-4xl tracking-tight">{remaining.toLocaleString()} <span className="text-lg">MMK</span></span>
+                                        </>
+                                    ) : (
+                                        <div className="bg-green-100 dark:bg-green-900/30 px-6 py-4 rounded-2xl border-2 border-green-200 dark:border-green-800 shadow-sm flex items-center gap-3">
+                                            <div className="bg-green-500 rounded-full p-1 text-white">
+                                                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                                </svg>
+                                            </div>
+                                            <span className="text-green-700 dark:text-green-400 text-lg font-black tracking-tight">Fully Paid</span>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     </section>

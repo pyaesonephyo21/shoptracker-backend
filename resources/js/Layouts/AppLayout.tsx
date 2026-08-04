@@ -113,19 +113,6 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
         window.addEventListener('online', handleOnline);
         window.addEventListener('offline', handleOffline);
 
-        // Pre-warm core routes into cache when idle
-        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
-            (window as any).requestIdleCallback(() => {
-                try {
-                    router.prefetch('/sales', { method: 'get' }, { cacheFor: '2m' });
-                    router.prefetch('/inventory', { method: 'get' }, { cacheFor: '2m' });
-                    router.prefetch('/finance/cash-flow', { method: 'get' }, { cacheFor: '2m' });
-                } catch (e) {
-                    // prefetch optional
-                }
-            });
-        }
-
         return () => {
             window.removeEventListener('online', handleOnline);
             window.removeEventListener('offline', handleOffline);
@@ -209,8 +196,6 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                             <Link
                                 key={item.name}
                                 href={item.href}
-                                prefetch={['mount', 'hover']}
-                                cacheFor="1m"
                                 className={twMerge(
                                     'flex items-center rounded-xl transition-all duration-200 group active:scale-[0.98]',
                                     isSidebarCollapsed ? 'p-3 justify-center w-12 h-12' : 'px-4 py-3 gap-3 w-full',
@@ -389,8 +374,6 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                         <Link
                             key={item.name}
                             href={item.href}
-                            prefetch={['mount', 'hover']}
-                            cacheFor="1m"
                             className={twMerge(
                                 'flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all',
                                 isActive ? 'text-black dark:text-white font-bold' : 'text-zinc-500 dark:text-zinc-500'

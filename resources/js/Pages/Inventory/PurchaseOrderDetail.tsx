@@ -117,7 +117,7 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
             <div className="flex flex-col max-w-4xl mx-auto w-full pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/inventory/purchase-orders" prefetch={['mount', 'hover']} cacheFor="1m" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
+                        <Link href="/inventory/purchase-orders" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">{order.batch_name}</h1>
                             <div className="flex items-center gap-2 mt-1">
@@ -141,8 +141,6 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                     {order.status === 'pending' && (
                         <Link
                             href={`/inventory/purchase-orders/${order.id}/edit`}
-                            prefetch={['mount', 'hover']}
-                            cacheFor="1m"
                             className="inline-flex items-center justify-center border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-bold uppercase tracking-widest h-9 px-4 rounded-md transition-colors"
                         >
                             Edit

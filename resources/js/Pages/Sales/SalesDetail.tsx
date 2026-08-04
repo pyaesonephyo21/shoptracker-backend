@@ -46,9 +46,14 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
     const isPending = order.status.toUpperCase() === "PENDING";
     const isSettled = order.delivery.settlement_status === "settled";
 
+    const hasCourier = Boolean(order.delivery.courier_name && order.delivery.courier_name !== '-' && order.delivery.courier_name !== 'None');
+    const isCourierUnpaid = hasCourier && order.delivery.settlement_status === "unpaid";
+
     const balance = order.financials.balance;
-    const isRefundNeeded = balance < -0.1;
-    const isFullyPaid = Math.abs(balance) < 1 || isCompleted || isSettled;
+    const isRefundNeeded = balance < -0.1 && !isCourierUnpaid;
+    const isFullyPaid = (Math.abs(balance) < 1 && (isCompleted || isSettled || !hasCourier)) || isCompleted;
+
+    const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
     let statusText = "DUE";
     let statusColor = "text-black dark:text-white";
@@ -62,22 +67,25 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
     }
 
     let settleButtonText = "";
-    if (order.delivery.collected_by === "courier" && order.delivery.settlement_status === "unpaid") {
-        settleButtonText = "CONFIRM COURIER TRANSFER";
+    if (isCourierUnpaid) {
+        if (balance > 0) {
+            settleButtonText = `CONFIRM COURIER TRANSFER (+${formatMMK(balance)} MMK)`;
+        } else if (balance < 0) {
+            settleButtonText = `PAY COURIER FEE (${formatMMK(Math.abs(balance))} MMK)`;
+        } else {
+            settleButtonText = "MARK AS COMPLETED";
+        }
     } else if (Math.abs(balance) < 1) {
         settleButtonText = "MARK AS COMPLETED";
     } else {
-        settleButtonText = `COLLECT BALANCE (${balance.toLocaleString()})`;
+        settleButtonText = `COLLECT BALANCE (${formatMMK(balance)} MMK)`;
     }
 
-    const isCourierUnpaid = order.delivery.collected_by === "courier" && order.delivery.settlement_status === "unpaid";
     const canSettle = (!isCompleted && !isRefundNeeded) && (
         isCourierUnpaid 
             ? order.status.toLowerCase() === 'delivered' 
             : ['pending', 'delivery_added', 'delivered'].includes(order.status.toLowerCase())
     );
-
-    const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
 
     const openReturnModal = (itemId: number, maxQty: number) => {
         setReturnData({ quantity: '', reason: '' });
@@ -173,7 +181,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                 {/* Header */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/sales" prefetch={['mount', 'hover']} cacheFor="1m" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
+                        <Link href="/sales" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
                         <div>
                             <div className="flex items-center gap-2">
                                 <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Order #{order.id}</h1>
@@ -189,8 +197,6 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                     {['pending', 'delivery_added'].includes(order.status.toLowerCase()) && (
                         <Link
                             href={`/sales/${order.id}/edit`}
-                            prefetch={['mount', 'hover']}
-                            cacheFor="1m"
                             className="inline-flex items-center justify-center border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-bold uppercase tracking-widest h-9 px-4 rounded-md transition-colors"
                         >
                             Edit
@@ -317,9 +323,15 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-4">Collection & Payments</span>
                                 
                                 <div className="flex justify-between items-center mb-4">
-                                    <span className="text-zinc-500 font-medium text-sm">Target Collection</span>
+                                    <span className="text-zinc-500 font-medium text-sm">
+                                        {hasCourier 
+                                            ? (order.delivery.collected_by === 'courier' ? 'Courier Collection' : (order.delivery.is_prepaid ? 'Target Collection (Fully Prepaid)' : 'Target Upfront (Items Only)'))
+                                            : 'Target Collection'}
+                                    </span>
                                     <span className="font-bold text-black dark:text-white text-sm tabular-nums">
-                                        {formatMMK(order.delivery.collected_by === 'courier' ? order.financials.net_revenue : order.financials.grand_total)} MMK
+                                        {formatMMK(hasCourier 
+                                            ? (order.delivery.collected_by === 'courier' ? order.financials.grand_total : (order.delivery.is_prepaid ? order.financials.grand_total : (order.financials.subtotal - order.financials.discount + order.financials.extra_fee)))
+                                            : order.financials.grand_total)} MMK
                                     </span>
                                 </div>
 
@@ -340,9 +352,11 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 )}
 
                                 <div className="flex justify-between items-center pt-4 border-t border-zinc-200 dark:border-zinc-800">
-                                    <span className="text-black dark:text-white font-black text-sm uppercase">Balance Due</span>
-                                    <span className={twMerge("font-black text-xl", Math.abs(order.financials.balance) < 1 ? "text-black dark:text-white" : "text-orange-500")}>
-                                        {formatMMK(Math.abs(order.financials.balance))} MMK
+                                    <span className="text-black dark:text-white font-black text-sm uppercase">
+                                        {isCourierUnpaid ? (balance >= 0 ? "Courier Remittance" : "Courier Fee Payable") : "Balance Due"}
+                                    </span>
+                                    <span className={twMerge("font-black text-xl", Math.abs(order.financials.balance) < 1 ? "text-black dark:text-white" : (balance > 0 ? "text-orange-500" : "text-zinc-800 dark:text-zinc-200"))}>
+                                        {balance > 0 ? `+${formatMMK(balance)} MMK` : `${formatMMK(Math.abs(balance))} MMK`}
                                     </span>
                                 </div>
                             </div>
@@ -576,8 +590,20 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                     {modalAction?.type === "settle" && (
                         <>
                             <DialogHeader>
-                                <DialogTitle>{Math.abs(balance) < 1 && !isCourierUnpaid ? "Complete Order" : "Confirm Payment"}</DialogTitle>
-                                <DialogDescription>{Math.abs(balance) < 1 && !isCourierUnpaid ? "Mark this order as completed?" : `Received remaining ${formatMMK(balance > 0 ? balance : 0)} MMK?`}</DialogDescription>
+                                <DialogTitle>
+                                    {Math.abs(balance) < 1 
+                                        ? "Complete Order" 
+                                        : (isCourierUnpaid 
+                                            ? (balance > 0 ? "Confirm Courier Remittance" : "Pay Courier Fee") 
+                                            : "Confirm Payment")}
+                                </DialogTitle>
+                                <DialogDescription>
+                                    {Math.abs(balance) < 1 
+                                        ? "Mark this order as completed?" 
+                                        : (isCourierUnpaid
+                                            ? (balance > 0 ? `Received courier transfer of ${formatMMK(balance)} MMK?` : `Pay courier fee of ${formatMMK(Math.abs(balance))} MMK?`)
+                                            : `Received remaining balance of ${formatMMK(balance > 0 ? balance : 0)} MMK?`)}
+                                </DialogDescription>
                             </DialogHeader>
                             <div className="flex flex-col gap-4 mt-4">
                                 {(Math.abs(balance) >= 1) && (
@@ -599,8 +625,12 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 )}
                             </div>
                             <DialogFooter className="mt-4">
-                                <Button disabled={!paymentMethod && balance >= 1} onClick={handleSettle} className="w-full">
-                                    {Math.abs(balance) < 1 && !isCourierUnpaid ? "COMPLETE ORDER" : "CONFIRM PAYMENT"}
+                                <Button disabled={!paymentMethod && Math.abs(balance) >= 1} onClick={handleSettle} className="w-full">
+                                    {Math.abs(balance) < 1 
+                                        ? "COMPLETE ORDER" 
+                                        : (isCourierUnpaid 
+                                            ? (balance > 0 ? `CONFIRM TRANSFER (+${formatMMK(balance)} MMK)` : `CONFIRM PAYMENT (${formatMMK(Math.abs(balance))} MMK)`)
+                                            : "CONFIRM PAYMENT")}
                                 </Button>
                             </DialogFooter>
                         </>

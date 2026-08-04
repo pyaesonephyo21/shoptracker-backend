@@ -21,8 +21,12 @@ export default defineConfig({
     server: {
         host: '0.0.0.0',
         port: 5178,
+        strictPort: true,
+        cors: true,
         watch: {
-            ignored: ['**/storage/framework/views/**'],
+            usePolling: true,
+            interval: 100,
+            ignored: ['**/storage/framework/views/**', '**/vendor/**', '**/storage/**'],
         },
         hmr: {
             host: 'localhost',

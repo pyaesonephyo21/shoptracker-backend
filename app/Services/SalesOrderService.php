@@ -9,6 +9,7 @@ use App\Models\ProductVariant;
 use App\Models\PurchaseOrderItem;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
+use App\Models\CashTransaction;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -18,20 +19,24 @@ class SalesOrderService
     public function createOrder(array $data, array $items)
     {
         return DB::transaction(function () use ($data, $items) {
+            $hasCourier = !empty($data['courier_id']);
             $order = SalesOrder::create([
                 'customer_name' => (string) ($data['customer_name'] ?? 'Guest'),
                 'customer_phone' => (string) ($data['customer_phone'] ?? ''),
                 'delivery_address' => (string) ($data['delivery_address'] ?? ''),
                 'note' => (string) ($data['note'] ?? ''),
-                'status' => 'pending',
+                'delivery_note' => (string) ($data['delivery_note'] ?? ''),
+                'status' => $hasCourier ? 'delivery_added' : 'pending',
 
-                // Defaults
-                'money_collected_by' => 'seller',
-                'is_deli_prepaid' => false,
+                // Logistics
+                'courier_id' => $data['courier_id'] ?? null,
+                'tracking_number' => $data['tracking_number'] ?? null,
+                'money_collected_by' => $data['money_collected_by'] ?? 'seller',
+                'is_deli_prepaid' => (bool) ($data['is_deli_prepaid'] ?? false),
                 'overcharge' => (float) ($data['overcharge'] ?? 0),
                 'extra_fee' => (float) ($data['extra_fee'] ?? 0),
-                'delivery_fee' => 0,
-                'courier_service_fee' => 0,
+                'delivery_fee' => (float) ($data['delivery_fee'] ?? 0),
+                'courier_service_fee' => (float) ($data['courier_service_fee'] ?? 0),
 
                 // Order Level Discount
                 'discount_type' => (string) ($data['discount_type'] ?? 'none'),
@@ -39,8 +44,6 @@ class SalesOrderService
                 'discount_reason' => (string) ($data['discount_reason'] ?? ''),
 
                 // Initial Payment
-                'paid_amount' => (float) ($data['paid_amount'] ?? 0),
-
                 'paid_amount' => (float) ($data['paid_amount'] ?? 0),
             ]);
 
@@ -107,7 +110,8 @@ class SalesOrderService
                 'tracking_number',
                 'discount_reason',
                 'discount_type',
-                'courier_id'
+                'courier_id',
+                'money_collected_by'
             ])->toArray());
 
             // Handle numeric / financial fields
@@ -116,6 +120,7 @@ class SalesOrderService
             if (isset($data['discount_value'])) $order->discount_value = (float) $data['discount_value'];
             if (isset($data['overcharge'])) $order->overcharge = (float) $data['overcharge'];
             if (isset($data['extra_fee'])) $order->extra_fee = (float) $data['extra_fee'];
+            if (isset($data['is_deli_prepaid'])) $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
 
             $oldPaidAmount = $order->paid_amount;
             if (isset($data['paid_amount'])) $order->paid_amount = (float) $data['paid_amount'];
@@ -126,10 +131,25 @@ class SalesOrderService
                     'amount' => $paidAmountDiff,
                     'payment_method' => 'correction'
                 ]);
+
                 if ($paidAmountDiff > 0) {
-                    app(CashFlowService::class)->recordInflow($order->shop_id, $paidAmountDiff, 'sale', 'Correction: Prepaid Amount increased for Order #' . $order->id, SalesOrder::class, $order->id);
+                    app(CashFlowService::class)->recordInflow(
+                        $order->shop_id,
+                        $paidAmountDiff,
+                        'sale',
+                        'Payment adjustment for Order #' . $order->id,
+                        SalesOrder::class,
+                        $order->id
+                    );
                 } else {
-                    app(CashFlowService::class)->recordOutflow($order->shop_id, abs($paidAmountDiff), 'refund', 'Correction: Prepaid Amount decreased for Order #' . $order->id, SalesOrder::class, $order->id);
+                    app(CashFlowService::class)->recordOutflow(
+                        $order->shop_id,
+                        abs($paidAmountDiff),
+                        'refund',
+                        'Payment reduction adjustment for Order #' . $order->id,
+                        SalesOrder::class,
+                        $order->id
+                    );
                 }
             }
 
@@ -213,6 +233,7 @@ class SalesOrderService
             $order->status = 'delivery_added';
 
             $this->recalculateTotals($order);
+
             $order->logAction('fulfillment_details_updated');
 
             return $order;
@@ -243,8 +264,8 @@ class SalesOrderService
         return DB::transaction(function () use ($id, $paymentMethod, $refundAmount) {
             $order = SalesOrder::findOrFail($id);
 
-            // Case 1: Courier Settlement
-            if ($order->money_collected_by === 'courier') {
+            // Case 1: Order with Courier Settlement
+            if ($order->courier_id) {
                 $amountToPay = $order->net_revenue - $order->paid_amount;
 
                 if ($order->settlement_status === 'settled' && $amountToPay == 0) {
@@ -282,7 +303,7 @@ class SalesOrderService
                             $order->shop_id,
                             $refundToIssue,
                             'refund',
-                            'Refund for Courier overpayment: Order #' . $order->id,
+                            'Courier fee payout for Order #' . $order->id,
                             SalesOrder::class,
                             $order->id
                         );
@@ -302,7 +323,7 @@ class SalesOrderService
                     'status' => 'completed'
                 ]);
             }
-            // Case 2: Direct Customer Payment
+            // Case 2: In-Store Sale (No Courier)
             else {
                 $amountToPay = $order->customer_grand_total - $order->paid_amount;
 
@@ -378,7 +399,7 @@ class SalesOrderService
         return DB::transaction(function () use ($id, $paymentMethod, $refundAmount) {
             $order = SalesOrder::findOrFail($id);
 
-            $targetAmount = $order->money_collected_by === 'courier' ? $order->net_revenue : $order->customer_grand_total;
+            $targetAmount = $order->courier_id ? $order->net_revenue : $order->customer_grand_total;
             $owed = $order->paid_amount - $targetAmount;
 
             if ($owed <= 0) {
@@ -747,19 +768,15 @@ class SalesOrderService
 
     private function calculateLogistics(SalesOrder $order, $afterDiscount)
     {
-        $customerGrandTotal = 0;
-        $netRevenue = 0;
+        $netRevenue = $afterDiscount + $order->overcharge + $order->extra_fee - $order->courier_service_fee;
+        $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge + $order->extra_fee;
 
-        if ($order->money_collected_by === 'courier') {
-            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge + $order->extra_fee;
-            $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
-            $order->settlement_status = 'unpaid';
-        } elseif ($order->is_deli_prepaid) {
-            $customerGrandTotal = $afterDiscount + $order->delivery_fee + $order->overcharge + $order->extra_fee;
-            $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
+        if ($order->courier_id) {
+            if ($order->settlement_status !== 'settled') {
+                $order->settlement_status = 'unpaid';
+            }
         } else {
-            $customerGrandTotal = $afterDiscount + $order->overcharge + $order->extra_fee;
-            $netRevenue = $afterDiscount + $order->overcharge - $order->courier_service_fee;
+            $order->settlement_status = 'unpaid';
         }
 
         return [$customerGrandTotal, $netRevenue];
@@ -767,9 +784,31 @@ class SalesOrderService
 
     private function determinePaymentStatus(SalesOrder $order, $customerGrandTotal, $netRevenue)
     {
-        $targetAmount = ($order->money_collected_by === 'courier') ? $netRevenue : $customerGrandTotal;
+        if ($order->courier_id) {
+            if ($order->money_collected_by === 'seller') {
+                $targetUpfront = $order->is_deli_prepaid
+                    ? $customerGrandTotal
+                    : (($order->subtotal - $order->discount_total) + $order->extra_fee);
+                if ($order->paid_amount >= $targetUpfront) {
+                    return 'paid';
+                } elseif ($order->paid_amount > 0) {
+                    return 'partial';
+                } else {
+                    return 'unpaid';
+                }
+            } else {
+                // COD
+                if ($order->settlement_status === 'settled' || $order->paid_amount >= $netRevenue) {
+                    return 'paid';
+                } elseif ($order->paid_amount > 0) {
+                    return 'partial';
+                } else {
+                    return 'unpaid';
+                }
+            }
+        }
 
-        if ($order->paid_amount >= $targetAmount) {
+        if ($order->paid_amount >= $customerGrandTotal) {
             return 'paid';
         } elseif ($order->paid_amount > 0) {
             return 'partial';

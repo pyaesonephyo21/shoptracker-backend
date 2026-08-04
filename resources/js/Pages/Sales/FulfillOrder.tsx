@@ -18,20 +18,22 @@ interface Courier {
 }
 
 export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrder, couriers: Courier[] }) {
+    const isPrepaid = (order.financials?.paid_amount || 0) > 0;
+
     const { data, setData, post, processing, errors, clearErrors } = useForm({
         courier_id: '',
-        tracking_number: '',
-        delivery_fee: '',
-        courier_service_fee: '',
-        overcharge: '',
-        delivery_note: '',
-        money_collected_by: 'courier' as 'seller' | 'courier',
-        is_deli_prepaid: false
+        tracking_number: order.delivery?.tracking || '',
+        delivery_fee: order.delivery?.fee ? String(order.delivery.fee) : '',
+        courier_service_fee: order.delivery?.courier_service_fee ? String(order.delivery.courier_service_fee) : '',
+        overcharge: order.financials?.overcharge ? String(order.financials.overcharge) : '',
+        delivery_note: order.delivery?.note || order.note || '',
+        money_collected_by: (order.delivery?.collected_by || (isPrepaid ? 'seller' : 'courier')) as 'seller' | 'courier',
+        is_deli_prepaid: Boolean(order.delivery?.is_prepaid ?? isPrepaid)
     });
 
     const selectedCourier = couriers.find(c => c.id === Number(data.courier_id));
-    const isPickup = false; // Add logic if needed later
-    const isSelfManaged = false; // Add logic if needed later
+    const isPickup = false;
+    const isSelfManaged = false;
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -45,7 +47,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
         <AppLayout title={`Fulfill #${order.id}`}>
             <Head title={`Fulfill Order #${order.id}`} />
 
-            <div className="flex flex-col max-w-2xl mx-auto w-full pb-20">
+            <div className="flex flex-col max-w-2xl mx-auto w-full px-4 sm:px-0 pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
                         <button type="button" onClick={() => router.visit(`/sales/${order.id}`)} className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</button>
@@ -60,15 +62,16 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                     
                     {/* 1. SELECT COURIER */}
                     <div className="flex flex-col gap-2">
-                            <Label>Select Method / Courier</Label>
+                        <Label>Select Method / Courier</Label>
                         <Select value={data.courier_id} onValueChange={(val) => {
                             if (!val) return;
                             const selected = couriers.find(c => c.id === Number(val));
-                            setData(data => ({
-                                ...data,
+                            setData(current => ({
+                                ...current,
                                 courier_id: val,
-                                courier_service_fee: selected ? String(Number(selected.default_service_fee)) : data.courier_service_fee,
-                                overcharge: selected ? String(Number(selected.default_overcharge)) : data.overcharge
+                                courier_service_fee: selected ? String(Number(selected.default_service_fee || 0)) : current.courier_service_fee,
+                                // For COD orders apply default overcharge; for prepaid keep existing or 0
+                                overcharge: current.money_collected_by === 'courier' && selected ? String(Number(selected.default_overcharge || 0)) : current.overcharge
                             }));
                         }}>
                             <SelectTrigger>
@@ -90,38 +93,38 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                             
                             {/* 2. FEES */}
                             {!isPickup && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                                     <div className="flex flex-col gap-2">
-                                        <Label>Deli Fee (Charge to Customer) (Optional)</Label>
+                                        <Label>Deli Fee (Customer)</Label>
                                         <FormattedNumberInput
                                             value={data.delivery_fee}
                                             onChange={(val) => { setData('delivery_fee', val); clearErrors('delivery_fee'); }}
-                                            placeholder="0"
+                                            placeholder="e.g. 3500"
                                         />
                                         {errors.delivery_fee && <span className="text-red-500 text-xs">{errors.delivery_fee}</span>}
                                     </div>
 
                                     {!isSelfManaged && (
                                         <div className="flex flex-col gap-2">
-                                            <Label>Service Fee (Cost to us) (Optional)</Label>
+                                            <Label>Overcharge (Income)</Label>
                                             <FormattedNumberInput
-                                                value={data.courier_service_fee}
-                                                onChange={(val) => { setData('courier_service_fee', val); clearErrors('courier_service_fee'); }}
-                                                placeholder="e.g. 200"
+                                                value={data.overcharge}
+                                                onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
+                                                placeholder="0"
                                             />
-                                            {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
+                                            {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
                                         </div>
                                     )}
 
                                     {!isSelfManaged && (
                                         <div className="flex flex-col gap-2">
-                                            <Label>Overcharge (Charge to Customer) (Optional)</Label>
+                                            <Label>Service Fee (Cost)</Label>
                                             <FormattedNumberInput
-                                                value={data.overcharge}
-                                                onChange={(val) => { setData('overcharge', val); clearErrors('overcharge'); }}
-                                                placeholder="e.g. 500"
+                                                value={data.courier_service_fee}
+                                                onChange={(val) => { setData('courier_service_fee', val); clearErrors('courier_service_fee'); }}
+                                                placeholder="0"
                                             />
-                                            {errors.overcharge && <span className="text-red-500 text-xs">{errors.overcharge}</span>}
+                                            {errors.courier_service_fee && <span className="text-red-500 text-xs">{errors.courier_service_fee}</span>}
                                         </div>
                                     )}
                                 </div>
@@ -134,7 +137,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                                     <Input
                                         value={data.tracking_number}
                                         onChange={(e) => { setData('tracking_number', e.target.value); clearErrors('tracking_number'); }}
-                                        placeholder="Optional"
+                                        placeholder="e.g. TRK12345"
                                     />
                                 </div>
                             )}
@@ -149,14 +152,14 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                                     <div className="flex flex-col gap-3">
                                         <button
                                             type="button"
-                                            onClick={() => { setData('money_collected_by', 'courier'); setData('is_deli_prepaid', false); }}
+                                            onClick={() => { setData('money_collected_by', 'seller'); setData('is_deli_prepaid', true); }}
                                             className={twMerge("p-4 rounded-xl border-2 text-left transition-all", 
-                                                data.money_collected_by === 'courier' ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
+                                                data.money_collected_by === 'seller' && data.is_deli_prepaid ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
                                         >
-                                            <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'courier' ? "text-black dark:text-white" : "")}>
-                                                COD (Courier Collects All)
+                                            <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'seller' && data.is_deli_prepaid ? "text-black dark:text-white" : "")}>
+                                                Fully Prepaid (Deli Included)
                                             </span>
-                                            <span className="text-xs text-zinc-500">Customer pays items & delivery fee to the courier in cash.</span>
+                                            <span className="text-xs text-zinc-500">Customer paid us for everything (items + deli fee). Shop pays courier.</span>
                                         </button>
 
                                         <button
@@ -173,14 +176,22 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
 
                                         <button
                                             type="button"
-                                            onClick={() => { setData('money_collected_by', 'seller'); setData('is_deli_prepaid', true); }}
+                                            onClick={() => { 
+                                                const selected = couriers.find(c => c.id === Number(data.courier_id));
+                                                setData(current => ({
+                                                    ...current,
+                                                    money_collected_by: 'courier',
+                                                    is_deli_prepaid: false,
+                                                    overcharge: selected ? String(Number(selected.default_overcharge || 0)) : current.overcharge
+                                                }));
+                                            }}
                                             className={twMerge("p-4 rounded-xl border-2 text-left transition-all", 
-                                                data.money_collected_by === 'seller' && data.is_deli_prepaid ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
+                                                data.money_collected_by === 'courier' ? "border-black bg-zinc-50 dark:border-white dark:bg-zinc-900" : "border-zinc-200 bg-transparent text-zinc-500 dark:border-zinc-800 hover:border-zinc-300 dark:hover:border-zinc-700")}
                                         >
-                                            <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'seller' && data.is_deli_prepaid ? "text-black dark:text-white" : "")}>
-                                                Fully Prepaid (Deli Included)
+                                            <span className={twMerge("block font-bold text-sm mb-1", data.money_collected_by === 'courier' ? "text-black dark:text-white" : "")}>
+                                                COD (Courier Collects All)
                                             </span>
-                                            <span className="text-xs text-zinc-500">Customer paid us for everything. We pay the courier.</span>
+                                            <span className="text-xs text-zinc-500">Customer pays items & delivery fee to the courier in cash.</span>
                                         </button>
                                     </div>
                                 </div>

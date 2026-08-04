@@ -144,7 +144,10 @@ class SalesOrderController extends Controller
         }])->whereHas('variants', function ($q) {
             $q->whereRaw('(stock_quantity + pending_stock) > 0');
         })->where('is_active', true)->get();
-        return Inertia::render('Sales/AddSale', ['products' => $products]);
+        return Inertia::render('Sales/AddSale', [
+            'products' => $products,
+            'couriers' => Courier::all()
+        ]);
     }
 
     public function store(Request $request)
@@ -166,6 +169,14 @@ class SalesOrderController extends Controller
             'paid_amount' => 'nullable|numeric|min:0',
             'payment_method' => 'nullable|string|max:50',
             'extra_fee' => 'nullable|numeric|min:0',
+            'courier_id' => 'nullable|exists:couriers,id',
+            'tracking_number' => 'nullable|string|max:100',
+            'delivery_fee' => 'nullable|numeric|min:0',
+            'courier_service_fee' => 'nullable|numeric|min:0',
+            'overcharge' => 'nullable|numeric|min:0',
+            'delivery_note' => 'nullable|string',
+            'money_collected_by' => 'nullable|in:seller,courier',
+            'is_deli_prepaid' => 'nullable|boolean',
         ]);
 
         // Map frontend structure to what the service expects
@@ -178,8 +189,16 @@ class SalesOrderController extends Controller
             'discount_reason' => $validated['discount_reason'] ?? '',
             'extra_fee' => $validated['extra_fee'] ?? 0,
             'note' => $validated['note'] ?? '',
+            'delivery_note' => $validated['delivery_note'] ?? '',
             'paid_amount' => $validated['paid_amount'] ?? 0,
             'payment_method' => $validated['payment_method'] ?? 'cash',
+            'courier_id' => $validated['courier_id'] ?? null,
+            'tracking_number' => $validated['tracking_number'] ?? null,
+            'delivery_fee' => $validated['delivery_fee'] ?? 0,
+            'courier_service_fee' => $validated['courier_service_fee'] ?? 0,
+            'overcharge' => $validated['overcharge'] ?? 0,
+            'money_collected_by' => $validated['money_collected_by'] ?? 'seller',
+            'is_deli_prepaid' => (bool) ($validated['is_deli_prepaid'] ?? false),
         ];
 
         $this->service->createOrder($orderData, $validated['cart']);
@@ -212,7 +231,7 @@ class SalesOrderController extends Controller
                 'overcharge' => (float)$orderModel->overcharge,
                 'retained_revenue' => (float)$orderModel->retained_revenue,
                 'paid_amount' => (float)$orderModel->paid_amount,
-                'balance' => (float)($orderModel->money_collected_by === 'courier' ? $orderModel->net_revenue - $orderModel->paid_amount : $orderModel->customer_grand_total - $orderModel->paid_amount),
+                'balance' => (float)($orderModel->courier_id ? $orderModel->net_revenue - $orderModel->paid_amount : $orderModel->customer_grand_total - $orderModel->paid_amount),
                 'payment_status' => $orderModel->payment_status,
                 'grand_total' => (float)$orderModel->customer_grand_total,
                 'net_revenue' => (float)$orderModel->net_revenue,
@@ -295,6 +314,9 @@ class SalesOrderController extends Controller
             'tracking_number' => 'nullable|string',
             'delivery_fee' => 'nullable|numeric|min:0',
             'courier_service_fee' => 'nullable|numeric|min:0',
+            'overcharge' => 'nullable|numeric|min:0',
+            'money_collected_by' => 'nullable|in:seller,courier',
+            'is_deli_prepaid' => 'nullable|boolean',
         ]);
 
         $this->service->updateOrder($salesOrder->id, $validated);

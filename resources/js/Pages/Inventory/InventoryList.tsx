@@ -360,8 +360,6 @@ export default function InventoryList({
                                 <Link
                                     key={item.id}
                                     href={`/inventory/${item.id}`}
-                                    prefetch={['mount', 'hover']}
-                                    cacheFor="5m"
                                     className={twMerge(
                                         "py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-center transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group",
                                         item.is_active === false && "opacity-60 grayscale hover:opacity-100 bg-zinc-50/50 dark:bg-zinc-900/20"

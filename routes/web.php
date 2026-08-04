@@ -16,6 +16,7 @@ use App\Http\Controllers\InventoryController;
 use App\Http\Controllers\StockAdjustmentController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SalesOrderController;
+use App\Http\Controllers\AiAddressParserController;
 
 // Auth Routes
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -69,7 +70,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/sales/{salesOrder}/refund', [SalesOrderController::class, 'issueRefund']);
     Route::post('/sales/{salesOrder}/items/{itemId}/return', [SalesOrderController::class, 'returnItem']);
 
-    Route::redirect('/management', '/management/suppliers');
+    Route::redirect('/management', '/management/notes');
     Route::prefix('management')->name('management.')->group(function () {
         Route::resource('suppliers', SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::resource('couriers', CourierController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -86,4 +87,7 @@ Route::middleware('auth')->group(function () {
     // Finance
     Route::get('/finance/cash-flow', [CashFlowController::class, 'index']);
     Route::post('/finance/cash-flow/manual', [CashFlowController::class, 'storeManual']);
+
+    // AI Tools
+    Route::post('/api/ai/parse-address', [AiAddressParserController::class, 'parse']);
 });

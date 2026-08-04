@@ -135,7 +135,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
 
                 {activeTab === 'alerts' && (
                     <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4 mt-2">
-                        <Link href="/sales?status=pending" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-blue-500 group relative overflow-hidden">
+                        <Link href="/sales?status=pending" className="bg-white dark:bg-zinc-900 border border-blue-200 dark:border-blue-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-blue-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-blue-500 dark:text-blue-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
@@ -148,7 +148,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                             </div>
                         </Link>
 
-                        <Link href="/sales?status=delivery_added" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-purple-500 group relative overflow-hidden">
+                        <Link href="/sales?status=delivery_added" className="bg-white dark:bg-zinc-900 border border-purple-200 dark:border-purple-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-purple-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-purple-500 dark:text-purple-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
                             </div>
@@ -161,7 +161,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                             </div>
                         </Link>
 
-                        <Link href="/sales?status=delivered&settlement_status=unpaid" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-orange-500 group relative overflow-hidden">
+                        <Link href="/sales?status=delivered&settlement_status=unpaid" className="bg-white dark:bg-zinc-900 border border-orange-200 dark:border-orange-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-orange-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-orange-500 dark:text-orange-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </div>
@@ -174,7 +174,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                             </div>
                         </Link>
 
-                        <Link href="/inventory?filter=low_stock" prefetch={['mount', 'hover']} cacheFor="1m" className="bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-red-500 group relative overflow-hidden">
+                        <Link href="/inventory?filter=low_stock" className="bg-white dark:bg-zinc-900 border border-red-200 dark:border-red-900/50 rounded-xl sm:rounded-2xl p-4 sm:p-5 shadow-sm flex flex-col justify-between min-h-[96px] sm:h-36 transition-all hover:border-red-500 group relative overflow-hidden">
                             <div className="absolute top-0 right-0 p-2 sm:p-4 opacity-10 text-red-500 dark:text-red-400">
                                 <svg className="w-8 h-8 sm:w-12 sm:h-12" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                             </div>
@@ -183,7 +183,7 @@ export default function Dashboard({ filters, metrics, alerts, cashFlow }: Dashbo
                                 <p className="text-lg sm:text-2xl font-black text-red-600 dark:text-red-400 group-hover:scale-[1.02] transition-transform origin-left leading-tight truncate">
                                     {Number(alerts.low_stock.total_count)}
                                 </p>
-                                <p className="text-[9px] sm:text-xs text-red-600/50 dark:text-red-500/50 font-bold mt-0.5 truncate">Items Need Restock</p>
+                                <p className="text-[9px] sm:text-xs text-red-600/50 dark:text-red-500/50 font-bold mt-0.5 truncate">{Math.round(alerts.low_stock.total_count)} Items Need Restock</p>
                             </div>
                         </Link>
                     </div>

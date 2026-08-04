@@ -95,13 +95,13 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                 {/* Header */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/inventory" prefetch={['mount', 'hover']} cacheFor="1m" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
+                        <Link href="/inventory" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Product Details</h1>
                         </div>
                     </div>
                     <div className="flex gap-4 items-center">
-                        <Link href={`/inventory/${product.id}/edit`} prefetch={['mount', 'hover']} cacheFor="1m" className="inline-flex items-center justify-center bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-md hover:opacity-90 transition-opacity">
+                        <Link href={`/inventory/${product.id}/edit`} className="inline-flex items-center justify-center bg-black dark:bg-white text-white dark:text-black text-xs font-bold uppercase tracking-widest px-4 py-2 rounded-md hover:opacity-90 transition-opacity">
                             EDIT
                         </Link>
                     </div>

@@ -21,8 +21,8 @@ createInertiaApp({
     },
 });
 
-// Register Progressive Web App Service Worker for Instant Caching & Offline Support
-if ('serviceWorker' in navigator) {
+// Register Progressive Web App Service Worker ONLY in Production
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
             .then((registration) => {
@@ -42,6 +42,14 @@ if ('serviceWorker' in navigator) {
             .catch((error) => {
                 console.error('[PWA] Service Worker registration failed:', error);
             });
+    });
+} else if ('serviceWorker' in navigator) {
+    // Unregister any active service worker during development so live Vite HMR isn't cached
+    navigator.serviceWorker.getRegistrations().then((registrations) => {
+        for (const registration of registrations) {
+            registration.unregister();
+            console.log('[PWA] Unregistered service worker for dev mode.');
+        }
     });
 }
 

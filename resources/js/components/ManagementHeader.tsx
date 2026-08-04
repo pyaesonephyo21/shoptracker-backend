@@ -34,8 +34,6 @@ export default function ManagementHeader({ children }: ManagementHeaderProps) {
                             <Link
                                 key={tab.href}
                                 href={tab.href}
-                                prefetch={['mount', 'hover']}
-                                cacheFor="1m"
                                 className={twMerge(
                                     "shrink-0 whitespace-nowrap text-xs font-bold uppercase tracking-widest pb-4 transition-colors",
                                     isActive

@@ -10,7 +10,7 @@ class SalesOrderResource extends JsonResource
     public function toArray(Request $request): array
     {
         $calculatedProfit = $this->net_revenue - $this->total_cost - ($this->return_cost ?? 0);
-        $balance = $this->money_collected_by === 'courier' ? $this->net_revenue - $this->paid_amount : $this->customer_grand_total - $this->paid_amount;
+        $balance = $this->courier_id ? $this->net_revenue - $this->paid_amount : $this->customer_grand_total - $this->paid_amount;
 
         return [
             'id' => $this->id,

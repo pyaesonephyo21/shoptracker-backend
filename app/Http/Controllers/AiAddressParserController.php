@@ -61,26 +61,22 @@ Return ONLY a valid JSON object without markdown code blocks (no ```json fences)
 PROMPT;
 
         try {
-            $response = Http::timeout(25)
-                ->withHeaders([
-                    'Authorization' => "Bearer {$apiKey}",
-                    'HTTP-Referer' => config('app.url', 'http://localhost:8080'),
-                    'X-Title' => 'ShopTracker',
-                    'Content-Type' => 'application/json',
-                ])
-                ->post('https://openrouter.ai/api/v1/chat/completions', [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => $systemPrompt],
-                        ['role' => 'user', 'content' => $rawText],
-                    ],
-                    'temperature' => 0.1,
-                ]);
+            // 1. Define your trusted Fallback Chain (Primary -> Secondary -> Tertiary)
+            $primaryModel = config('services.openrouter.model', 'meta-llama/llama-3.1-8b-instruct:free');
 
-            // If the configured model endpoint is 404 or fails, attempt one fallback to openrouter/free
-            if (!$response->successful() && $model !== 'openrouter/free') {
-                Log::warning("OpenRouter model {$model} failed ({$response->status()}), falling back to openrouter/free");
-                $response = Http::timeout(25)
+            $modelChain = [
+                $primaryModel,
+                'google/gemma-2-9b-it:free',
+                'microsoft/phi-3-mini-128k-instruct:free',
+                'openrouter/free'
+            ];
+
+            $response = null;
+
+            // 2. Loop through the chain one by one
+            foreach ($modelChain as $currentModel) {
+                // Use a short timeout (15s) so it moves to the fallback quickly if unresponsive
+                $response = Http::timeout(15)
                     ->withHeaders([
                         'Authorization' => "Bearer {$apiKey}",
                         'HTTP-Referer' => config('app.url', 'http://localhost:8080'),
@@ -88,19 +84,27 @@ PROMPT;
                         'Content-Type' => 'application/json',
                     ])
                     ->post('https://openrouter.ai/api/v1/chat/completions', [
-                        'model' => 'openrouter/free',
+                        'model' => $currentModel,
                         'messages' => [
                             ['role' => 'system', 'content' => $systemPrompt],
                             ['role' => 'user', 'content' => $rawText],
                         ],
                         'temperature' => 0.1,
                     ]);
+
+                if ($response->successful()) {
+                    break;
+                }
+
+                // 4. If it fails, log the specific failure and let the loop move to the next fallback
+                Log::warning("OpenRouter model {$currentModel} failed ({$response->status()}). Falling back to next model...");
             }
 
-            if (!$response->successful()) {
-                Log::warning('OpenRouter API returned error', [
-                    'status' => $response->status(),
-                    'body' => $response->body(),
+            // 5. If the loop finishes and we STILL don't have a success, the whole chain failed
+            if (!$response || !$response->successful()) {
+                Log::error('All models in the OpenRouter fallback chain failed.', [
+                    'last_status' => $response ? $response->status() : 'N/A',
+                    'last_body' => $response ? $response->body() : 'N/A',
                 ]);
 
                 return response()->json([
@@ -110,10 +114,12 @@ PROMPT;
                 ], 200);
             }
 
+            // 6. Process the successful response
             $responseData = $response->json();
             $content = $responseData['choices'][0]['message']['content'] ?? '';
 
-            // Clean any potential markdown code blocks if the model returned them
+            // Restore the Markdown JSON cleaner: Free models frequently ignore the "No markdown" instruction
+            // and wrap their response in ```json. We must clean it or json_decode will fail.
             $cleanJson = trim($content);
             if (str_starts_with($cleanJson, '```')) {
                 $cleanJson = preg_replace('/^```(?:json)?\s*/i', '', $cleanJson);

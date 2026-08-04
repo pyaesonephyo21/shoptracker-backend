@@ -253,7 +253,7 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
             <div className="flex flex-col max-w-4xl mx-auto w-full">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">
-                        New Order.
+                        New Order
                     </h1>
                     <button
                         type="button"

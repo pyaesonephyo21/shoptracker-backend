@@ -44,7 +44,8 @@ const MYANMAR_TOWNSHIPS = [
 const ADDRESS_KEYWORDS = [
     'လမ်း', 'လမ်းသွယ်', 'လမ်းမ', 'လမ်းမကြီး', 'ရပ်ကွက်', 'ကျေးရွာ', 'ရွာ', 'အမှတ်', 'အိမ်အမှတ်',
     'တိုက်', 'အခန်း', 'လွှာ', 'ထပ်', 'ကွန်ဒို', 'တိုက်ခန်း', 'စက်မှုဇုန်', 'ဇုန်', 'ဈေး', 'ဘုရား',
-    'ဂိတ်', 'မှတ်တိုင်', 'အနီး', 'ဘေး', 'ရှေ့', 'မျက်နှာချင်းဆိုင်', 'ထောင့်', 'လမ်းဆုံ', 'မြို့နယ်', 'မြို့',
+    'ဂိတ်', 'ကားဂိတ်', 'အဝေးပြေးဂိတ်', 'မှတ်တိုင်', 'အနီး', 'ဘေး', 'ရှေ့', 'မျက်နှာချင်းဆိုင်', 'ထောင့်', 'လမ်းဆုံ', 'မြို့နယ်', 'မြို့',
+    'အထက', 'အလက', 'အမက', 'ကျောင်း', 'ဆေးရုံ', 'ရုံး',
     'center', 'centre', 'school', 'language', 'hotel', 'plaza', 'tower', 'condo', 'mall', 'mart', 'hospital'
 ];
 
@@ -52,7 +53,7 @@ const ADDRESS_KEYWORDS = [
 const POLITE_PARTICLES_REGEX = /(?:\s+)?(?:ပါရှင့်|ပါရှင်|ပါခင်ဗျာ|ပါခင်ဗျ|ပါဗျာ|ပါဗျ|ပါနော်|ပါ့မယ်|ပါ့ရှင့်|ပါ့ခင်ဗျာ|ပါ့|ပါ|ရှင့်|ရှင်|ခင်ဗျာ|ခင်ဗျ|ဗျာ|ဗျ|နော်|လေးပါ|လေးပါရှင့်|လေးပါခင်ဗျာ|မို့လို့ပါ|မို့လို့ပါရှင့်)$/u;
 
 // Conversational sentence starters to strip
-const GREETING_STARTER_REGEX = /^(?:ဟုတ်ကဲ့ပါရှင့်|ဟုတ်ကဲ့ပါခင်ဗျာ|ဟုတ်ကဲ့ပါ|ဟုတ်ကဲ့|ဟုတ်|မင်္ဂလာပါရှင့်|မင်္ဂလာပါခင်ဗျာ|မင်္ဂလာပါ|အော်|အမေ|ညီမ|အကို|အစ်ကို)\s*[၊,\s]*/u;
+const GREETING_STARTER_REGEX = /^(?:ဟုတ်ကဲ့ပါရှင့်|ဟုတ်ကဲ့ပါခင်ဗျာ|ဟုတ်ကဲ့ပါ|ဟုတ်ကဲ့|ဟုတ်|မင်္ဂလာပါရှင့်|မင်္ဂလာပါခင်ဗျာ|မင်္ဂလာပါ|အော်|အမေ|အမရေ|အမ|အစ်မ|ညီမလေး|ညီမ|အကို|အစ်ကို)\s*[၊,\s]*/u;
 
 // Name label prefixes
 const NAME_LABEL_REGEX = /^(?:name|customer\s*name|cust\s*name|receiver\s*name|receiver|acc\s*name|account\s*name|နာမည်|အမည်|နာမည်ကတော့|နာမည်က|နာမည်လေးက)[\s\-\:\=]+/i;
@@ -66,7 +67,8 @@ const ADDRESS_LABEL_REGEX = /^(?:address|addr|delivery\s*address|location|လိ
 // Delivery remarks indicators
 const REMARK_INDICATORS = [
     'ပို့ပေးပါ', 'ပို့ပါ', 'ဖွင့်ရက်', 'ပိတ်ရက်', 'ရုံးဖွင့်ရက်', 'ကျောင်းဖွင့်ရက်', 'ရုံးချိန်', 'ကျောင်းချိန်',
-    'မနက်ပိုင်း', 'ညနေပိုင်း', 'ဖုန်းကြိုဆက်', 'ကြိုဆက်', 'အမြန်ပို့', 'အမြန်', 'မပို့ခင်ဖုန်းဆက်', 'မနက်ဖြန်ပို့'
+    'မနက်ပိုင်း', 'ညနေပိုင်း', 'ဖုန်းကြိုဆက်', 'ကြိုဆက်', 'အမြန်ပို့', 'အမြန်', 'မပို့ခင်ဖုန်းဆက်', 'မနက်ဖြန်ပို့',
+    'ကားခ', 'တန်ဆာခ', 'ငွေရှင်းပြီး', 'ငွေလွှဲပြီး', 'kpay', 'cod', 'ရှင်းပြီး'
 ];
 
 /**
@@ -101,14 +103,20 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
     const phoneMatches = [...normalized.matchAll(phoneRegex)];
 
     if (phoneMatches.length > 0) {
-        const rawPhone = phoneMatches[0][0];
-        let cleanedPhone = rawPhone.replace(/[\s\-\.\+]/g, '');
-        if (cleanedPhone.startsWith('959')) {
-            cleanedPhone = '09' + cleanedPhone.slice(3);
-        } else if (!cleanedPhone.startsWith('09') && cleanedPhone.startsWith('9')) {
-            cleanedPhone = '0' + cleanedPhone;
+        const cleanedPhones: string[] = [];
+        for (const match of phoneMatches) {
+            const rawPhone = match[0];
+            let cleanedPhone = rawPhone.replace(/[\s\-\.\+]/g, '');
+            if (cleanedPhone.startsWith('959')) {
+                cleanedPhone = '09' + cleanedPhone.slice(3);
+            } else if (!cleanedPhone.startsWith('09') && cleanedPhone.startsWith('9')) {
+                cleanedPhone = '0' + cleanedPhone;
+            }
+            if (!cleanedPhones.includes(cleanedPhone)) {
+                cleanedPhones.push(cleanedPhone);
+            }
         }
-        extractedPhone = cleanedPhone;
+        extractedPhone = cleanedPhones.join(', ');
     }
 
     // 3. Process line by line

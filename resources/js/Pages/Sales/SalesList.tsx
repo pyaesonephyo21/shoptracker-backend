@@ -38,6 +38,15 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
         return () => clearTimeout(timer);
     }, [searchVal]); // Only trigger on searchVal change
 
+    useEffect(() => {
+        // When navigating back via browser/PWA back button, Inertia restores the cached state.
+        // This ensures we always fetch fresh data after restoring so the list is up-to-date.
+        const unlisten = router.on('restore', () => {
+            router.reload({ only: ['orders'], preserveScroll: true, preserveState: true });
+        });
+        return () => unlisten();
+    }, []);
+
     const handleFilterChange = (status: string, search: string, settlement: string, method: string, start?: Date, end?: Date) => {
         router.get('/sales', {
             status: status || undefined,

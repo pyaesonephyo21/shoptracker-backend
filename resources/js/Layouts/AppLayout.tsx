@@ -43,12 +43,8 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
     const [isOffline, setIsOffline] = useState(typeof navigator !== 'undefined' ? !navigator.onLine : false);
     const [showReconnected, setShowReconnected] = useState(false);
 
-    // Refresh & Pull-to-Refresh State
+    // Refresh State
     const [isRefreshing, setIsRefreshing] = useState(false);
-    const [pullDistance, setPullDistance] = useState(0);
-    const [isPulling, setIsPulling] = useState(false);
-    const touchStartY = React.useRef(0);
-    const scrollContainerRef = React.useRef<HTMLDivElement>(null);
 
     const handleRefresh = () => {
         if (isRefreshing) return;
@@ -60,42 +56,9 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
             onFinish: () => {
                 setTimeout(() => {
                     setIsRefreshing(false);
-                    setPullDistance(0);
-                    setIsPulling(false);
                 }, 400);
             }
         });
-    };
-
-    const handleTouchStart = (e: React.TouchEvent) => {
-        if (scrollContainerRef.current && scrollContainerRef.current.scrollTop === 0) {
-            touchStartY.current = e.touches[0].clientY;
-            setIsPulling(true);
-        }
-    };
-
-    const handleTouchMove = (e: React.TouchEvent) => {
-        if (!isPulling || isRefreshing) return;
-        if (scrollContainerRef.current && scrollContainerRef.current.scrollTop === 0) {
-            const currentY = e.touches[0].clientY;
-            const diff = currentY - touchStartY.current;
-            if (diff > 0) {
-                // Apply elastic resistance
-                const distance = Math.min(diff * 0.45, 80);
-                setPullDistance(distance);
-            } else {
-                setPullDistance(0);
-            }
-        }
-    };
-
-    const handleTouchEnd = () => {
-        if (pullDistance > 50 && !isRefreshing) {
-            handleRefresh();
-        } else {
-            setPullDistance(0);
-            setIsPulling(false);
-        }
     };
 
     useEffect(() => {
@@ -318,47 +281,9 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                 </header>
 
                 <div 
-                    ref={scrollContainerRef}
-                    onTouchStart={handleTouchStart}
-                    onTouchMove={handleTouchMove}
-                    onTouchEnd={handleTouchEnd}
                     className="flex-1 overflow-y-auto pb-24 md:pb-0 scroll-smooth relative"
+                    scroll-region="true"
                 >
-                    {/* Native Pull to Refresh Animated Indicator */}
-                    {(pullDistance > 0 || isRefreshing) && (
-                        <div 
-                            className="md:hidden flex items-center justify-center transition-all duration-200 overflow-hidden w-full"
-                            style={{ height: `${isRefreshing ? 48 : pullDistance}px` }}
-                        >
-                            <div className={twMerge(
-                                "w-8 h-8 rounded-full bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 flex items-center justify-center shadow-md",
-                                pullDistance > 50 && "border-black dark:border-white scale-110"
-                            )}>
-                                <svg 
-                                    xmlns="http://www.w3.org/2000/svg" 
-                                    width="16" 
-                                    height="16" 
-                                    viewBox="0 0 24 24" 
-                                    fill="none" 
-                                    stroke="currentColor" 
-                                    strokeWidth="2.5" 
-                                    strokeLinecap="round" 
-                                    strokeLinejoin="round" 
-                                    className={twMerge(
-                                        "text-zinc-600 dark:text-zinc-300 transition-transform duration-200", 
-                                        isRefreshing ? "animate-spin text-black dark:text-white" : ""
-                                    )}
-                                    style={{ transform: isRefreshing ? undefined : `rotate(${pullDistance * 4.5}deg)` }}
-                                >
-                                    <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                                    <path d="M3 3v5h5" />
-                                    <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-                                    <path d="M16 21h5v-5" />
-                                </svg>
-                            </div>
-                        </div>
-                    )}
-
                     {/* Page Content */}
                     <div className="max-w-5xl mx-auto w-full p-4 md:p-8">
                         {children}

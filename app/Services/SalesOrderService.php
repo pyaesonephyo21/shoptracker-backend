@@ -234,6 +234,32 @@ class SalesOrderService
 
             $this->recalculateTotals($order);
 
+            // Upfront Courier Fee Payout if fully prepaid
+            if ($order->courier_id && $order->money_collected_by === 'seller' && $order->is_deli_prepaid) {
+                $feeToPay = $order->customer_grand_total - $order->net_revenue;
+                
+                if ($feeToPay > 0 && $order->settlement_status !== 'settled') {
+                    $order->payments()->create([
+                        'amount' => -$feeToPay,
+                        'payment_method' => 'cash',
+                        'note' => 'Upfront Courier Fee Payout'
+                    ]);
+                    
+                    app(CashFlowService::class)->recordOutflow(
+                        $order->shop_id,
+                        $feeToPay,
+                        'expense',
+                        'Upfront Courier fee payout for Order #' . $order->id,
+                        SalesOrder::class,
+                        $order->id
+                    );
+                    
+                    $order->paid_amount -= $feeToPay;
+                    $order->settlement_status = 'settled';
+                    $order->save();
+                }
+            }
+
             $order->logAction('fulfillment_details_updated');
 
             return $order;
@@ -269,7 +295,12 @@ class SalesOrderService
                 $amountToPay = $order->net_revenue - $order->paid_amount;
 
                 if ($order->settlement_status === 'settled' && $amountToPay == 0) {
-                    throw new Exception("Order is already settled.");
+                    if ($order->status !== 'completed') {
+                        $order->update(['status' => 'completed']);
+                        $order->logAction('settled');
+                        return $order;
+                    }
+                    throw new Exception("Order is already settled and completed.");
                 }
 
                 $newPaidAmount = $order->paid_amount;

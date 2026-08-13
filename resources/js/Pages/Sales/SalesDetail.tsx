@@ -325,12 +325,12 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                                 <div className="flex justify-between items-center mb-4">
                                     <span className="text-zinc-500 font-medium text-sm">
                                         {hasCourier 
-                                            ? (order.delivery.collected_by === 'courier' ? 'Courier Collection' : (order.delivery.is_prepaid ? 'Target Collection (Fully Prepaid)' : 'Target Upfront (Items Only)'))
+                                            ? (order.delivery.collected_by === 'courier' ? 'Target Net Remittance' : (order.delivery.is_prepaid ? 'Target Net Cash Flow' : 'Target Net Cash Flow (Items Only)'))
                                             : 'Target Collection'}
                                     </span>
                                     <span className="font-bold text-black dark:text-white text-sm tabular-nums">
                                         {formatMMK(hasCourier 
-                                            ? (order.delivery.collected_by === 'courier' ? order.financials.grand_total : (order.delivery.is_prepaid ? order.financials.grand_total : (order.financials.subtotal - order.financials.discount + order.financials.extra_fee)))
+                                            ? order.financials.net_revenue
                                             : order.financials.grand_total)} MMK
                                     </span>
                                 </div>

@@ -87,6 +87,25 @@ class SalesOrderService
                 );
             }
 
+            // Upfront Courier Fee Payout if created with prepaid delivery
+            if ($order->courier_id && $order->money_collected_by === 'seller' && $order->is_deli_prepaid) {
+                $feeToPay = $order->customer_grand_total - $order->net_revenue;
+                
+                if ($feeToPay > 0 && $order->settlement_status !== 'settled' && $order->paid_amount >= $order->customer_grand_total) {
+                    app(CashFlowService::class)->recordOutflow(
+                        $order->shop_id,
+                        $feeToPay,
+                        'expense',
+                        'Upfront Courier fee payout for Order #' . $order->id,
+                        SalesOrder::class,
+                        $order->id
+                    );
+                    
+                    $order->settlement_status = 'settled';
+                    $order->save();
+                }
+            }
+
             $order->logAction('created');
 
             return $order->load(['items.productVariant.product', 'payments']);
@@ -238,13 +257,7 @@ class SalesOrderService
             if ($order->courier_id && $order->money_collected_by === 'seller' && $order->is_deli_prepaid) {
                 $feeToPay = $order->customer_grand_total - $order->net_revenue;
                 
-                if ($feeToPay > 0 && $order->settlement_status !== 'settled') {
-                    $order->payments()->create([
-                        'amount' => -$feeToPay,
-                        'payment_method' => 'cash',
-                        'note' => 'Upfront Courier Fee Payout'
-                    ]);
-                    
+                if ($feeToPay > 0 && $order->settlement_status !== 'settled' && $order->paid_amount >= $order->customer_grand_total) {
                     app(CashFlowService::class)->recordOutflow(
                         $order->shop_id,
                         $feeToPay,
@@ -254,7 +267,6 @@ class SalesOrderService
                         $order->id
                     );
                     
-                    $order->paid_amount -= $feeToPay;
                     $order->settlement_status = 'settled';
                     $order->save();
                 }
@@ -292,7 +304,11 @@ class SalesOrderService
 
             // Case 1: Order with Courier Settlement
             if ($order->courier_id) {
-                $amountToPay = $order->net_revenue - $order->paid_amount;
+                $targetPayment = ($order->money_collected_by === 'seller' && $order->is_deli_prepaid)
+                    ? $order->customer_grand_total
+                    : $order->net_revenue;
+
+                $amountToPay = $targetPayment - $order->paid_amount;
 
                 if ($order->settlement_status === 'settled' && $amountToPay == 0) {
                     if ($order->status !== 'completed') {
@@ -430,7 +446,8 @@ class SalesOrderService
         return DB::transaction(function () use ($id, $paymentMethod, $refundAmount) {
             $order = SalesOrder::findOrFail($id);
 
-            $targetAmount = $order->courier_id ? $order->net_revenue : $order->customer_grand_total;
+            $isPrepaidCourier = $order->courier_id && $order->money_collected_by === 'seller' && $order->is_deli_prepaid;
+            $targetAmount = ($order->courier_id && !$isPrepaidCourier) ? $order->net_revenue : $order->customer_grand_total;
             $owed = $order->paid_amount - $targetAmount;
 
             if ($owed <= 0) {

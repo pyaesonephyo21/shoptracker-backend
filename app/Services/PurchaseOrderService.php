@@ -76,7 +76,7 @@ class PurchaseOrderService
                     $po->shop_id,
                     $paidAmount,
                     'purchase',
-                    'Payment for PO ' . $po->batch_name,
+                    'Initial Prepayment for PO ' . $po->batch_name,
                     PurchaseOrder::class,
                     $po->id
                 );
@@ -275,6 +275,7 @@ class PurchaseOrderService
 
             // Lock PO and items
             $po = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
+            $previousPaidAmount = (float) $po->paid_amount;
             $items = $po->items()->lockForUpdate()->get();
 
             // Update PO final costs
@@ -431,14 +432,27 @@ class PurchaseOrderService
             $po->status = 'arrived';
             $po->save();
 
-            app(CashFlowService::class)->syncOutflow(
-                $po->shop_id,
-                $po->paid_amount,
-                'purchase',
-                'Full Payment for PO ' . $po->batch_name,
-                PurchaseOrder::class,
-                $po->id
-            );
+            $additionalPayment = $po->paid_amount - $previousPaidAmount;
+
+            if ($additionalPayment > 0) {
+                app(CashFlowService::class)->recordOutflow(
+                    $po->shop_id,
+                    $additionalPayment,
+                    'purchase',
+                    'Arrival Settlement & Cargo Fee for PO ' . $po->batch_name,
+                    PurchaseOrder::class,
+                    $po->id
+                );
+            } elseif ($additionalPayment < 0) {
+                app(CashFlowService::class)->recordInflow(
+                    $po->shop_id,
+                    abs($additionalPayment),
+                    'refund',
+                    'Refund / Shortfall Settlement for PO ' . $po->batch_name,
+                    PurchaseOrder::class,
+                    $po->id
+                );
+            }
 
             $po->logAction('arrived', [
                 'adjustment_amount' => $adjustmentAmount,

@@ -43,7 +43,7 @@ jobs:
       - name: 🟢 Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 'lts/*'
+          node-version: 22
           cache: 'npm'
 
       - name: 📦 Install NPM Dependencies
@@ -120,5 +120,5 @@ jobs:
         run: |
           PORT="${SSH_PORT:-22}"
           TARGET_DIR="${DEPLOY_PATH:-/var/www/shoptracker-backend}"
-          echo "🏃 Running deploy.sh on remote server..."
-          ssh -p "$PORT" -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "bash $TARGET_DIR/deploy.sh"
+          echo "🏃 Running deploy.sh on remote server in $TARGET_DIR..."
+          ssh -p "$PORT" -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "cd $TARGET_DIR && bash deploy.sh"

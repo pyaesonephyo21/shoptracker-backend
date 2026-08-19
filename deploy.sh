@@ -6,11 +6,14 @@ echo "=========================================="
 echo "🚀 STARTING DEPLOYMENT PROCESS"
 echo "=========================================="
 
+# Ensure we run from the project root directory
+cd "$(dirname "$0")"
+
 # 1. Place app in maintenance mode so users see a clean downtime screen
 echo "🚧 Putting app into maintenance mode..."
 php artisan down --render="errors::503" || true
 
-# 2. Pull down the latest pre-compiled code from main branch
+# 2. Pull down the latest code from main branch
 echo "📥 Fetching latest code from Git..."
 git pull origin main
 
@@ -43,12 +46,16 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# 8. Assign secure folders ownership and read/write permissions
+# 8. Restart queue workers to pick up fresh code
+echo "🔄 Restarting background queue workers..."
+php artisan queue:restart || true
+
+# 9. Assign secure folders ownership and read/write permissions
 echo "🔒 Restoring correct storage and bootstrap permissions..."
 sudo chmod -R 775 storage bootstrap/cache database
 sudo chown -R www-data:www-data storage bootstrap/cache database || true
 
-# 9. Bring application back online
+# 10. Bring application back online
 echo "🟢 Bringing application online..."
 php artisan up
 

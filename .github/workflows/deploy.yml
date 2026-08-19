@@ -1,0 +1,124 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-and-build:
+    name: 🧪 Test & Build Assets
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: 🐘 Setup PHP & Extensions
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mbstring, xml, ctype, iconv, intl, pdo_sqlite, sqlite3, zip, bcmath, gd
+          coverage: none
+
+      - name: 📦 Cache Composer Dependencies
+        uses: actions/cache@v4
+        with:
+          path: vendor
+          key: ${{ runner.os }}-composer-${{ hashFiles('**/composer.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-composer-
+
+      - name: 📥 Install Composer Dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: 🟢 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: 📦 Install NPM Dependencies
+        run: npm ci
+
+      - name: ⚡ Compile Frontend Assets (Vite)
+        run: npm run build
+
+      - name: ⚙️ Prepare Environment & Run Tests
+        run: |
+          cp .env.example .env
+          php artisan key:generate
+          mkdir -p database
+          touch database/database.sqlite
+          php artisan test
+
+      - name: 📤 Archive Compiled Build Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-build
+          path: public/build/
+          retention-days: 1
+
+  deploy:
+    name: 🚀 Deploy to Production
+    needs: test-and-build
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Download Build Assets
+        uses: actions/download-artifact@v4
+        with:
+          name: public-build
+          path: public/build/
+
+      - name: 🔒 Configure SSH Key & Known Hosts
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KEY: ${{ secrets.SSH_KEY }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+        run: |
+          if [ -z "$SSH_HOST" ] || [ -z "$SSH_USER" ] || [ -z "$SSH_KEY" ]; then
+            echo "❌ ERROR: Required GitHub Secrets (SSH_HOST, SSH_USER, SSH_KEY) are not configured."
+            exit 1
+          fi
+
+          PORT="${SSH_PORT:-22}"
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: 📦 Sync Pre-compiled Assets to Server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          PORT="${SSH_PORT:-22}"
+          TARGET_DIR="${DEPLOY_PATH:-/var/www/shoptracker-backend}"
+          echo "📤 Transferring public/build to $TARGET_DIR/public/build..."
+          rsync -avz --delete -e "ssh -p $PORT -i ~/.ssh/id_rsa" public/build/ "$SSH_USER@$SSH_HOST:$TARGET_DIR/public/build/"
+
+      - name: 🚀 Execute Server Deployment Script
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          PORT="${SSH_PORT:-22}"
+          TARGET_DIR="${DEPLOY_PATH:-/var/www/shoptracker-backend}"
+          echo "🏃 Running deploy.sh on remote server..."
+          ssh -p "$PORT" -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "bash $TARGET_DIR/deploy.sh"

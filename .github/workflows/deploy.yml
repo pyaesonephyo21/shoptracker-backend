@@ -99,6 +99,18 @@ jobs:
           ssh-keyscan -p "$PORT" -H "$SSH_HOST" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
+      - name: 📥 Pull Latest Code on Server
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_PORT: ${{ secrets.SSH_PORT }}
+          DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+        run: |
+          PORT="${SSH_PORT:-22}"
+          TARGET_DIR="${DEPLOY_PATH:-/var/www/shoptracker-backend}"
+          echo "📥 Pulling latest git changes on remote server..."
+          ssh -p "$PORT" -i ~/.ssh/id_rsa "$SSH_USER@$SSH_HOST" "cd $TARGET_DIR && git pull origin main"
+
       - name: 📦 Sync Pre-compiled Assets to Server
         env:
           SSH_HOST: ${{ secrets.SSH_HOST }}

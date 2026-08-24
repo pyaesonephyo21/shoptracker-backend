@@ -2,14 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Traits\BelongsToShop;
 
 class Supplier extends Model
 {
-    use HasFactory, BelongsToShop;
+    use BelongsToShop, HasFactory;
+
     protected $guarded = ['id'];
-
-
 }

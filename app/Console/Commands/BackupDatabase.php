@@ -5,9 +5,9 @@ namespace App\Console\Commands;
 use Illuminate\Console\Attributes\Description;
 use Illuminate\Console\Attributes\Signature;
 use Illuminate\Console\Command;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Storage;
 use ZipArchive;
 
 #[Signature('app:backup-database')]
@@ -19,42 +19,44 @@ class BackupDatabase extends Command
      */
     public function handle()
     {
-        Log::info("Starting database backup process...");
+        Log::info('Starting database backup process...');
 
         // 1. Define paths
         $databasePath = database_path('database.sqlite');
-        
-        if (!File::exists($databasePath)) {
+
+        if (! File::exists($databasePath)) {
             $msg = "Database file not found at: {$databasePath}";
             $this->error($msg);
             Log::error($msg);
+
             return Command::FAILURE;
         }
 
         // Create backups directory if it doesn't exist
         $backupDir = storage_path('app/backups');
-        if (!File::exists($backupDir)) {
+        if (! File::exists($backupDir)) {
             File::makeDirectory($backupDir, 0755, true);
         }
 
         // 2. Generate backup filename
         $timestamp = now()->format('Y-m-d_H-i-s');
         $zipFileName = "shoptracker_backup_{$timestamp}.zip";
-        $zipFilePath = $backupDir . '/' . $zipFileName;
+        $zipFilePath = $backupDir.'/'.$zipFileName;
 
         // 3. Zip the database
-        $zip = new ZipArchive();
+        $zip = new ZipArchive;
         if ($zip->open($zipFilePath, ZipArchive::CREATE | ZipArchive::OVERWRITE) === true) {
             $zip->addFile($databasePath, 'database.sqlite');
             $zip->close();
-            
+
             $msg = "Successfully zipped database to: {$zipFilePath}";
             $this->info($msg);
             Log::info($msg);
         } else {
-            $msg = "Failed to create local zip backup.";
+            $msg = 'Failed to create local zip backup.';
             $this->error($msg);
             Log::error($msg);
+
             return Command::FAILURE;
         }
 
@@ -64,7 +66,7 @@ class BackupDatabase extends Command
         // 5. Upload to Google Drive
         $googleUploaded = false;
         try {
-            $this->info("Uploading to Google Drive...");
+            $this->info('Uploading to Google Drive...');
             $fileStream = fopen($zipFilePath, 'r');
             Storage::disk('google')->put($zipFileName, $fileStream);
             if (is_resource($fileStream)) {
@@ -79,10 +81,11 @@ class BackupDatabase extends Command
             $this->cleanupOldBackupsOnDrive(7);
 
         } catch (\Exception $e) {
-            $msg = "Failed to upload to Google Drive: " . $e->getMessage();
+            $msg = 'Failed to upload to Google Drive: '.$e->getMessage();
             $this->error($msg);
             Log::error($msg);
             $this->warn("Local backup is preserved at: {$zipFilePath}");
+
             return Command::FAILURE;
         }
 
@@ -96,7 +99,9 @@ class BackupDatabase extends Command
             $deletedCount = 0;
 
             foreach ($files as $file) {
-                if (!str_starts_with($file->getFilename(), 'shoptracker_backup_')) continue;
+                if (! str_starts_with($file->getFilename(), 'shoptracker_backup_')) {
+                    continue;
+                }
 
                 $fileMTime = $file->getMTime();
                 if (now()->diffInDays(now()->setTimestamp($fileMTime)) > $daysToKeep) {
@@ -109,7 +114,7 @@ class BackupDatabase extends Command
                 $this->info("Cleaned up {$deletedCount} old local backup(s).");
             }
         } catch (\Exception $e) {
-            Log::warning("Could not cleanup old local backups: " . $e->getMessage());
+            Log::warning('Could not cleanup old local backups: '.$e->getMessage());
         }
     }
 
@@ -121,10 +126,12 @@ class BackupDatabase extends Command
 
             foreach ($files as $file) {
                 // Ignore files that are not backups
-                if (!str_starts_with($file, 'shoptracker_backup_')) continue;
+                if (! str_starts_with($file, 'shoptracker_backup_')) {
+                    continue;
+                }
 
                 $lastModified = Storage::disk('google')->lastModified($file);
-                
+
                 if (now()->diffInDays(now()->setTimestamp($lastModified)) > $daysToKeep) {
                     Storage::disk('google')->delete($file);
                     $deletedCount++;
@@ -137,10 +144,9 @@ class BackupDatabase extends Command
                 Log::info($msg);
             }
         } catch (\Exception $e) {
-            $msg = "Could not cleanup old backups on Drive: " . $e->getMessage();
+            $msg = 'Could not cleanup old backups on Drive: '.$e->getMessage();
             $this->error($msg);
             Log::warning($msg);
         }
     }
 }
-

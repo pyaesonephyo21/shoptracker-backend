@@ -1,10 +1,13 @@
 <?php
 
+use App\Models\PurchaseOrder;
+use App\Models\SalesOrder;
+use Carbon\Carbon;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
-use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Activitylog\Models\Activity;
 
 return new class extends Migration
 {
@@ -15,10 +18,10 @@ return new class extends Migration
         foreach ($salesOrders as $order) {
             $logs = json_decode($order->audit_log, true) ?? [];
             foreach ($logs as $log) {
-                $activity = new \Spatie\Activitylog\Models\Activity();
+                $activity = new Activity;
                 $activity->log_name = 'default';
                 $activity->description = $log['action'] ?? 'Unknown Action';
-                $activity->subject_type = \App\Models\SalesOrder::class;
+                $activity->subject_type = SalesOrder::class;
                 $activity->subject_id = $order->id;
                 $activity->causer_type = null;
                 $activity->causer_id = null;
@@ -37,10 +40,10 @@ return new class extends Migration
         foreach ($purchaseOrders as $order) {
             $logs = json_decode($order->audit_log, true) ?? [];
             foreach ($logs as $log) {
-                $activity = new \Spatie\Activitylog\Models\Activity();
+                $activity = new Activity;
                 $activity->log_name = 'default';
                 $activity->description = $log['action'] ?? 'Unknown Action';
-                $activity->subject_type = \App\Models\PurchaseOrder::class;
+                $activity->subject_type = PurchaseOrder::class;
                 $activity->subject_id = $order->id;
                 $activity->causer_type = null;
                 $activity->causer_id = null;
@@ -69,7 +72,7 @@ return new class extends Migration
         Schema::table('sales_orders', function (Blueprint $table) {
             $table->json('audit_log')->nullable();
         });
-        
+
         Schema::table('purchase_orders', function (Blueprint $table) {
             $table->json('audit_log')->nullable();
         });

@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Traits\BelongsToShop;
 
 class InventoryLog extends Model
 {
-    use HasFactory, BelongsToShop;
+    use BelongsToShop, HasFactory;
 
     protected $guarded = ['id'];
 

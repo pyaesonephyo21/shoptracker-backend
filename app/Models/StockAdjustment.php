@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Traits\BelongsToShop;
 use Illuminate\Support\Facades\Auth;
 
 class StockAdjustment extends Model
 {
-    use HasFactory, BelongsToShop;
+    use BelongsToShop, HasFactory;
+
     protected $guarded = ['id'];
 
     protected static function booted()

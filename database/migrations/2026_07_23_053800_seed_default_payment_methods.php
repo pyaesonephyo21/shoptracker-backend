@@ -8,7 +8,7 @@ return new class extends Migration
     public function up(): void
     {
         $shops = DB::table('shops')->get();
-        
+
         foreach ($shops as $shop) {
             DB::table('payment_methods')->insert([
                 [

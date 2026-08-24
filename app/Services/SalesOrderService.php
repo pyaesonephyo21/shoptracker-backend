@@ -9,7 +9,6 @@ use App\Models\ProductVariant;
 use App\Models\PurchaseOrderItem;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
-use App\Models\CashTransaction;
 use Exception;
 use Illuminate\Support\Facades\DB;
 
@@ -19,7 +18,7 @@ class SalesOrderService
     public function createOrder(array $data, array $items)
     {
         return DB::transaction(function () use ($data, $items) {
-            $hasCourier = !empty($data['courier_id']);
+            $hasCourier = ! empty($data['courier_id']);
             $order = SalesOrder::create([
                 'customer_name' => (string) ($data['customer_name'] ?? 'Guest'),
                 'customer_phone' => (string) ($data['customer_phone'] ?? ''),
@@ -81,7 +80,7 @@ class SalesOrderService
                     $order->shop_id,
                     $order->paid_amount,
                     'sale',
-                    'Initial payment for Order #' . $order->id,
+                    'Initial payment for Order #'.$order->id,
                     SalesOrder::class,
                     $order->id
                 );
@@ -90,17 +89,17 @@ class SalesOrderService
             // Upfront Courier Fee Payout if created with prepaid delivery
             if ($order->courier_id && $order->money_collected_by === 'seller' && $order->is_deli_prepaid) {
                 $feeToPay = $order->customer_grand_total - $order->net_revenue;
-                
+
                 if ($feeToPay > 0 && $order->settlement_status !== 'settled' && $order->paid_amount >= $order->customer_grand_total) {
                     app(CashFlowService::class)->recordOutflow(
                         $order->shop_id,
                         $feeToPay,
                         'expense',
-                        'Upfront Courier fee payout for Order #' . $order->id,
+                        'Upfront Courier fee payout for Order #'.$order->id,
                         SalesOrder::class,
                         $order->id
                     );
-                    
+
                     $order->settlement_status = 'settled';
                     $order->save();
                 }
@@ -130,25 +129,39 @@ class SalesOrderService
                 'discount_reason',
                 'discount_type',
                 'courier_id',
-                'money_collected_by'
+                'money_collected_by',
             ])->toArray());
 
             // Handle numeric / financial fields
-            if (isset($data['delivery_fee'])) $order->delivery_fee = (float) $data['delivery_fee'];
-            if (isset($data['courier_service_fee'])) $order->courier_service_fee = (float) $data['courier_service_fee'];
-            if (isset($data['discount_value'])) $order->discount_value = (float) $data['discount_value'];
-            if (isset($data['overcharge'])) $order->overcharge = (float) $data['overcharge'];
-            if (isset($data['extra_fee'])) $order->extra_fee = (float) $data['extra_fee'];
-            if (isset($data['is_deli_prepaid'])) $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
+            if (isset($data['delivery_fee'])) {
+                $order->delivery_fee = (float) $data['delivery_fee'];
+            }
+            if (isset($data['courier_service_fee'])) {
+                $order->courier_service_fee = (float) $data['courier_service_fee'];
+            }
+            if (isset($data['discount_value'])) {
+                $order->discount_value = (float) $data['discount_value'];
+            }
+            if (isset($data['overcharge'])) {
+                $order->overcharge = (float) $data['overcharge'];
+            }
+            if (isset($data['extra_fee'])) {
+                $order->extra_fee = (float) $data['extra_fee'];
+            }
+            if (isset($data['is_deli_prepaid'])) {
+                $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
+            }
 
             $oldPaidAmount = $order->paid_amount;
-            if (isset($data['paid_amount'])) $order->paid_amount = (float) $data['paid_amount'];
+            if (isset($data['paid_amount'])) {
+                $order->paid_amount = (float) $data['paid_amount'];
+            }
             $paidAmountDiff = $order->paid_amount - $oldPaidAmount;
 
             if ($paidAmountDiff != 0) {
                 $order->payments()->create([
                     'amount' => $paidAmountDiff,
-                    'payment_method' => 'correction'
+                    'payment_method' => 'correction',
                 ]);
 
                 if ($paidAmountDiff > 0) {
@@ -156,7 +169,7 @@ class SalesOrderService
                         $order->shop_id,
                         $paidAmountDiff,
                         'sale',
-                        'Payment adjustment for Order #' . $order->id,
+                        'Payment adjustment for Order #'.$order->id,
                         SalesOrder::class,
                         $order->id
                     );
@@ -165,7 +178,7 @@ class SalesOrderService
                         $order->shop_id,
                         abs($paidAmountDiff),
                         'refund',
-                        'Payment reduction adjustment for Order #' . $order->id,
+                        'Payment reduction adjustment for Order #'.$order->id,
                         SalesOrder::class,
                         $order->id
                     );
@@ -175,14 +188,16 @@ class SalesOrderService
             // Calculate changes before saving
             $changes = [];
             foreach ($order->getDirty() as $key => $newValue) {
-                if ($key === 'audit_log' || $key === 'updated_at') continue;
-                
+                if ($key === 'audit_log' || $key === 'updated_at') {
+                    continue;
+                }
+
                 $oldValue = $order->getOriginal($key);
                 // loose comparison to ignore "0" vs 0, and null vs ""
-                if ($oldValue != $newValue && !(empty($oldValue) && empty($newValue))) {
+                if ($oldValue != $newValue && ! (empty($oldValue) && empty($newValue))) {
                     $changes[$key] = [
                         'old' => $oldValue,
-                        'new' => $newValue
+                        'new' => $newValue,
                     ];
                 }
             }
@@ -192,18 +207,20 @@ class SalesOrderService
 
             // recalculated totals might add to getDirty()
             foreach ($order->getDirty() as $key => $newValue) {
-                if ($key === 'audit_log' || $key === 'updated_at' || isset($changes[$key])) continue;
-                
+                if ($key === 'audit_log' || $key === 'updated_at' || isset($changes[$key])) {
+                    continue;
+                }
+
                 $oldValue = $order->getOriginal($key);
-                if ($oldValue != $newValue && !(empty($oldValue) && empty($newValue))) {
+                if ($oldValue != $newValue && ! (empty($oldValue) && empty($newValue))) {
                     $changes[$key] = [
                         'old' => $oldValue,
-                        'new' => $newValue
+                        'new' => $newValue,
                     ];
                 }
             }
 
-            if (!empty($changes)) {
+            if (! empty($changes)) {
                 $order->logAction('updated', ['changes' => $changes]);
             } else {
                 $order->save();
@@ -219,7 +236,7 @@ class SalesOrderService
             $order = SalesOrder::findOrFail($orderId);
 
             if ($order->status !== 'pending') {
-                throw new Exception("Cannot add items to an order that is not pending.");
+                throw new Exception('Cannot add items to an order that is not pending.');
             }
 
             $this->processAddItem($order, $variantId, $quantity, $unitPrice, $discountData);
@@ -242,12 +259,22 @@ class SalesOrderService
             $order->tracking_number = $data['tracking_number'] ?? $order->tracking_number;
             $order->delivery_note = $data['delivery_note'] ?? $order->delivery_note;
 
-            if (isset($data['delivery_fee'])) $order->delivery_fee = (float) $data['delivery_fee'];
-            if (isset($data['courier_service_fee'])) $order->courier_service_fee = (float) $data['courier_service_fee'];
-            if (isset($data['overcharge'])) $order->overcharge = (float) $data['overcharge'];
+            if (isset($data['delivery_fee'])) {
+                $order->delivery_fee = (float) $data['delivery_fee'];
+            }
+            if (isset($data['courier_service_fee'])) {
+                $order->courier_service_fee = (float) $data['courier_service_fee'];
+            }
+            if (isset($data['overcharge'])) {
+                $order->overcharge = (float) $data['overcharge'];
+            }
 
-            if (isset($data['is_deli_prepaid'])) $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
-            if (isset($data['money_collected_by'])) $order->money_collected_by = $data['money_collected_by'];
+            if (isset($data['is_deli_prepaid'])) {
+                $order->is_deli_prepaid = (bool) $data['is_deli_prepaid'];
+            }
+            if (isset($data['money_collected_by'])) {
+                $order->money_collected_by = $data['money_collected_by'];
+            }
 
             $order->status = 'delivery_added';
 
@@ -256,17 +283,17 @@ class SalesOrderService
             // Upfront Courier Fee Payout if fully prepaid
             if ($order->courier_id && $order->money_collected_by === 'seller' && $order->is_deli_prepaid) {
                 $feeToPay = $order->customer_grand_total - $order->net_revenue;
-                
+
                 if ($feeToPay > 0 && $order->settlement_status !== 'settled' && $order->paid_amount >= $order->customer_grand_total) {
                     app(CashFlowService::class)->recordOutflow(
                         $order->shop_id,
                         $feeToPay,
                         'expense',
-                        'Upfront Courier fee payout for Order #' . $order->id,
+                        'Upfront Courier fee payout for Order #'.$order->id,
                         SalesOrder::class,
                         $order->id
                     );
-                    
+
                     $order->settlement_status = 'settled';
                     $order->save();
                 }
@@ -283,7 +310,7 @@ class SalesOrderService
         return DB::transaction(function () use ($id) {
             $order = SalesOrder::findOrFail($id);
             if ($order->status !== 'delivery_added') {
-                throw new Exception("Order must have delivery arranged before it can be marked as delivered.");
+                throw new Exception('Order must have delivery arranged before it can be marked as delivered.');
             }
 
             $order->status = 'delivered';
@@ -293,6 +320,7 @@ class SalesOrderService
             $order->save();
 
             $order->logAction('delivered');
+
             return $order;
         });
     }
@@ -314,9 +342,10 @@ class SalesOrderService
                     if ($order->status !== 'completed') {
                         $order->update(['status' => 'completed']);
                         $order->logAction('settled');
+
                         return $order;
                     }
-                    throw new Exception("Order is already settled and completed.");
+                    throw new Exception('Order is already settled and completed.');
                 }
 
                 $newPaidAmount = $order->paid_amount;
@@ -331,7 +360,7 @@ class SalesOrderService
                         $order->shop_id,
                         $amountToPay,
                         'sale',
-                        'Courier settlement for Order #' . $order->id,
+                        'Courier settlement for Order #'.$order->id,
                         SalesOrder::class,
                         $order->id
                     );
@@ -350,7 +379,7 @@ class SalesOrderService
                             $order->shop_id,
                             $refundToIssue,
                             'refund',
-                            'Courier fee payout for Order #' . $order->id,
+                            'Courier fee payout for Order #'.$order->id,
                             SalesOrder::class,
                             $order->id
                         );
@@ -367,7 +396,7 @@ class SalesOrderService
                     'settlement_status' => 'settled',
                     'payment_status' => 'paid',
                     'paid_amount' => $newPaidAmount,
-                    'status' => 'completed'
+                    'status' => 'completed',
                 ]);
             }
             // Case 2: In-Store Sale (No Courier)
@@ -378,9 +407,10 @@ class SalesOrderService
                     if ($order->status !== 'completed') {
                         $order->update(['status' => 'completed']);
                         $order->logAction('settled');
+
                         return $order;
                     }
-                    throw new Exception("Order is already fully paid and completed.");
+                    throw new Exception('Order is already fully paid and completed.');
                 }
 
                 $newPaidAmount = $order->paid_amount;
@@ -395,7 +425,7 @@ class SalesOrderService
                         $order->shop_id,
                         $amountToPay,
                         'sale',
-                        'Direct customer payment for Order #' . $order->id,
+                        'Direct customer payment for Order #'.$order->id,
                         SalesOrder::class,
                         $order->id
                     );
@@ -414,7 +444,7 @@ class SalesOrderService
                             $order->shop_id,
                             $refundToIssue,
                             'refund',
-                            'Refund for Direct overpayment: Order #' . $order->id,
+                            'Refund for Direct overpayment: Order #'.$order->id,
                             SalesOrder::class,
                             $order->id
                         );
@@ -430,13 +460,14 @@ class SalesOrderService
                 $order->update([
                     'payment_status' => 'paid',
                     'paid_amount' => $newPaidAmount,
-                    'status' => 'completed'
+                    'status' => 'completed',
                 ]);
             }
 
             $this->recalculateTotals($order);
 
             $order->logAction('settled');
+
             return $order;
         });
     }
@@ -447,11 +478,11 @@ class SalesOrderService
             $order = SalesOrder::findOrFail($id);
 
             $isPrepaidCourier = $order->courier_id && $order->money_collected_by === 'seller' && $order->is_deli_prepaid;
-            $targetAmount = ($order->courier_id && !$isPrepaidCourier) ? $order->net_revenue : $order->customer_grand_total;
+            $targetAmount = ($order->courier_id && ! $isPrepaidCourier) ? $order->net_revenue : $order->customer_grand_total;
             $owed = $order->paid_amount - $targetAmount;
 
             if ($owed <= 0) {
-                throw new Exception("No refund is due.");
+                throw new Exception('No refund is due.');
             }
 
             $refundToIssue = $refundAmount ?? $owed;
@@ -467,7 +498,7 @@ class SalesOrderService
                     $order->shop_id,
                     $refundToIssue,
                     'refund',
-                    'Refund for Order #' . $order->id,
+                    'Refund for Order #'.$order->id,
                     SalesOrder::class,
                     $order->id
                 );
@@ -483,6 +514,7 @@ class SalesOrderService
             $this->recalculateTotals($order);
 
             $order->logAction('refund_issued');
+
             return $order;
         });
     }
@@ -495,17 +527,20 @@ class SalesOrderService
                 $this->settle($id, $paymentMethod);
                 $settledCount++;
             }
+
             return $settledCount;
         });
     }
 
     // --- 4. CANCELLATION & RETURNS ---
 
-    public function cancelOrder($id, $reason = "Manual Cancellation", $cancellationFee = 0, $cancellationFeeReason = null, $refundAmount = null, $paymentMethod = null)
+    public function cancelOrder($id, $reason = 'Manual Cancellation', $cancellationFee = 0, $cancellationFeeReason = null, $refundAmount = null, $paymentMethod = null)
     {
         return DB::transaction(function () use ($id, $reason, $cancellationFee, $cancellationFeeReason, $refundAmount, $paymentMethod) {
             $order = SalesOrder::with('items')->findOrFail($id);
-            if ($order->status === 'cancelled') throw new Exception("Order is already cancelled.");
+            if ($order->status === 'cancelled') {
+                throw new Exception('Order is already cancelled.');
+            }
 
             /** @var SalesOrderItem $item */
             foreach ($order->items as $item) {
@@ -529,7 +564,7 @@ class SalesOrderService
                     $order->shop_id,
                     $refundToIssue,
                     'refund',
-                    'Refund for Cancelled Order #' . $order->id,
+                    'Refund for Cancelled Order #'.$order->id,
                     SalesOrder::class,
                     $order->id
                 );
@@ -549,7 +584,7 @@ class SalesOrderService
 
             if ($cancellationFee > 0) {
                 $expense = Expense::create([
-                    'title' => 'Cancel Fee (Order #' . $order->id . '): ' . ($cancellationFeeReason ?? 'No reason provided'),
+                    'title' => 'Cancel Fee (Order #'.$order->id.'): '.($cancellationFeeReason ?? 'No reason provided'),
                     'amount' => $cancellationFee,
                     'incurred_at' => now(),
                     'category' => 'Cancellation Fee',
@@ -565,18 +600,19 @@ class SalesOrderService
                     $expense->id
                 );
             }
+
             return $order;
         });
     }
 
-    public function returnItem($orderId, $itemId, $quantity, $reason = "Customer Return")
+    public function returnItem($orderId, $itemId, $quantity, $reason = 'Customer Return')
     {
         return DB::transaction(function () use ($orderId, $itemId, $quantity, $reason) {
             $order = SalesOrder::findOrFail($orderId);
             $item = SalesOrderItem::where('sales_order_id', $orderId)->where('id', $itemId)->firstOrFail();
 
             if ($quantity > $item->quantity) {
-                throw new Exception("Cannot return more than sold quantity.");
+                throw new Exception('Cannot return more than sold quantity.');
             }
 
             // 1. Restore Stock
@@ -594,7 +630,7 @@ class SalesOrderService
             // 2. Adjust Item (Price reduction proportional to quantity)
             $originalQty = $item->quantity;
             $discountPerUnit = $originalQty > 0 ? ($item->discount_amount / $originalQty) : 0;
-            
+
             $refundLineTotal = ($item->unit_price - $discountPerUnit) * $quantity;
             $refundDiscountAmount = $discountPerUnit * $quantity;
 
@@ -614,7 +650,7 @@ class SalesOrderService
             $order->logAction('item_returned', [
                 'product' => $variant->sku ?? 'Unknown',
                 'qty' => $quantity,
-                'reason' => $reason
+                'reason' => $reason,
             ]);
 
             return $order->load('items');
@@ -627,7 +663,7 @@ class SalesOrderService
     {
         $variant = ProductVariant::with('product')->lockForUpdate()->find($variantId);
 
-        if (!$variant || ($variant->stock_quantity + $variant->pending_stock) < $qty) {
+        if (! $variant || ($variant->stock_quantity + $variant->pending_stock) < $qty) {
             $productName = $variant->product ? $variant->product->name : 'Unknown';
             throw new Exception("Stock limit exceeded for: {$productName} ({$variant->sku})");
         }
@@ -650,7 +686,9 @@ class SalesOrderService
             ->get();
 
         foreach ($activeBatches as $batch) {
-            if ($remainingQtyNeeded <= 0) break;
+            if ($remainingQtyNeeded <= 0) {
+                break;
+            }
 
             $takeQty = min($batch->remaining_quantity, $remainingQtyNeeded);
             $batchCost = $takeQty * $batch->unit_cost;
@@ -672,13 +710,13 @@ class SalesOrderService
                 'product_variant_id' => $variant->id,
                 'quantity' => $takeQty,
                 'unit_price' => $sellingPrice,
-                'unit_cost'  => $batch->unit_cost,
+                'unit_cost' => $batch->unit_cost,
                 'line_total' => $lineTotal,
                 'discount_type' => $discountType,
                 'discount_value' => $discountValue,
                 'discount_amount' => $totalDiscountAmount,
                 'discount_reason' => $discountReason,
-                'batch_breakdown' => [['batch_id' => $batch->id, 'taken' => $takeQty, 'unit_cost' => (float)$batch->unit_cost, 'total_cost' => $batchCost]]
+                'batch_breakdown' => [['batch_id' => $batch->id, 'taken' => $takeQty, 'unit_cost' => (float) $batch->unit_cost, 'total_cost' => $batchCost]],
             ]);
 
             $remainingQtyNeeded -= $takeQty;
@@ -708,7 +746,9 @@ class SalesOrderService
             $skippedQty = 0;
 
             foreach ($pendingPoItems as $poItem) {
-                if ($remainingQtyNeeded <= 0) break;
+                if ($remainingQtyNeeded <= 0) {
+                    break;
+                }
 
                 $availableInThisPo = $poItem->quantity;
 
@@ -719,7 +759,9 @@ class SalesOrderService
                     $skippedQty += $toSkipHere;
                 }
 
-                if ($availableInThisPo <= 0) continue;
+                if ($availableInThisPo <= 0) {
+                    continue;
+                }
 
                 $takeQty = min($availableInThisPo, $remainingQtyNeeded);
 
@@ -745,13 +787,13 @@ class SalesOrderService
                     'product_variant_id' => $variant->id,
                     'quantity' => $takeQty,
                     'unit_price' => $sellingPrice,
-                    'unit_cost'  => $fallbackCost,
+                    'unit_cost' => $fallbackCost,
                     'line_total' => $lineTotal,
                     'discount_type' => $discountType,
                     'discount_value' => $discountValue,
                     'discount_amount' => $totalDiscountAmount,
                     'discount_reason' => $discountReason,
-                    'batch_breakdown' => [['batch_id' => null, 'note' => 'Pre-order / Pending PO #' . $poItem->purchase_order_id, 'taken' => $takeQty, 'unit_cost' => (float)$fallbackCost, 'total_cost' => $fallbackTotalCost]]
+                    'batch_breakdown' => [['batch_id' => null, 'note' => 'Pre-order / Pending PO #'.$poItem->purchase_order_id, 'taken' => $takeQty, 'unit_cost' => (float) $fallbackCost, 'total_cost' => $fallbackTotalCost]],
                 ]);
 
                 $remainingQtyNeeded -= $takeQty;
@@ -781,13 +823,13 @@ class SalesOrderService
                     'product_variant_id' => $variant->id,
                     'quantity' => $remainingQtyNeeded,
                     'unit_price' => $sellingPrice,
-                    'unit_cost'  => $fallbackCost,
+                    'unit_cost' => $fallbackCost,
                     'line_total' => $lineTotal,
                     'discount_type' => $discountType,
                     'discount_value' => $discountValue,
                     'discount_amount' => $totalDiscountAmount,
                     'discount_reason' => $discountReason,
-                    'batch_breakdown' => [['batch_id' => null, 'note' => 'Pre-order / Missing Batch', 'taken' => $remainingQtyNeeded, 'unit_cost' => (float)$fallbackCost, 'total_cost' => $fallbackTotalCost]]
+                    'batch_breakdown' => [['batch_id' => null, 'note' => 'Pre-order / Missing Batch', 'taken' => $remainingQtyNeeded, 'unit_cost' => (float) $fallbackCost, 'total_cost' => $fallbackTotalCost]],
                 ]);
             }
         }
@@ -803,14 +845,19 @@ class SalesOrderService
         $totalCost = $order->items->sum(function ($item) {
             return $item->quantity * $item->unit_cost;
         });
+
         return [$subtotal, $totalCost];
     }
 
     private function calculateOrderDiscount(SalesOrder $order, $subtotal)
     {
         $discountAmount = 0;
-        if ($order->discount_type === 'fixed') $discountAmount = $order->discount_value;
-        elseif ($order->discount_type === 'percent') $discountAmount = $subtotal * ($order->discount_value / 100);
+        if ($order->discount_type === 'fixed') {
+            $discountAmount = $order->discount_value;
+        } elseif ($order->discount_type === 'percent') {
+            $discountAmount = $subtotal * ($order->discount_value / 100);
+        }
+
         return min($discountAmount, $subtotal);
     }
 
@@ -896,20 +943,24 @@ class SalesOrderService
             'reason' => $reason,
             'reference_type' => SalesOrder::class,
             'reference_id' => $order->id,
-            'note' => "Order #{$order->id}"
+            'note' => "Order #{$order->id}",
         ]);
     }
 
     private function restoreBatches(SalesOrderItem $item, $returnQty = null)
     {
         $breakdown = $item->batch_breakdown;
-        if (!is_array($breakdown) || empty($breakdown)) return;
+        if (! is_array($breakdown) || empty($breakdown)) {
+            return;
+        }
 
         $qtyToRestore = $returnQty ?? $item->quantity;
 
         // Reverse order so we put back into the newest batches first (LIFO restore)
         for ($i = count($breakdown) - 1; $i >= 0; $i--) {
-            if ($qtyToRestore <= 0) break;
+            if ($qtyToRestore <= 0) {
+                break;
+            }
 
             $b = &$breakdown[$i];
 
@@ -917,6 +968,7 @@ class SalesOrderService
                 $restoreAmount = min($b['taken'], $qtyToRestore);
                 $b['taken'] -= $restoreAmount;
                 $qtyToRestore -= $restoreAmount;
+
                 continue;
             }
 

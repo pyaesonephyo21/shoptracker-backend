@@ -22,9 +22,9 @@ class NoteController extends Controller
             $search = trim($request->search);
             $query->where(function ($q) use ($search) {
                 $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('customer_name', 'like', "%{$search}%")
-                  ->orWhere('customer_phone', 'like', "%{$search}%")
-                  ->orWhere('content', 'like', "%{$search}%");
+                    ->orWhere('customer_name', 'like', "%{$search}%")
+                    ->orWhere('customer_phone', 'like', "%{$search}%")
+                    ->orWhere('content', 'like', "%{$search}%");
             });
         }
 
@@ -82,7 +82,7 @@ class NoteController extends Controller
     public function togglePin(Note $note)
     {
         $note->update([
-            'is_pinned' => !$note->is_pinned,
+            'is_pinned' => ! $note->is_pinned,
         ]);
 
         return back();

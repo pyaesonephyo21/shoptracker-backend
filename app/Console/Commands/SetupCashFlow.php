@@ -2,16 +2,18 @@
 
 namespace App\Console\Commands;
 
-use Illuminate\Console\Command;
-use App\Models\SalesOrderPayment;
 use App\Models\Expense;
 use App\Models\PurchaseOrder;
+use App\Models\SalesOrder;
+use App\Models\SalesOrderPayment;
 use App\Services\CashFlowService;
+use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
 class SetupCashFlow extends Command
 {
     protected $signature = 'app:setup-cash-flow';
+
     protected $description = 'Backfill cash transactions for existing data.';
 
     public function handle(CashFlowService $cashFlowService)
@@ -28,7 +30,7 @@ class SetupCashFlow extends Command
             // 2. Backfill SalesOrderPayments
             $payments = SalesOrderPayment::with('salesOrder')->get();
             $this->info("Found {$payments->count()} sales order payments.");
-            
+
             foreach ($payments as $payment) {
                 if ($payment->salesOrder && $payment->amount > 0) {
                     $cashFlowService->recordInflow(
@@ -36,7 +38,7 @@ class SetupCashFlow extends Command
                         $payment->amount,
                         'sale',
                         "Payment for Order #{$payment->salesOrder->id}",
-                        \App\Models\SalesOrder::class,
+                        SalesOrder::class,
                         $payment->salesOrder->id
                     );
                 }
@@ -45,7 +47,7 @@ class SetupCashFlow extends Command
             // 3. Backfill Expenses
             $expenses = Expense::all();
             $this->info("Found {$expenses->count()} expenses.");
-            
+
             foreach ($expenses as $expense) {
                 if ($expense->amount > 0) {
                     $cashFlowService->recordOutflow(
@@ -53,7 +55,7 @@ class SetupCashFlow extends Command
                         $expense->amount,
                         'expense',
                         $expense->title,
-                        \App\Models\Expense::class,
+                        Expense::class,
                         $expense->id
                     );
                 }
@@ -62,7 +64,7 @@ class SetupCashFlow extends Command
             // 4. Backfill Purchase Orders
             $pos = PurchaseOrder::where('paid_amount', '>', 0)->get();
             $this->info("Found {$pos->count()} purchase orders with payments.");
-            
+
             foreach ($pos as $po) {
                 if ($po->paid_amount > 0) {
                     $cashFlowService->recordOutflow(
@@ -70,7 +72,7 @@ class SetupCashFlow extends Command
                         $po->paid_amount,
                         'purchase',
                         "Payment for PO {$po->batch_name}",
-                        \App\Models\PurchaseOrder::class,
+                        PurchaseOrder::class,
                         $po->id
                     );
                 }

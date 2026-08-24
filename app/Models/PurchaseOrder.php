@@ -2,16 +2,16 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
 use Illuminate\Support\Facades\Auth;
-use App\Traits\BelongsToShop;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class PurchaseOrder extends Model
 {
-    use HasFactory, BelongsToShop, LogsActivity;
+    use BelongsToShop, HasFactory, LogsActivity;
 
     // 1. Allow Mass Assignment
     // This lets us do PurchaseOrder::create($data) safely
@@ -42,8 +42,6 @@ class PurchaseOrder extends Model
         return $this->supplier_id ? $this->supplier->name : $this->local_shop_name;
     }
 
-
-
     // ==========================
     // RELATIONSHIPS
     // ==========================
@@ -62,7 +60,7 @@ class PurchaseOrder extends Model
             ->causedBy(Auth::user())
             ->withProperties([
                 'by' => Auth::user()->name ?? 'System',
-                'details' => $details
+                'details' => $details,
             ])
             ->log($action);
     }
@@ -83,5 +81,26 @@ class PurchaseOrder extends Model
     public function supplier()
     {
         return $this->belongsTo(Supplier::class);
+    }
+
+    public function scopeFilter($query, array $filters)
+    {
+        $query->when($filters['search'] ?? null, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('batch_name', 'like', "%{$search}%")
+                    ->orWhere('shop_name', 'like', "%{$search}%")
+                    ->orWhereHas('supplier', function ($sq) use ($search) {
+                        $sq->where('name', 'like', "%{$search}%");
+                    });
+            });
+        })->when($filters['status'] ?? null, function ($query, $status) {
+            $query->where('status', $status);
+        })->when($filters['payment_status'] ?? null, function ($query, $paymentStatus) {
+            $query->where('payment_status', $paymentStatus);
+        })->when($filters['start_date'] ?? null, function ($query, $startDate) {
+            $query->whereDate('created_at', '>=', $startDate);
+        })->when($filters['end_date'] ?? null, function ($query, $endDate) {
+            $query->whereDate('created_at', '<=', $endDate);
+        });
     }
 }

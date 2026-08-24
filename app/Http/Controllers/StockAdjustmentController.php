@@ -2,11 +2,11 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use App\Models\Product;
 use App\Models\StockAdjustment;
 use App\Services\StockAdjustmentService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class StockAdjustmentController extends Controller
 {
@@ -29,16 +29,18 @@ class StockAdjustmentController extends Controller
             'filters' => [
                 'start_date' => $request->start_date ?? '',
                 'end_date' => $request->end_date ?? '',
-            ]
+            ],
         ]);
     }
+
     public function create(Product $product)
     {
         $product->load(['variants' => function ($q) {
             $q->withTrashed();
         }]);
+
         return Inertia::render('Inventory/StockAdjustment', [
-            'product' => $product
+            'product' => $product,
         ]);
     }
 
@@ -49,7 +51,7 @@ class StockAdjustmentController extends Controller
             'quantity' => 'required|integer|min:1',
             'action_type' => 'required|in:add,remove',
             'reason' => 'required|string',
-            'note' => 'nullable|string'
+            'note' => 'nullable|string',
         ]);
 
         $finalQuantity = $validated['action_type'] === 'remove' ? -$validated['quantity'] : $validated['quantity'];

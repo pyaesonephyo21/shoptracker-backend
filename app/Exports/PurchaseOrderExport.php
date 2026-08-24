@@ -4,17 +4,18 @@ namespace App\Exports;
 
 use Illuminate\Database\Eloquent\Builder;
 use Maatwebsite\Excel\Concerns\FromQuery;
-use Maatwebsite\Excel\Concerns\WithHeadings;
-use Maatwebsite\Excel\Concerns\WithMapping;
 use Maatwebsite\Excel\Concerns\ShouldAutoSize;
-use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Concerns\WithColumnFormatting;
 use Maatwebsite\Excel\Concerns\WithEvents;
+use Maatwebsite\Excel\Concerns\WithHeadings;
+use Maatwebsite\Excel\Concerns\WithMapping;
+use Maatwebsite\Excel\Concerns\WithStyles;
 use Maatwebsite\Excel\Events\AfterSheet;
-use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 
-class PurchaseOrderExport implements FromQuery, WithHeadings, WithMapping, ShouldAutoSize, WithStyles, WithColumnFormatting, WithEvents
+class PurchaseOrderExport implements FromQuery, ShouldAutoSize, WithColumnFormatting, WithEvents, WithHeadings, WithMapping, WithStyles
 {
     protected $query;
 
@@ -31,12 +32,14 @@ class PurchaseOrderExport implements FromQuery, WithHeadings, WithMapping, Shoul
     public function map($order): array
     {
         $supplierName = $order->supplier ? $order->supplier->name : ($order->local_shop_name ?? 'Unknown');
-        
-        $itemsSummary = $order->items->map(function($item) {
+
+        $itemsSummary = $order->items->map(function ($item) {
             if ($item->productVariant && $item->productVariant->product) {
-                $attr = implode(' / ', array_values((array)$item->productVariant->attributes)) ?: 'Default';
+                $attr = implode(' / ', array_values((array) $item->productVariant->attributes)) ?: 'Default';
+
                 return "{$item->productVariant->product->name} - {$attr} (x{$item->quantity})";
             }
+
             return "Unknown Item (x{$item->quantity})";
         })->join(', ');
 
@@ -88,7 +91,7 @@ class PurchaseOrderExport implements FromQuery, WithHeadings, WithMapping, Shoul
     {
         $sheet->getDefaultRowDimension()->setRowHeight(25);
         $sheet->getRowDimension(1)->setRowHeight(30);
-        $sheet->getStyle($sheet->calculateWorksheetDimension())->getAlignment()->setVertical(\PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER);
+        $sheet->getStyle($sheet->calculateWorksheetDimension())->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
 
         return [
             1 => [
@@ -121,16 +124,16 @@ class PurchaseOrderExport implements FromQuery, WithHeadings, WithMapping, Shoul
         return [
             AfterSheet::class => function (AfterSheet $event) {
                 $sheet = $event->sheet->getDelegate();
-                
+
                 // Fetch basic order details for coloring
                 $orders = clone $this->query;
                 $statuses = $orders->pluck('status', 'id')->values();
-                
+
                 $rowIndex = 2;
                 foreach ($statuses as $status) {
                     $status = strtolower($status);
                     $color = null;
-                    
+
                     if ($status === 'arrived') {
                         $color = 'FFF0FDF4'; // bg-green-50
                     } elseif ($status === 'cancelled') {
@@ -140,11 +143,11 @@ class PurchaseOrderExport implements FromQuery, WithHeadings, WithMapping, Shoul
                     }
 
                     if ($color) {
-                        $sheet->getStyle('A' . $rowIndex . ':Q' . $rowIndex)->applyFromArray([
+                        $sheet->getStyle('A'.$rowIndex.':Q'.$rowIndex)->applyFromArray([
                             'fill' => [
                                 'fillType' => Fill::FILL_SOLID,
                                 'startColor' => ['argb' => $color],
-                            ]
+                            ],
                         ]);
                     }
                     $rowIndex++;
@@ -162,31 +165,31 @@ class PurchaseOrderExport implements FromQuery, WithHeadings, WithMapping, Shoul
                     SUM(grand_total) as sum_grand,
                     SUM(paid_amount) as sum_paid
                 ')->first();
-                
+
                 $totalItems = clone $this->query;
                 $totalItems = $totalItems->join('purchase_order_items', 'purchase_orders.id', '=', 'purchase_order_items.purchase_order_id')
-                                         ->sum('purchase_order_items.quantity');
+                    ->sum('purchase_order_items.quantity');
 
-                $sheet->setCellValue('A' . $rowIndex, 'Total');
-                $sheet->setCellValue('E' . $rowIndex, $totalItems);
-                $sheet->setCellValue('G' . $rowIndex, $totals->sum_goods ?? 0);
-                $sheet->setCellValue('H' . $rowIndex, $totals->sum_foreign_deli ?? 0);
-                $sheet->setCellValue('I' . $rowIndex, $totals->sum_discount ?? 0);
-                $sheet->setCellValue('J' . $rowIndex, $totals->sum_supplier ?? 0);
-                $sheet->setCellValue('K' . $rowIndex, $totals->sum_cargo ?? 0);
-                $sheet->setCellValue('L' . $rowIndex, $totals->sum_local_deli ?? 0);
-                $sheet->setCellValue('M' . $rowIndex, $totals->sum_adjustment ?? 0);
-                $sheet->setCellValue('N' . $rowIndex, $totals->sum_grand ?? 0);
-                $sheet->setCellValue('Q' . $rowIndex, $totals->sum_paid ?? 0);
+                $sheet->setCellValue('A'.$rowIndex, 'Total');
+                $sheet->setCellValue('E'.$rowIndex, $totalItems);
+                $sheet->setCellValue('G'.$rowIndex, $totals->sum_goods ?? 0);
+                $sheet->setCellValue('H'.$rowIndex, $totals->sum_foreign_deli ?? 0);
+                $sheet->setCellValue('I'.$rowIndex, $totals->sum_discount ?? 0);
+                $sheet->setCellValue('J'.$rowIndex, $totals->sum_supplier ?? 0);
+                $sheet->setCellValue('K'.$rowIndex, $totals->sum_cargo ?? 0);
+                $sheet->setCellValue('L'.$rowIndex, $totals->sum_local_deli ?? 0);
+                $sheet->setCellValue('M'.$rowIndex, $totals->sum_adjustment ?? 0);
+                $sheet->setCellValue('N'.$rowIndex, $totals->sum_grand ?? 0);
+                $sheet->setCellValue('Q'.$rowIndex, $totals->sum_paid ?? 0);
 
-                $sheet->getStyle('A' . $rowIndex . ':Q' . $rowIndex)->applyFromArray([
+                $sheet->getStyle('A'.$rowIndex.':Q'.$rowIndex)->applyFromArray([
                     'font' => ['bold' => true, 'color' => ['argb' => 'FF374151']],
                     'fill' => [
                         'fillType' => Fill::FILL_SOLID,
                         'startColor' => ['argb' => 'FFF3F4F6'],
                     ],
                 ]);
-            }
+            },
         ];
     }
 }

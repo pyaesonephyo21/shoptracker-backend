@@ -12,8 +12,9 @@ class PaymentMethodController extends Controller
     public function index(Request $request)
     {
         $methods = $request->user()->shop->paymentMethods()->orderBy('id')->get();
+
         return Inertia::render('Management/PaymentMethods', [
-            'paymentMethods' => $methods
+            'paymentMethods' => $methods,
         ]);
     }
 

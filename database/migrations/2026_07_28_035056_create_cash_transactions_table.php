@@ -15,15 +15,15 @@ return new class extends Migration
             $table->id();
             $table->unsignedBigInteger('shop_id')->nullable();
             $table->foreign('shop_id')->references('id')->on('shops')->onDelete('cascade');
-            
+
             $table->decimal('amount', 12, 2);
             $table->string('type'); // 'sale', 'expense', 'purchase', 'manual_in', 'manual_out'
-            
+
             // Polymorphic relation to link to the source (SalesOrder, Expense, PurchaseOrder)
             $table->nullableMorphs('reference');
-            
+
             $table->string('description')->nullable();
-            
+
             $table->timestamps();
         });
     }

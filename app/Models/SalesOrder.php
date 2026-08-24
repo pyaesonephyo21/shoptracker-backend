@@ -5,14 +5,15 @@ namespace App\Models;
 use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use Spatie\Activitylog\Traits\LogsActivity;
-use Spatie\Activitylog\LogOptions;
 use Illuminate\Support\Facades\Auth;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Traits\LogsActivity;
 
 class SalesOrder extends Model
 {
+    use BelongsToShop, HasFactory;
     use LogsActivity;
-    use HasFactory, BelongsToShop;
+
     protected $guarded = ['id'];
 
     // Disable automatic Spatie logging since we manually call logAction()
@@ -29,8 +30,6 @@ class SalesOrder extends Model
         'extra_fee' => 'float',
         'paid_amount' => 'float',
     ];
-
-
 
     public function items()
     {
@@ -53,7 +52,7 @@ class SalesOrder extends Model
             ->causedBy(Auth::user())
             ->withProperties([
                 'by' => Auth::user()->name ?? 'System',
-                'details' => $details
+                'details' => $details,
             ])
             ->log($action);
     }
@@ -69,5 +68,29 @@ class SalesOrder extends Model
     public function payments()
     {
         return $this->hasMany(SalesOrderPayment::class);
+    }
+
+    public function scopeFilter($query, array $filters)
+    {
+        $query->when($filters['status'] ?? null, function ($query, $status) {
+            $query->where('status', $status);
+        })->when($filters['settlement_status'] ?? null, function ($query, $settlementStatus) {
+            $query->where('payment_status', $settlementStatus);
+        })->when($filters['payment_method'] ?? null, function ($query, $paymentMethod) {
+            $query->whereHas('payments', function ($pq) use ($paymentMethod) {
+                $pq->where('payment_method', $paymentMethod)
+                    ->whereRaw('sales_order_payments.id = (select max(id) from sales_order_payments as sop where sop.sales_order_id = sales_orders.id)');
+            });
+        })->when($filters['search'] ?? null, function ($query, $search) {
+            $query->where(function ($q) use ($search) {
+                $q->where('customer_name', 'like', "%{$search}%")
+                    ->orWhere('customer_phone', 'like', "%{$search}%")
+                    ->orWhere('id', 'like', "%{$search}%");
+            });
+        })->when($filters['start_date'] ?? null, function ($query, $startDate) {
+            $query->whereDate('created_at', '>=', $startDate);
+        })->when($filters['end_date'] ?? null, function ($query, $endDate) {
+            $query->whereDate('created_at', '<=', $endDate);
+        });
     }
 }

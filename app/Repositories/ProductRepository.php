@@ -36,6 +36,7 @@ class ProductRepository
     {
         $product = $this->findById($id);
         $product->update($data);
+
         return $product;
     }
 

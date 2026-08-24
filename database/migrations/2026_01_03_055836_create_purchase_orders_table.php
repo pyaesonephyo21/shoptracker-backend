@@ -27,7 +27,7 @@ return new class extends Migration
 
             $table->string('batch_name');
             $table->string('status')->default('pending'); // pending, arrived, cancelled
-            
+
             $table->string('order_type')->default('global'); // 'local' or 'global'
 
             // 3. Currency & Exchange Rate (Crucial for China orders)

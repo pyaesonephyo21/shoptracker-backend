@@ -2,11 +2,12 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
 
 class ProductBatch extends Model
 {
-    use \App\Traits\BelongsToShop;
+    use BelongsToShop;
 
     protected $guarded = ['id'];
 

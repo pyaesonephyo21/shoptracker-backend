@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\CashTransaction;
-use Illuminate\Support\Facades\DB;
 
 class CashFlowService
 {
@@ -50,14 +49,16 @@ class CashFlowService
             // Preserve the sign of the original transaction
             $isOutflow = $transaction->amount < 0;
             $transaction->amount = $isOutflow ? -abs($amount) : abs($amount);
-            
+
             if ($description !== null) {
                 $transaction->description = $description;
             }
-            
+
             $transaction->save();
+
             return $transaction;
         }
+
         return null;
     }
 
@@ -66,8 +67,9 @@ class CashFlowService
      */
     public function syncOutflow($shopId, $amount, $type, $description, $referenceType, $referenceId)
     {
-        if ((float)$amount <= 0) {
+        if ((float) $amount <= 0) {
             $this->deleteTransaction($referenceType, $referenceId);
+
             return null;
         }
 
@@ -77,8 +79,11 @@ class CashFlowService
 
         if ($transaction) {
             $transaction->amount = -abs($amount);
-            if ($description) $transaction->description = $description;
+            if ($description) {
+                $transaction->description = $description;
+            }
             $transaction->save();
+
             return $transaction;
         }
 

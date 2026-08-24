@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Exports\SalesOrderExport;
+use App\Models\Courier;
+use App\Models\Product;
+use App\Models\SalesOrder;
+use App\Services\SalesOrderService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\SalesOrder;
-use App\Models\Product;
-use App\Models\Courier;
-use App\Services\SalesOrderService;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\SalesOrderExport;
 
 class SalesOrderController extends Controller
 {
@@ -22,39 +22,8 @@ class SalesOrderController extends Controller
 
     public function index(Request $request)
     {
-        $query = SalesOrder::with(['items', 'payments']);
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('settlement_status')) {
-            $query->where('payment_status', $request->settlement_status);
-        }
-
-        if ($request->filled('payment_method')) {
-            $pm = $request->payment_method;
-            $query->whereHas('payments', function ($pq) use ($pm) {
-                $pq->where('payment_method', $pm)
-                   ->whereRaw('sales_order_payments.id = (select max(id) from sales_order_payments as sop where sop.sales_order_id = sales_orders.id)');
-            });
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('customer_name', 'like', "%{$search}%")
-                    ->orWhere('customer_phone', 'like', "%{$search}%")
-                    ->orWhere('id', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('start_date')) {
-            $query->whereDate('created_at', '>=', $request->start_date);
-        }
-
-        if ($request->filled('end_date')) {
-            $query->whereDate('created_at', '<=', $request->end_date);
-        }
+        $query = SalesOrder::with(['items', 'payments'])
+            ->filter($request->only(['status', 'settlement_status', 'payment_method', 'search', 'start_date', 'end_date']));
 
         $paginatedOrders = $query->latest()->paginate(15)->withQueryString();
 
@@ -66,7 +35,7 @@ class SalesOrderController extends Controller
             return [
                 'id' => $order->id,
                 'status' => $order->status,
-                'is_preorder' => (bool)$order->is_preorder,
+                'is_preorder' => (bool) $order->is_preorder,
                 'date' => $order->created_at->format('Y-m-d'),
                 'customer' => ['name' => $order->customer_name],
                 'financials' => [
@@ -74,7 +43,7 @@ class SalesOrderController extends Controller
                     'paid_amount' => $order->paid_amount,
                     'grand_total' => $order->customer_grand_total,
                     'payment_method' => $paymentMethod,
-                ]
+                ],
             ];
         });
 
@@ -87,46 +56,14 @@ class SalesOrderController extends Controller
                 'start_date' => $request->start_date ?? '',
                 'end_date' => $request->end_date ?? '',
                 'payment_method' => $request->payment_method ?? '',
-            ]
+            ],
         ]);
     }
 
     public function export(Request $request)
     {
-        $query = SalesOrder::with(['items.productVariant.product', 'payments', 'courier']);
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('settlement_status')) {
-            $query->where('payment_status', $request->settlement_status);
-        }
-
-        if ($request->filled('payment_method')) {
-            $pm = $request->payment_method;
-            $query->whereHas('payments', function ($pq) use ($pm) {
-                $pq->where('payment_method', $pm)
-                   ->whereRaw('sales_order_payments.id = (select max(id) from sales_order_payments as sop where sop.sales_order_id = sales_orders.id)');
-            });
-        }
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('customer_name', 'like', "%{$search}%")
-                    ->orWhere('customer_phone', 'like', "%{$search}%")
-                    ->orWhere('id', 'like', "%{$search}%");
-            });
-        }
-
-        if ($request->filled('start_date')) {
-            $query->whereDate('created_at', '>=', $request->start_date);
-        }
-
-        if ($request->filled('end_date')) {
-            $query->whereDate('created_at', '<=', $request->end_date);
-        }
+        $query = SalesOrder::with(['items.productVariant.product', 'payments', 'courier'])
+            ->filter($request->only(['status', 'settlement_status', 'payment_method', 'search', 'start_date', 'end_date']));
 
         // Order by latest and pass the query builder directly to the export (FromQuery)
         $query->latest();
@@ -144,9 +81,10 @@ class SalesOrderController extends Controller
         }])->whereHas('variants', function ($q) {
             $q->whereRaw('(stock_quantity + pending_stock) > 0');
         })->where('is_active', true)->get();
+
         return Inertia::render('Sales/AddSale', [
             'products' => $products,
-            'couriers' => Courier::all()
+            'couriers' => Courier::all(),
         ]);
     }
 
@@ -214,7 +152,7 @@ class SalesOrderController extends Controller
         $order = [
             'id' => $orderModel->id,
             'status' => $orderModel->status,
-            'is_preorder' => (bool)$orderModel->is_preorder,
+            'is_preorder' => (bool) $orderModel->is_preorder,
             'date' => $orderModel->created_at->format('Y-m-d'),
             'customer' => [
                 'name' => $orderModel->customer_name,
@@ -222,30 +160,30 @@ class SalesOrderController extends Controller
                 'address' => $orderModel->delivery_address,
             ],
             'financials' => [
-                'subtotal' => (float)$orderModel->subtotal,
-                'discount' => (float)$orderModel->discount_total,
+                'subtotal' => (float) $orderModel->subtotal,
+                'discount' => (float) $orderModel->discount_total,
                 'discount_type' => $orderModel->discount_type,
-                'discount_value' => (float)$orderModel->discount_value,
+                'discount_value' => (float) $orderModel->discount_value,
                 'discount_reason' => $orderModel->discount_reason,
-                'extra_fee' => (float)$orderModel->extra_fee,
-                'overcharge' => (float)$orderModel->overcharge,
-                'retained_revenue' => (float)$orderModel->retained_revenue,
-                'paid_amount' => (float)$orderModel->paid_amount,
-                'balance' => (float)($orderModel->courier_id ? $orderModel->net_revenue - $orderModel->paid_amount : $orderModel->customer_grand_total - $orderModel->paid_amount),
+                'extra_fee' => (float) $orderModel->extra_fee,
+                'overcharge' => (float) $orderModel->overcharge,
+                'retained_revenue' => (float) $orderModel->retained_revenue,
+                'paid_amount' => (float) $orderModel->paid_amount,
+                'balance' => (float) ($orderModel->courier_id ? $orderModel->net_revenue - $orderModel->paid_amount : $orderModel->customer_grand_total - $orderModel->paid_amount),
                 'payment_status' => $orderModel->payment_status,
-                'grand_total' => (float)$orderModel->customer_grand_total,
-                'net_revenue' => (float)$orderModel->net_revenue,
-                'total_cost' => (float)$orderModel->total_cost,
-                'return_cost' => (float)$orderModel->return_cost,
-                'profit' => (float)$orderModel->net_profit,
+                'grand_total' => (float) $orderModel->customer_grand_total,
+                'net_revenue' => (float) $orderModel->net_revenue,
+                'total_cost' => (float) $orderModel->total_cost,
+                'return_cost' => (float) $orderModel->return_cost,
+                'profit' => (float) $orderModel->net_profit,
 
             ],
             'delivery' => [
                 'courier_name' => $orderModel->courier ? $orderModel->courier->name : ($orderModel->courier_id ? 'Unknown Courier' : 'None'),
                 'tracking' => $orderModel->tracking_number,
-                'fee' => (float)$orderModel->delivery_fee,
-                'courier_service_fee' => (float)$orderModel->courier_service_fee,
-                'is_prepaid' => (bool)$orderModel->is_deli_prepaid,
+                'fee' => (float) $orderModel->delivery_fee,
+                'courier_service_fee' => (float) $orderModel->courier_service_fee,
+                'is_prepaid' => (bool) $orderModel->is_deli_prepaid,
                 'collected_by' => $orderModel->money_collected_by,
                 'settlement_status' => $orderModel->settlement_status,
                 'note' => $orderModel->delivery_note,
@@ -254,14 +192,14 @@ class SalesOrderController extends Controller
                 return [
                     'id' => $item->id,
                     'product_name' => $item->productVariant && $item->productVariant->product
-                        ? $item->productVariant->product->name . ' - ' . (implode(' / ', array_values((array)$item->productVariant->attributes)) ?: 'Default')
+                        ? $item->productVariant->product->name.' - '.(implode(' / ', array_values((array) $item->productVariant->attributes)) ?: 'Default')
                         : 'Unknown Product',
                     'variant_sku' => $item->productVariant ? $item->productVariant->sku : null,
                     'attributes' => $item->productVariant ? $item->productVariant->attributes : null,
                     'quantity' => $item->quantity,
-                    'price' => (float)$item->unit_price,
-                    'total' => (float)$item->line_total,
-                    'discount_value' => (float)$item->discount_value,
+                    'price' => (float) $item->unit_price,
+                    'total' => (float) $item->line_total,
+                    'discount_value' => (float) $item->discount_value,
                     'discount_type' => $item->discount_type,
                     'discount_reason' => $item->discount_reason,
                 ];
@@ -271,7 +209,7 @@ class SalesOrderController extends Controller
             'payments' => collect($orderModel->payments)->map(function ($payment) {
                 return [
                     'id' => $payment->id,
-                    'amount' => (float)$payment->amount,
+                    'amount' => (float) $payment->amount,
                     'method' => $payment->payment_method,
                     'date' => $payment->created_at->format('Y-m-d H:i'),
                 ];
@@ -285,15 +223,13 @@ class SalesOrderController extends Controller
     {
         $orderModel = $salesOrder->load(['items.productVariant.product']);
 
-        if (!in_array($orderModel->status, ['pending', 'delivery_added'])) {
+        if (! in_array($orderModel->status, ['pending', 'delivery_added'])) {
             return redirect("/sales/{$orderModel->id}")->with('error', 'Only pending or delivery added orders can be edited.');
         }
 
-        // We can just pass the same payload structure as 'show' or the raw model,
-        // since we are writing a specific EditSale component.
         return Inertia::render('Sales/EditSale', [
             'order' => $orderModel,
-            'couriers' => Courier::all()
+            'couriers' => Courier::all(),
         ]);
     }
 
@@ -331,7 +267,7 @@ class SalesOrderController extends Controller
 
         return Inertia::render('Sales/FulfillOrder', [
             'order' => ['id' => $order->id],
-            'couriers' => $couriers
+            'couriers' => $couriers,
         ]);
     }
 
@@ -356,6 +292,7 @@ class SalesOrderController extends Controller
     public function markDelivered(SalesOrder $salesOrder)
     {
         $this->service->markAsDelivered($salesOrder->id);
+
         return redirect("/sales/{$salesOrder->id}")->with('success', 'Order marked as delivered.');
     }
 
@@ -363,7 +300,7 @@ class SalesOrderController extends Controller
     {
         $validated = $request->validate([
             'payment_method' => 'nullable|string',
-            'refund_amount' => 'nullable|numeric|min:0'
+            'refund_amount' => 'nullable|numeric|min:0',
         ]);
 
         $this->service->settle($salesOrder->id, $validated['payment_method'] ?? null, $validated['refund_amount'] ?? null);
@@ -390,7 +327,7 @@ class SalesOrderController extends Controller
             'reason' => 'nullable|string|max:255',
         ]);
 
-        $this->service->returnItem($salesOrder->id, $itemId, $validated['quantity'], $validated['reason'] ?? "Customer Return");
+        $this->service->returnItem($salesOrder->id, $itemId, $validated['quantity'], $validated['reason'] ?? 'Customer Return');
 
         return redirect("/sales/{$salesOrder->id}")->with('success', 'Item returned successfully.');
     }
@@ -402,17 +339,18 @@ class SalesOrderController extends Controller
             'cancellation_fee' => 'nullable|numeric|min:0',
             'cancellation_fee_reason' => 'required_with:cancellation_fee|nullable|string',
             'refund_amount' => 'nullable|numeric|min:0',
-            'payment_method' => 'nullable|string'
+            'payment_method' => 'nullable|string',
         ]);
-        
+
         $order = $service->cancelOrder(
-            $salesOrder->id, 
-            $validated['cancel_reason'] ?? "Manual Cancellation",
+            $salesOrder->id,
+            $validated['cancel_reason'] ?? 'Manual Cancellation',
             $validated['cancellation_fee'] ?? 0,
             $validated['cancellation_fee_reason'] ?? null,
             $validated['refund_amount'] ?? null,
             $validated['payment_method'] ?? null
         );
+
         return back()->with('success', 'Order cancelled successfully.');
     }
 }

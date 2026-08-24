@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 class StockAdjustmentRequest extends FormRequest
@@ -17,7 +18,7 @@ class StockAdjustmentRequest extends FormRequest
     /**
      * Get the validation rules that apply to the request.
      *
-     * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>
+     * @return array<string, ValidationRule|array<mixed>|string>
      */
     public function rules(): array
     {
@@ -25,7 +26,7 @@ class StockAdjustmentRequest extends FormRequest
             'product_id' => 'required|exists:products,id',
             'quantity' => 'required|integer|not_in:0', // Cannot be 0
             'reason' => 'required|string|in:damage,loss,return,correction',
-            'note' => 'nullable|string'
+            'note' => 'nullable|string',
         ];
     }
 }

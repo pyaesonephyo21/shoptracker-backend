@@ -1,75 +1,88 @@
 <?php
 
-use Illuminate\Support\Facades\Route;
-use Inertia\Inertia;
-use App\Models\User;
+use App\Http\Controllers\AiAddressParserController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CourierSettlementController;
 use App\Http\Controllers\DashboardController;
-use App\Http\Controllers\Management\SupplierController;
-use App\Http\Controllers\Management\CourierController;
-use App\Http\Controllers\Management\CategoryController;
-use App\Http\Controllers\Management\ExpenseController;
-use App\Http\Controllers\Management\PaymentMethodController;
-use App\Http\Controllers\Management\NoteController;
 use App\Http\Controllers\Finance\CashFlowController;
 use App\Http\Controllers\InventoryController;
-use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\Management\CategoryController;
+use App\Http\Controllers\Management\CourierController;
+use App\Http\Controllers\Management\ExpenseController;
+use App\Http\Controllers\Management\NoteController;
+use App\Http\Controllers\Management\PaymentMethodController;
+use App\Http\Controllers\Management\SupplierController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SalesOrderController;
-use App\Http\Controllers\AiAddressParserController;
+use App\Http\Controllers\StockAdjustmentController;
+use Illuminate\Support\Facades\Route;
 
-// Auth Routes
+/*
+|--------------------------------------------------------------------------
+| Authentication Routes
+|--------------------------------------------------------------------------
+*/
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-Route::post('/switch-shop', [AuthController::class, 'switchShop']);
+Route::post('/switch-shop', [AuthController::class, 'switchShop'])->name('switch-shop');
 
-// Protected Routes
+/*
+|--------------------------------------------------------------------------
+| Authenticated Application Routes
+|--------------------------------------------------------------------------
+*/
 Route::middleware('auth')->group(function () {
-    Route::get('/', [DashboardController::class, 'index']);
+    // Dashboard
+    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
 
-    Route::get('/inventory', [InventoryController::class, 'index']);
-    Route::get('/inventory/adjustments', [StockAdjustmentController::class, 'index']);
-    Route::get('/inventory/create', [InventoryController::class, 'create']);
-    Route::post('/inventory', [InventoryController::class, 'store']);
+    // Inventory & Products
+    Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
+    Route::get('/inventory/adjustments', [StockAdjustmentController::class, 'index'])->name('inventory.adjustments.index');
+    Route::get('/inventory/create', [InventoryController::class, 'create'])->name('inventory.create');
+    Route::post('/inventory', [InventoryController::class, 'store'])->name('inventory.store');
 
-    // Purchase Orders MUST be before {id} to prevent interception
-    Route::get('/inventory/purchase-orders', [PurchaseOrderController::class, 'index']);
-    Route::get('/inventory/purchase-orders/export', [PurchaseOrderController::class, 'export']);
-    Route::post('/inventory/purchase-orders', [PurchaseOrderController::class, 'store']);
-    Route::get('/inventory/purchase-orders/create', [PurchaseOrderController::class, 'create']);
-    Route::get('/inventory/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show']);
-    Route::get('/inventory/purchase-orders/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit']);
-    Route::put('/inventory/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update']);
-    Route::post('/inventory/purchase-orders/{purchaseOrder}/arrive', [PurchaseOrderController::class, 'markAsArrived']);
-    Route::post('/inventory/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel']);
-    Route::put('/inventory/variants/{variant}/retail-price', [InventoryController::class, 'updateRetailPrice']);
-    Route::get('/inventory/{product}/adjust', [StockAdjustmentController::class, 'create']);
-    Route::post('/inventory/{product}/adjust', [StockAdjustmentController::class, 'store']);
-    Route::get('/inventory/{product}', [InventoryController::class, 'show']);
-    Route::get('/inventory/{product}/edit', [InventoryController::class, 'edit']);
-    Route::put('/inventory/{product}', [InventoryController::class, 'update']);
-    Route::post('/inventory/{product}/toggle-active', [InventoryController::class, 'toggleActive']);
-    Route::post('/inventory/variants/{variant}/restore', [InventoryController::class, 'restoreVariant']);
-    Route::delete('/inventory/{product}', [InventoryController::class, 'destroy']);
+    // Purchase Orders (Specific static routes defined before {id} parameter wildcard)
+    Route::get('/inventory/purchase-orders', [PurchaseOrderController::class, 'index'])->name('purchase-orders.index');
+    Route::get('/inventory/purchase-orders/export', [PurchaseOrderController::class, 'export'])->name('purchase-orders.export');
+    Route::get('/inventory/purchase-orders/create', [PurchaseOrderController::class, 'create'])->name('purchase-orders.create');
+    Route::post('/inventory/purchase-orders', [PurchaseOrderController::class, 'store'])->name('purchase-orders.store');
+    Route::get('/inventory/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'show'])->name('purchase-orders.show');
+    Route::get('/inventory/purchase-orders/{purchaseOrder}/edit', [PurchaseOrderController::class, 'edit'])->name('purchase-orders.edit');
+    Route::put('/inventory/purchase-orders/{purchaseOrder}', [PurchaseOrderController::class, 'update'])->name('purchase-orders.update');
+    Route::post('/inventory/purchase-orders/{purchaseOrder}/arrive', [PurchaseOrderController::class, 'markAsArrived'])->name('purchase-orders.arrive');
+    Route::post('/inventory/purchase-orders/{purchaseOrder}/cancel', [PurchaseOrderController::class, 'cancel'])->name('purchase-orders.cancel');
 
-    Route::get('/sales/settlements', [App\Http\Controllers\CourierSettlementController::class, 'index']);
-    Route::post('/sales/settlements', [App\Http\Controllers\CourierSettlementController::class, 'process']);
-    Route::get('/sales', [SalesOrderController::class, 'index']);
-    Route::get('/sales/export', [SalesOrderController::class, 'export']);
-    Route::post('/sales', [SalesOrderController::class, 'store']);
-    Route::get('/sales/create', [SalesOrderController::class, 'create']);
-    Route::get('/sales/{salesOrder}', [SalesOrderController::class, 'show']);
-    Route::get('/sales/{salesOrder}/edit', [SalesOrderController::class, 'edit']);
-    Route::put('/sales/{salesOrder}', [SalesOrderController::class, 'update']);
-    Route::get('/sales/{salesOrder}/fulfill', [SalesOrderController::class, 'fulfillView']);
-    Route::post('/sales/{salesOrder}/fulfill', [SalesOrderController::class, 'fulfillStore']);
-    Route::post('/sales/{salesOrder}/deliver', [SalesOrderController::class, 'markDelivered']);
-    Route::post('/sales/{salesOrder}/cancel', [SalesOrderController::class, 'cancel']);
-    Route::post('/sales/{salesOrder}/settle', [SalesOrderController::class, 'settle']);
-    Route::post('/sales/{salesOrder}/refund', [SalesOrderController::class, 'issueRefund']);
-    Route::post('/sales/{salesOrder}/items/{itemId}/return', [SalesOrderController::class, 'returnItem']);
+    // Product & Variant Details
+    Route::put('/inventory/variants/{variant}/retail-price', [InventoryController::class, 'updateRetailPrice'])->name('variants.update-price');
+    Route::post('/inventory/variants/{variant}/restore', [InventoryController::class, 'restoreVariant'])->name('variants.restore');
+    Route::get('/inventory/{product}/adjust', [StockAdjustmentController::class, 'create'])->name('inventory.adjust.create');
+    Route::post('/inventory/{product}/adjust', [StockAdjustmentController::class, 'store'])->name('inventory.adjust.store');
+    Route::get('/inventory/{product}', [InventoryController::class, 'show'])->name('inventory.show');
+    Route::get('/inventory/{product}/edit', [InventoryController::class, 'edit'])->name('inventory.edit');
+    Route::put('/inventory/{product}', [InventoryController::class, 'update'])->name('inventory.update');
+    Route::post('/inventory/{product}/toggle-active', [InventoryController::class, 'toggleActive'])->name('inventory.toggle-active');
+    Route::delete('/inventory/{product}', [InventoryController::class, 'destroy'])->name('inventory.destroy');
 
+    // Sales Orders & Courier Settlements
+    Route::get('/sales/settlements', [CourierSettlementController::class, 'index'])->name('sales.settlements.index');
+    Route::post('/sales/settlements', [CourierSettlementController::class, 'process'])->name('sales.settlements.process');
+    Route::get('/sales', [SalesOrderController::class, 'index'])->name('sales.index');
+    Route::get('/sales/export', [SalesOrderController::class, 'export'])->name('sales.export');
+    Route::get('/sales/create', [SalesOrderController::class, 'create'])->name('sales.create');
+    Route::post('/sales', [SalesOrderController::class, 'store'])->name('sales.store');
+    Route::get('/sales/{salesOrder}', [SalesOrderController::class, 'show'])->name('sales.show');
+    Route::get('/sales/{salesOrder}/edit', [SalesOrderController::class, 'edit'])->name('sales.edit');
+    Route::put('/sales/{salesOrder}', [SalesOrderController::class, 'update'])->name('sales.update');
+    Route::get('/sales/{salesOrder}/fulfill', [SalesOrderController::class, 'fulfillView'])->name('sales.fulfill.view');
+    Route::post('/sales/{salesOrder}/fulfill', [SalesOrderController::class, 'fulfillStore'])->name('sales.fulfill.store');
+    Route::post('/sales/{salesOrder}/deliver', [SalesOrderController::class, 'markDelivered'])->name('sales.deliver');
+    Route::post('/sales/{salesOrder}/cancel', [SalesOrderController::class, 'cancel'])->name('sales.cancel');
+    Route::post('/sales/{salesOrder}/settle', [SalesOrderController::class, 'settle'])->name('sales.settle');
+    Route::post('/sales/{salesOrder}/refund', [SalesOrderController::class, 'issueRefund'])->name('sales.refund');
+    Route::post('/sales/{salesOrder}/items/{itemId}/return', [SalesOrderController::class, 'returnItem'])->name('sales.items.return');
+
+    // Management Resources
     Route::redirect('/management', '/management/notes');
     Route::prefix('management')->name('management.')->group(function () {
         Route::resource('suppliers', SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -83,11 +96,11 @@ Route::middleware('auth')->group(function () {
         Route::post('notes/{note}/toggle-pin', [NoteController::class, 'togglePin'])->name('notes.toggle-pin');
         Route::resource('notes', NoteController::class)->only(['index', 'store', 'update', 'destroy']);
     });
-    
-    // Finance
-    Route::get('/finance/cash-flow', [CashFlowController::class, 'index']);
-    Route::post('/finance/cash-flow/manual', [CashFlowController::class, 'storeManual']);
+
+    // Finance & Cash Flow
+    Route::get('/finance/cash-flow', [CashFlowController::class, 'index'])->name('finance.cash-flow.index');
+    Route::post('/finance/cash-flow/manual', [CashFlowController::class, 'storeManual'])->name('finance.cash-flow.manual');
 
     // AI Tools
-    Route::post('/api/ai/parse-address', [AiAddressParserController::class, 'parse']);
+    Route::post('/api/ai/parse-address', [AiAddressParserController::class, 'parse'])->name('api.ai.parse-address');
 });

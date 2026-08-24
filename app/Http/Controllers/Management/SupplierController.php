@@ -3,19 +3,20 @@
 namespace App\Http\Controllers\Management;
 
 use App\Http\Controllers\Controller;
+use App\Models\PurchaseOrder;
+use App\Models\Supplier;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\Supplier;
-use App\Models\PurchaseOrder;
 
 class SupplierController extends Controller
 {
     public function index()
     {
         $suppliers = Supplier::latest()->paginate(15)->withQueryString();
+
         return Inertia::render('Management/Suppliers', [
             'suppliers' => $suppliers,
-            'showForeignOptions' => true // Or derive from shop settings later
+            'showForeignOptions' => true, // Or derive from shop settings later
         ]);
     }
 
@@ -36,6 +37,7 @@ class SupplierController extends Controller
 
         return redirect()->back()->with('success', 'Supplier created successfully.');
     }
+
     public function update(Request $request, Supplier $supplier)
     {
 

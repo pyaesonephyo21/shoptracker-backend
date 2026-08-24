@@ -3,18 +3,19 @@
 namespace App\Http\Controllers\Management;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use Inertia\Inertia;
 use App\Models\Courier;
 use App\Models\SalesOrder;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CourierController extends Controller
 {
     public function index()
     {
         $couriers = Courier::latest()->paginate(15)->withQueryString();
+
         return Inertia::render('Management/Couriers', [
-            'couriers' => $couriers
+            'couriers' => $couriers,
         ]);
     }
 
@@ -37,6 +38,7 @@ class CourierController extends Controller
 
         return redirect()->back()->with('success', 'Courier created successfully.');
     }
+
     public function update(Request $request, Courier $courier)
     {
 

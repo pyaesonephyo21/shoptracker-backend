@@ -2,14 +2,13 @@
 
 namespace App\Models;
 
-use App\Models\SalesOrder;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\BelongsToShop;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 
 class Courier extends Model
 {
-    use HasFactory, BelongsToShop;
+    use BelongsToShop, HasFactory;
 
     protected $guarded = ['id'];
 

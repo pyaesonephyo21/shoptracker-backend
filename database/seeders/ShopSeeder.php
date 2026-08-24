@@ -2,10 +2,9 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
-use Illuminate\Database\Seeder;
 use App\Models\Shop;
 use App\Models\User;
+use Illuminate\Database\Seeder;
 
 class ShopSeeder extends Seeder
 {
@@ -15,12 +14,12 @@ class ShopSeeder extends Seeder
     public function run(): void
     {
         $testShop = Shop::create([
-            'name' => "Test Shop",
+            'name' => 'Test Shop',
         ]);
 
         // 1. SIMPLE WORLD
         $retroBites = Shop::create([
-            'name' => "Retro Bites",
+            'name' => 'Retro Bites',
         ]);
 
         $retroOwner = User::create([
@@ -28,13 +27,13 @@ class ShopSeeder extends Seeder
             'name' => 'Retro Bites',
             'email' => 'retrobites@gmail.com',
             'password' => bcrypt('password'),
-            'role' => 'owner'
+            'role' => 'owner',
         ]);
         $retroOwner->shops()->attach($retroBites->id);
 
         // 2. YOUR WORLD (Complex)
         $trendyNest = Shop::create([
-            'name' => "Trendy Nest",
+            'name' => 'Trendy Nest',
         ]);
 
         $trendyOwner = User::create([
@@ -42,7 +41,7 @@ class ShopSeeder extends Seeder
             'name' => 'Trendy Nest',
             'email' => 'trendynest@gmail.com',
             'password' => bcrypt('password'),
-            'role' => 'owner'
+            'role' => 'owner',
         ]);
         $trendyOwner->shops()->attach($trendyNest->id);
 
@@ -51,7 +50,7 @@ class ShopSeeder extends Seeder
             'name' => 'Pan Ywe Phu',
             'email' => 'panywephu@gmail.com',
             'password' => bcrypt('password'),
-            'role' => 'owner'
+            'role' => 'owner',
         ]);
         $pan->shops()->attach($trendyNest->id);
 
@@ -61,7 +60,7 @@ class ShopSeeder extends Seeder
             'name' => 'Super Admin',
             'email' => 'admin@shoptracker.com',
             'password' => bcrypt('password'),
-            'role' => 'superadmin'
+            'role' => 'superadmin',
         ]);
         $superAdmin->shops()->attach([$retroBites->id, $trendyNest->id, $testShop->id]);
 
@@ -70,7 +69,7 @@ class ShopSeeder extends Seeder
             'name' => 'Pyae Sone',
             'email' => 'pyaesone@gmail.com',
             'password' => bcrypt('password'),
-            'role' => 'owner'
+            'role' => 'owner',
         ]);
         $pyaeOwner->shops()->attach([$retroBites->id, $trendyNest->id, $testShop->id]);
 
@@ -80,7 +79,7 @@ class ShopSeeder extends Seeder
             'name' => 'Regional Manager',
             'email' => 'manager@test.com',
             'password' => bcrypt('password'),
-            'role' => 'admin'
+            'role' => 'admin',
         ]);
         $regionalManager->shops()->attach([$retroBites->id, $trendyNest->id]);
 
@@ -89,7 +88,7 @@ class ShopSeeder extends Seeder
             'name' => 'Test User',
             'email' => 'test@gmail.com',
             'password' => bcrypt('password'),
-            'role' => 'owner'
+            'role' => 'owner',
         ]);
         $testUser->shops()->attach([$testShop->id]);
     }

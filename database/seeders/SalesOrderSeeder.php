@@ -2,25 +2,28 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
-use App\Models\SalesOrder;
-use App\Models\Shop;
-use App\Models\Product;
 use App\Models\Courier;
+use App\Models\Product;
+use App\Models\Shop;
 use App\Services\SalesOrderService;
+use Illuminate\Database\Seeder;
 
 class SalesOrderSeeder extends Seeder
 {
     public function run(): void
     {
         $shop = Shop::first();
-        if (!$shop) return;
+        if (! $shop) {
+            return;
+        }
 
         $products = Product::where('stock_quantity', '>=', 5)->take(3)->get();
-        if ($products->count() < 2) return; // Need at least some stock
+        if ($products->count() < 2) {
+            return;
+        } // Need at least some stock
 
         $courier = Courier::first();
-        $service = new SalesOrderService();
+        $service = new SalesOrderService;
 
         // 1. Pending Order
         $service->createOrder([
@@ -40,7 +43,7 @@ class SalesOrderSeeder extends Seeder
             [
                 'product_id' => $products[1]->id,
                 'quantity' => 1,
-            ]
+            ],
         ]);
 
         // 2. Delivery Arranged Order
@@ -54,7 +57,7 @@ class SalesOrderSeeder extends Seeder
             [
                 'product_id' => $products[0]->id,
                 'quantity' => 1,
-            ]
+            ],
         ]);
 
         if ($courier) {
@@ -78,7 +81,7 @@ class SalesOrderSeeder extends Seeder
             [
                 'product_id' => $products[1]->id,
                 'quantity' => 2,
-            ]
+            ],
         ]);
 
         if ($courier) {

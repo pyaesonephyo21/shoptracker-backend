@@ -2,6 +2,8 @@
 
 namespace Database\Seeders;
 
+use App\Models\InventoryLog;
+use App\Models\Product;
 use Illuminate\Database\Seeder;
 
 class ProductSeeder extends Seeder
@@ -12,7 +14,7 @@ class ProductSeeder extends Seeder
     public function run(): void
     {
         $products = [];
-        
+
         $baseProducts = [
             ['name' => 'Premium T-Shirt', 'sku_prefix' => 'TS', 'category_id' => 1, 'type' => 'global', 'base_cost' => 12000, 'retail_price' => 25000],
             ['name' => 'Wireless Mouse', 'sku_prefix' => 'MS', 'category_id' => 2, 'type' => 'global', 'base_cost' => 20000, 'retail_price' => 45000],
@@ -24,8 +26,8 @@ class ProductSeeder extends Seeder
             $products[] = [
                 'shop_id' => 1,
                 'category_id' => $base['category_id'],
-                'name' => $base['name'] . ' Variant ' . str_pad($i, 3, '0', STR_PAD_LEFT),
-                'sku' => $base['sku_prefix'] . '-' . str_pad($i, 3, '0', STR_PAD_LEFT),
+                'name' => $base['name'].' Variant '.str_pad($i, 3, '0', STR_PAD_LEFT),
+                'sku' => $base['sku_prefix'].'-'.str_pad($i, 3, '0', STR_PAD_LEFT),
                 'type' => $base['type'],
                 'base_cost' => $base['base_cost'],
                 'retail_price' => $base['retail_price'],
@@ -35,17 +37,17 @@ class ProductSeeder extends Seeder
         }
 
         foreach ($products as $productData) {
-            $product = \App\Models\Product::create($productData);
+            $product = Product::create($productData);
 
             // Log initial inventory if stock > 0
             if ($product->stock_quantity > 0) {
-                \App\Models\InventoryLog::create([
+                InventoryLog::create([
                     'shop_id' => 1,
                     'product_id' => $product->id,
                     'quantity_change' => $product->stock_quantity,
                     'new_stock_level' => $product->stock_quantity,
                     'reason' => 'initial_seed',
-                    'note' => 'Initial system seed'
+                    'note' => 'Initial system seed',
                 ]);
             }
         }

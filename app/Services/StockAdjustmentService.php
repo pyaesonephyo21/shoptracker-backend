@@ -57,7 +57,9 @@ class StockAdjustmentService
                     ->get();
 
                 foreach ($activeBatches as $batch) {
-                    if ($remainingQtyNeeded <= 0) break;
+                    if ($remainingQtyNeeded <= 0) {
+                        break;
+                    }
 
                     $takeQty = min($batch->remaining_quantity, $remainingQtyNeeded);
                     $totalCost += ($takeQty * $batch->unit_cost);
@@ -101,7 +103,7 @@ class StockAdjustmentService
 
             // 3. Update Product stock
             $variant->update([
-                'stock_quantity' => $newStockLevel
+                'stock_quantity' => $newStockLevel,
             ]);
 
             return $adjustment;

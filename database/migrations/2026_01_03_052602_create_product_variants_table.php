@@ -15,10 +15,10 @@ return new class extends Migration
             $table->id();
             $table->foreignId('product_id')->constrained()->onDelete('cascade')->index();
             $table->string('sku')->nullable()->index();
-            
+
             // JSON attributes for dynamic variants (e.g. {"Color": "Red", "Size": "L", "Storage": "64GB"})
             $table->json('attributes')->nullable();
-            
+
             // Stock is tracked at the variant level
             $table->integer('stock_quantity')->default(0);
             $table->integer('pending_stock')->default(0);

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Supplier;
 use Illuminate\Database\Seeder;
 
 class SupplierSeeder extends Seeder
@@ -18,7 +18,7 @@ class SupplierSeeder extends Seeder
         ];
 
         foreach ($suppliers as $supplier) {
-            \App\Models\Supplier::create($supplier);
+            Supplier::create($supplier);
         }
     }
 }

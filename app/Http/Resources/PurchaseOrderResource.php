@@ -60,7 +60,7 @@ class PurchaseOrderResource extends JsonResource
                             'id' => $item->product_id,
                             'name' => $item->product ? $item->product->name : 'Unknown Product',
                             'sku' => $item->product ? $item->product->sku : null,
-                        ]
+                        ],
                     ];
                 });
             }),

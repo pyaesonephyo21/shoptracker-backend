@@ -2,17 +2,16 @@
 
 namespace App\Models;
 
-use Spatie\MediaLibrary\HasMedia;
-use Illuminate\Support\Facades\Auth;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Builder;
-use Spatie\MediaLibrary\InteractsWithMedia;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 use App\Traits\BelongsToShop;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 
 class Product extends Model implements HasMedia
 {
-    use HasFactory, InteractsWithMedia, BelongsToShop;
+    use BelongsToShop, HasFactory, InteractsWithMedia;
 
     protected $guarded = [];
 
@@ -29,25 +28,37 @@ class Product extends Model implements HasMedia
      */
     public function scopeFilter($query, array $filters)
     {
-        // 1. Search Filter
-        if (isset($filters['search']) && $filters['search']) {
-            $search = $filters['search'];
+        $query->when($filters['search'] ?? null, function ($query, $search) {
             $query->where(function ($q) use ($search) {
                 $q->where('name', 'like', "%{$search}%")
-                  ->orWhereHas('variants', function($q) use ($search) {
-                      $q->where('sku', 'like', "%{$search}%");
-                  });
+                    ->orWhereHas('variants', function ($vq) use ($search) {
+                        $vq->where('sku', 'like', "%{$search}%");
+                    });
             });
-        }
-
-        // 2. Type Filter
-        if (isset($filters['type']) && $filters['type']) {
-            $query->where('type', $filters['type']);
-        }
-        // 3. You can easily add more here later (e.g. Price Range)
-        // if (isset($filters['min_price'])) { ... }
-
-        return $query;
+        })->when($filters['type'] ?? null, function ($query, $type) {
+            $query->where('type', $type);
+        })->when($filters['category_id'] ?? null, function ($query, $categoryId) {
+            if ($categoryId === 'uncategorized') {
+                $query->whereNull('category_id');
+            } else {
+                $query->where('category_id', $categoryId);
+            }
+        })->when($filters['status'] ?? null, function ($query, $status) {
+            if ($status === 'active') {
+                $query->where('is_active', true);
+            } elseif ($status === 'archived') {
+                $query->where('is_active', false);
+            }
+        })->when($filters['filter'] ?? null, function ($query, $filter) {
+            if ($filter === 'low_stock') {
+                $query->where(function ($q) {
+                    $q->selectRaw('coalesce(sum(stock_quantity), 0)')
+                        ->from('product_variants')
+                        ->whereColumn('product_variants.product_id', 'products.id')
+                        ->whereNull('product_variants.deleted_at');
+                }, '<=', 5);
+            }
+        });
     }
 
     public function getImageUrlAttribute()
@@ -64,8 +75,9 @@ class Product extends Model implements HasMedia
     {
         return $this->hasMany(ProductVariant::class);
     }
+
     // Optional: Auto-resize images when uploaded
-    public function registerMediaConversions(?\Spatie\MediaLibrary\MediaCollections\Models\Media $media = null): void
+    public function registerMediaConversions(?Media $media = null): void
     {
         $this->addMediaConversion('thumb')
             ->width(150)

@@ -65,7 +65,7 @@ class SalesOrderResource extends JsonResource
                     'discount_amount' => $item->discount_amount,
                     'discount_type' => $item->discount_type,
                     'discount_value' => $item->discount_value,
-                    'discount_reason' => $item->discount_reason
+                    'discount_reason' => $item->discount_reason,
                 ];
             }),
             'activities' => $this->activities,

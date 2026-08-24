@@ -5,13 +5,11 @@ namespace App\Http\Controllers;
 use App\Exports\PurchaseOrderExport;
 use App\Models\Product;
 use App\Models\ProductBatch;
-use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Services\PurchaseOrderService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
 
@@ -19,34 +17,8 @@ class PurchaseOrderController extends Controller
 {
     public function index(Request $request)
     {
-        $query = PurchaseOrder::with(['supplier']);
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('batch_name', 'like', "%{$search}%")
-                    ->orWhere('shop_name', 'like', "%{$search}%")
-                    ->orWhereHas('supplier', function ($sq) use ($search) {
-                        $sq->where('name', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
-        }
-
-        if ($request->filled('start_date')) {
-            $query->whereDate('created_at', '>=', $request->start_date);
-        }
-
-        if ($request->filled('end_date')) {
-            $query->whereDate('created_at', '<=', $request->end_date);
-        }
+        $query = PurchaseOrder::with(['supplier'])
+            ->filter($request->only(['search', 'status', 'payment_status', 'start_date', 'end_date']));
 
         $orders = $query->latest()->paginate(15)->withQueryString();
 
@@ -58,40 +30,14 @@ class PurchaseOrderController extends Controller
                 'payment_status' => $request->payment_status ?? '',
                 'start_date' => $request->start_date ?? '',
                 'end_date' => $request->end_date ?? '',
-            ]
+            ],
         ]);
     }
 
     public function export(Request $request)
     {
-        $query = PurchaseOrder::with(['supplier', 'items.productVariant.product']);
-
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('batch_name', 'like', "%{$search}%")
-                    ->orWhere('shop_name', 'like', "%{$search}%")
-                    ->orWhereHas('supplier', function ($sq) use ($search) {
-                        $sq->where('name', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-
-        if ($request->filled('payment_status')) {
-            $query->where('payment_status', $request->payment_status);
-        }
-
-        if ($request->filled('start_date')) {
-            $query->whereDate('created_at', '>=', $request->start_date);
-        }
-
-        if ($request->filled('end_date')) {
-            $query->whereDate('created_at', '<=', $request->end_date);
-        }
+        $query = PurchaseOrder::with(['supplier', 'items.productVariant.product'])
+            ->filter($request->only(['search', 'status', 'payment_status', 'start_date', 'end_date']));
 
         // Pass the query builder directly for FromQuery chunking
         $query->latest();
@@ -110,7 +56,7 @@ class PurchaseOrderController extends Controller
             'products' => $products,
             'suppliers' => $suppliers,
             'currencyLabel' => 'CNY',
-            'isForeignOrder' => true
+            'isForeignOrder' => true,
         ]);
     }
 
@@ -131,12 +77,12 @@ class PurchaseOrderController extends Controller
             'total_discount' => 'nullable|numeric|min:0',
             'supplier_fee_percentage' => 'nullable|numeric|min:0',
             'paid_amount' => 'nullable|numeric|min:0',
-            'note' => 'nullable|string'
+            'note' => 'nullable|string',
         ]);
 
         if (empty($validated['batch_name'])) {
             $monthPrefix = strtoupper(date('M'));
-            $latestBatch = PurchaseOrder::where('batch_name', 'like', $monthPrefix . '-%')
+            $latestBatch = PurchaseOrder::where('batch_name', 'like', $monthPrefix.'-%')
                 ->latest('id')
                 ->first();
 
@@ -144,7 +90,7 @@ class PurchaseOrderController extends Controller
             if ($latestBatch && preg_match('/-(\d+)$/', $latestBatch->batch_name, $matches)) {
                 $sequence = intval($matches[1]) + 1;
             }
-            $validated['batch_name'] = $monthPrefix . '-' . str_pad($sequence, 3, '0', STR_PAD_LEFT);
+            $validated['batch_name'] = $monthPrefix.'-'.str_pad($sequence, 3, '0', STR_PAD_LEFT);
         }
 
         $po = $service->createOrder($validated);
@@ -195,10 +141,8 @@ class PurchaseOrderController extends Controller
             $item->pending_retail_price = $pendingItem ? $pendingItem->retail_price : null;
         }
 
-
-
         return Inertia::render('Inventory/PurchaseOrderDetail', [
-            'order' => $order
+            'order' => $order,
         ]);
     }
 
@@ -219,7 +163,7 @@ class PurchaseOrderController extends Controller
             'products' => $products,
             'suppliers' => $suppliers,
             'currencyLabel' => 'CNY',
-            'isForeignOrder' => true
+            'isForeignOrder' => true,
         ]);
     }
 
@@ -245,7 +189,7 @@ class PurchaseOrderController extends Controller
 
         if (empty($validated['batch_name'])) {
             $monthPrefix = strtoupper(date('M'));
-            $latestBatch = PurchaseOrder::where('batch_name', 'like', $monthPrefix . '-%')
+            $latestBatch = PurchaseOrder::where('batch_name', 'like', $monthPrefix.'-%')
                 ->latest('id')
                 ->first();
 
@@ -253,11 +197,12 @@ class PurchaseOrderController extends Controller
             if ($latestBatch && preg_match('/-(\d+)$/', $latestBatch->batch_name, $matches)) {
                 $sequence = intval($matches[1]) + 1;
             }
-            $validated['batch_name'] = $monthPrefix . '-' . str_pad($sequence, 3, '0', STR_PAD_LEFT);
+            $validated['batch_name'] = $monthPrefix.'-'.str_pad($sequence, 3, '0', STR_PAD_LEFT);
         }
 
         try {
             $service->updateOrder($purchaseOrder->id, $validated);
+
             return redirect("/inventory/purchase-orders/{$purchaseOrder->id}")->with('success', 'Purchase order updated successfully.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
@@ -284,6 +229,7 @@ class PurchaseOrderController extends Controller
 
         try {
             $service->markAsArrived($purchaseOrder, $validated);
+
             return back()->with('success', 'Purchase order marked as arrived.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
@@ -294,18 +240,17 @@ class PurchaseOrderController extends Controller
     {
         $validated = $request->validate([
             'cancel_reason' => 'nullable|string',
-            'refund_amount' => 'nullable|numeric|min:0'
+            'refund_amount' => 'nullable|numeric|min:0',
         ]);
 
         try {
-            $service->cancelOrder($purchaseOrder, $validated['cancel_reason'] ?? "Manual Cancellation", $validated['refund_amount'] ?? null);
+            $service->cancelOrder($purchaseOrder, $validated['cancel_reason'] ?? 'Manual Cancellation', $validated['refund_amount'] ?? null);
+
             return back()->with('success', 'Purchase order cancelled successfully.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
     }
-
-
 
     private function attachLatestPricesToProducts($products)
     {
@@ -322,7 +267,7 @@ class PurchaseOrderController extends Controller
             foreach ($product->variants as $variant) {
                 if ($latestPoItems->has($variant->id)) {
                     $item = $latestPoItems->get($variant->id);
-                    if (!$latestItem || $item->id > $latestItem->id) {
+                    if (! $latestItem || $item->id > $latestItem->id) {
                         $latestItem = $item;
                     }
                 }

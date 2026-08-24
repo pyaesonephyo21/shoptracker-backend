@@ -3,10 +3,12 @@
 namespace App\Traits;
 
 use App\Models\Shop;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * @mixin \Illuminate\Database\Eloquent\Model
+ * @mixin Model
+ *
  * @method static void addGlobalScope(string $scope, \Closure $callback)
  * @method static void creating(\Closure $callback)
  */
@@ -19,11 +21,11 @@ trait BelongsToShop
     {
         // Only apply if we have an authenticated user with a shop_id
         if (Auth::check() && Auth::user()->shop_id) {
-            
+
             // 1. Automatically filter queries by shop_id
             static::addGlobalScope('shop', function ($builder) {
                 // Use getTable() to prevent ambiguous column errors in joins
-                $builder->where(app(static::class)->getTable() . '.shop_id', Auth::user()->shop_id);
+                $builder->where(app(static::class)->getTable().'.shop_id', Auth::user()->shop_id);
             });
 
             // 2. Automatically set shop_id when creating a new record

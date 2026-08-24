@@ -30,7 +30,7 @@ class AuthService
 
             return [
                 'user' => $user->load('shop'),
-                'token' => $token
+                'token' => $token,
             ];
         });
     }
@@ -52,7 +52,7 @@ class AuthService
 
         return [
             'user' => $user->load('shop'),
-            'token' => $token
+            'token' => $token,
         ];
     }
 

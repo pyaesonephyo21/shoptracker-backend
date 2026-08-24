@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
+use App\Models\Expense;
+use App\Models\InventoryLog;
+use App\Models\Product;
+use App\Models\ProductBatch;
+use App\Models\ProductVariant;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
-use App\Models\Product;
-use App\Models\InventoryLog;
-use App\Models\ProductVariant;
-use App\Models\ProductBatch;
-use Illuminate\Support\Facades\DB;
 use Exception;
-use App\Services\CashFlowService;
+use Illuminate\Support\Facades\DB;
 
 class PurchaseOrderService
 {
@@ -21,28 +21,28 @@ class PurchaseOrderService
     {
         return DB::transaction(function () use ($data) {
             $exchangeRate = (float) ($data['exchange_rate'] ?: 1.0);
-            
+
             // Calculate total goods cost in foreign currency (or local if exchange_rate is 1)
             $totalGoodsCost = 0;
             foreach ($data['items'] as $item) {
                 $totalGoodsCost += ($item['quantity'] * $item['unit_cost']);
             }
-            
+
             $orderType = $data['order_type'] ?? 'global';
             $foreignDeliFee = (float) ($data['foreign_deli_fee'] ?? 0);
             $totalDiscount = (float) ($data['total_discount'] ?? 0);
             $supplierFeePercentage = (float) ($data['supplier_fee_percentage'] ?? 0);
-            
+
             // Calculate Supplier Fee
             $supplierFee = 0;
             if ($supplierFeePercentage > 0) {
                 $supplierFee = ($totalGoodsCost + $foreignDeliFee - $totalDiscount) * ($supplierFeePercentage / 100);
             }
-            
+
             // Grand Total (in MMK)
             // Foreign costs = Goods + Foreign Deli + Supplier Fee - Discount
             $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee - $totalDiscount) * $exchangeRate;
-            
+
             // Payment Status
             $paidAmount = (float) ($data['paid_amount'] ?? 0);
             $paymentStatus = 'unpaid';
@@ -76,7 +76,7 @@ class PurchaseOrderService
                     $po->shop_id,
                     $paidAmount,
                     'purchase',
-                    'Initial Prepayment for PO ' . $po->batch_name,
+                    'Initial Prepayment for PO '.$po->batch_name,
                     PurchaseOrder::class,
                     $po->id
                 );
@@ -105,7 +105,7 @@ class PurchaseOrderService
 
             $po->logAction('created', [
                 'batch_name' => $data['batch_name'],
-                'supplier_id' => $data['supplier_id']
+                'supplier_id' => $data['supplier_id'],
             ]);
 
             return $po;
@@ -121,32 +121,32 @@ class PurchaseOrderService
             $po = PurchaseOrder::lockForUpdate()->findOrFail($id);
 
             if ($po->status !== 'pending') {
-                throw new Exception("Only pending purchase orders can be edited.");
+                throw new Exception('Only pending purchase orders can be edited.');
             }
 
             $exchangeRate = (float) ($data['exchange_rate'] ?: 1.0);
-            
+
             // Calculate total goods cost in foreign currency
             $totalGoodsCost = 0;
             foreach ($data['items'] as $item) {
                 $totalGoodsCost += ($item['quantity'] * $item['unit_cost']);
             }
-            
+
             $orderType = $data['order_type'] ?? 'global';
             $foreignDeliFee = (float) ($data['foreign_deli_fee'] ?? 0);
             $totalDiscount = (float) ($data['total_discount'] ?? 0);
             $supplierFeePercentage = (float) ($data['supplier_fee_percentage'] ?? 0);
-            
+
             // Calculate Supplier Fee
             $supplierFee = 0;
             if ($supplierFeePercentage > 0) {
                 $supplierFee = ($totalGoodsCost + $foreignDeliFee - $totalDiscount) * ($supplierFeePercentage / 100);
             }
-            
+
             // Grand Total (in MMK)
             // Foreign costs = Goods + Foreign Deli + Supplier Fee - Discount
             $grandTotal = ($totalGoodsCost + $foreignDeliFee + $supplierFee - $totalDiscount) * $exchangeRate;
-            
+
             // Payment Status
             $paidAmount = (float) ($data['paid_amount'] ?? 0);
             $paymentStatus = 'unpaid';
@@ -160,7 +160,7 @@ class PurchaseOrderService
             // 1. Revert old items
             $oldItems = $po->items()->get();
             foreach ($oldItems as $oldItem) {
-                if (!isset($stockChanges[$oldItem->product_variant_id])) {
+                if (! isset($stockChanges[$oldItem->product_variant_id])) {
                     $stockChanges[$oldItem->product_variant_id] = 0;
                 }
                 $stockChanges[$oldItem->product_variant_id] -= $oldItem->quantity;
@@ -185,7 +185,7 @@ class PurchaseOrderService
                     'retail_price' => $item['retail_price'] ?? null,
                 ]);
 
-                if (!isset($stockChanges[$item['product_variant_id']])) {
+                if (! isset($stockChanges[$item['product_variant_id']])) {
                     $stockChanges[$item['product_variant_id']] = 0;
                 }
                 $stockChanges[$item['product_variant_id']] += $item['quantity'];
@@ -231,21 +231,23 @@ class PurchaseOrderService
                 $po->shop_id,
                 $paidAmount,
                 'purchase',
-                'Payment for PO ' . $po->batch_name,
+                'Payment for PO '.$po->batch_name,
                 PurchaseOrder::class,
                 $po->id
             );
 
             $changes = [];
             foreach ($po->getDirty() as $key => $newValue) {
-                if ($key === 'audit_log' || $key === 'updated_at') continue;
-                
+                if ($key === 'audit_log' || $key === 'updated_at') {
+                    continue;
+                }
+
                 $oldValue = $po->getOriginal($key);
                 // loose comparison to ignore "0" vs 0, and null vs ""
-                if ($oldValue != $newValue && !(empty($oldValue) && empty($newValue))) {
+                if ($oldValue != $newValue && ! (empty($oldValue) && empty($newValue))) {
                     $changes[$key] = [
                         'old' => $oldValue,
-                        'new' => $newValue
+                        'new' => $newValue,
                     ];
                 }
             }
@@ -253,7 +255,7 @@ class PurchaseOrderService
             // For PO edits, we always rebuild items, so we'll just indicate items were updated.
             $changes['items'] = [
                 'old' => '...',
-                'new' => 'updated'
+                'new' => 'updated',
             ];
 
             $po->logAction('updated', ['changes' => $changes]);
@@ -270,7 +272,7 @@ class PurchaseOrderService
     {
         return DB::transaction(function () use ($po, $arrivalData) {
             if ($po->status === 'arrived') {
-                throw new Exception("This order has already arrived.");
+                throw new Exception('This order has already arrived.');
             }
 
             // Lock PO and items
@@ -283,15 +285,15 @@ class PurchaseOrderService
             $localDeliFee = (float) ($arrivalData['local_deli_fee'] ?? 0);
             $adjustmentAmount = (float) ($arrivalData['adjustment_amount'] ?? 0);
             $adjustmentReason = $arrivalData['adjustment_reason'] ?? null;
-            
+
             $po->cargo_fee = $cargoFee;
             $po->local_deli_fee = $localDeliFee;
             $po->adjustment_amount = $adjustmentAmount;
             $po->adjustment_reason = $adjustmentReason;
-            
+
             // Add to grand total
             $po->grand_total = $po->grand_total + $cargoFee + $localDeliFee + $adjustmentAmount;
-            
+
             // Automatically mark as fully paid
             $po->paid_amount = $po->grand_total;
             $po->payment_status = 'paid';
@@ -301,22 +303,22 @@ class PurchaseOrderService
 
             // Map received items
             $receivedItemsMap = collect($arrivalData['received_items'] ?? [])->keyBy('id');
-            
+
             $totalReceivedQuantity = 0;
             $newTotalGoodsCost = 0;
 
             foreach ($items as $item) {
-                $receivedQty = $receivedItemsMap->has($item->id) 
-                    ? (int) $receivedItemsMap->get($item->id)['received_quantity'] 
+                $receivedQty = $receivedItemsMap->has($item->id)
+                    ? (int) $receivedItemsMap->get($item->id)['received_quantity']
                     : $item->quantity;
 
                 $item->received_quantity = $receivedQty;
                 $item->line_total = $receivedQty * $item->unit_cost;
-                
+
                 $totalReceivedQuantity += $receivedQty;
                 $newTotalGoodsCost += ($receivedQty * $item->original_cost);
             }
-            
+
             $foreignDeliFeeMmk = $po->foreign_deli_fee * $po->exchange_rate;
             $supplierFeeMmk = $po->supplier_fee * $po->exchange_rate;
 
@@ -325,7 +327,7 @@ class PurchaseOrderService
                 $item->save(); // Save updated received_quantity and line_total
 
                 $variant = ProductVariant::withTrashed()->lockForUpdate()->findOrFail($item->product_variant_id);
-                
+
                 $finalUnitCostMmk = $item->unit_cost;
 
                 $retailPrice = $receivedItemsMap->has($item->id) && isset($receivedItemsMap->get($item->id)['retail_price'])
@@ -344,16 +346,16 @@ class PurchaseOrderService
 
                 // --- FULLY LANDED COST CALCULATION ---
                 $finalUnitCostMmk = $item->unit_cost; // This is (original_cost * exchange_rate)
-                
+
                 if ($receivedQty > 0) {
                     // 1. Calculate Quantity Fraction for this row
                     $quantityFraction = $totalReceivedQuantity > 0 ? ($receivedQty / $totalReceivedQuantity) : 0;
-                    
+
                     // 2. Distribute Foreign Costs and Discounts (allocated to the entire row)
                     $rowForeignDeliMmk = $foreignDeliFeeMmk * $quantityFraction;
                     $rowSupplierFeeMmk = $supplierFeeMmk * $quantityFraction;
                     $rowTotalDiscountMmk = ($po->total_discount * $po->exchange_rate) * $quantityFraction;
-                    
+
                     // 3. Get Cargo and Adjustments from frontend overrides (or 0)
                     $rowCargoFee = 0;
                     $rowAdjustment = 0;
@@ -361,14 +363,14 @@ class PurchaseOrderService
                         $rowCargoFee = (float) ($receivedItemsMap->get($item->id)['allocated_cargo_fee'] ?? 0);
                         $rowAdjustment = (float) ($receivedItemsMap->get($item->id)['allocated_adjustment_amount'] ?? 0);
                     }
-                    
+
                     // 4. Calculate per-unit allocations
                     $unitForeignDeli = $rowForeignDeliMmk / $receivedQty;
                     $unitSupplierFee = $rowSupplierFeeMmk / $receivedQty;
                     $unitTotalDiscount = $rowTotalDiscountMmk / $receivedQty;
                     $unitCargoFee = $rowCargoFee / $receivedQty;
                     $unitAdjustment = $rowAdjustment / $receivedQty;
-                    
+
                     // 5. Sum it all up into the final unit cost (subtracting discount)
                     $finalUnitCostMmk = $item->unit_cost + $unitForeignDeli + $unitSupplierFee - $unitTotalDiscount + $unitCargoFee + $unitAdjustment;
 
@@ -393,7 +395,7 @@ class PurchaseOrderService
                 // Update product stock (only received items), decrement pending stock (by original ordered quantity)
                 $newStockLevel = $variant->stock_quantity + $receivedQty;
                 $newPendingStock = max(0, $variant->pending_stock - $item->quantity);
-                
+
                 $updateData = [
                     'stock_quantity' => $newStockLevel,
                     'pending_stock' => $newPendingStock,
@@ -410,7 +412,7 @@ class PurchaseOrderService
                 if ($receivedQty !== $item->quantity) {
                     $note .= " (Ordered: {$item->quantity}, Received: {$receivedQty})";
                 }
-                
+
                 InventoryLog::create([
                     'shop_id' => $po->shop_id,
                     'product_variant_id' => $variant->id,
@@ -424,9 +426,9 @@ class PurchaseOrderService
             }
 
             $po->total_goods_cost = $newTotalGoodsCost;
-            $po->grand_total = (($newTotalGoodsCost + $po->foreign_deli_fee + $po->supplier_fee - $po->total_discount) * $po->exchange_rate) 
+            $po->grand_total = (($newTotalGoodsCost + $po->foreign_deli_fee + $po->supplier_fee - $po->total_discount) * $po->exchange_rate)
                                + $cargoFee + $localDeliFee + $adjustmentAmount;
-            
+
             $po->paid_amount = $po->grand_total;
             $po->payment_status = 'paid';
             $po->status = 'arrived';
@@ -439,7 +441,7 @@ class PurchaseOrderService
                     $po->shop_id,
                     $additionalPayment,
                     'purchase',
-                    'Arrival Settlement & Cargo Fee for PO ' . $po->batch_name,
+                    'Arrival Settlement & Cargo Fee for PO '.$po->batch_name,
                     PurchaseOrder::class,
                     $po->id
                 );
@@ -448,7 +450,7 @@ class PurchaseOrderService
                     $po->shop_id,
                     abs($additionalPayment),
                     'refund',
-                    'Refund / Shortfall Settlement for PO ' . $po->batch_name,
+                    'Refund / Shortfall Settlement for PO '.$po->batch_name,
                     PurchaseOrder::class,
                     $po->id
                 );
@@ -456,7 +458,7 @@ class PurchaseOrderService
 
             $po->logAction('arrived', [
                 'adjustment_amount' => $adjustmentAmount,
-                'adjustment_reason' => $adjustmentReason
+                'adjustment_reason' => $adjustmentReason,
             ]);
 
             return $po;
@@ -466,11 +468,11 @@ class PurchaseOrderService
     /**
      * Cancel a Purchase Order.
      */
-    public function cancelOrder(PurchaseOrder $po, string $reason = "Manual Cancellation", $refundAmount = null): PurchaseOrder
+    public function cancelOrder(PurchaseOrder $po, string $reason = 'Manual Cancellation', $refundAmount = null): PurchaseOrder
     {
         return DB::transaction(function () use ($po, $reason, $refundAmount) {
             if ($po->status !== 'pending') {
-                throw new Exception("Only pending purchase orders can be cancelled.");
+                throw new Exception('Only pending purchase orders can be cancelled.');
             }
 
             $po = PurchaseOrder::lockForUpdate()->findOrFail($po->id);
@@ -480,7 +482,7 @@ class PurchaseOrderService
                 $variant = ProductVariant::with('product')->withTrashed()->lockForUpdate()->findOrFail($item->product_variant_id);
                 // Decrement pending stock
                 $newPendingStock = max(0, $variant->pending_stock - $item->quantity);
-                
+
                 if ($variant->stock_quantity < 0) {
                     $deficit = abs($variant->stock_quantity);
                     if ($newPendingStock < $deficit) {
@@ -491,24 +493,24 @@ class PurchaseOrderService
 
                 $variant->update(['pending_stock' => $newPendingStock]);
             }
-            
+
             $refundToReceive = $refundAmount ?? $po->paid_amount;
             $lossAmount = $po->paid_amount - $refundToReceive;
-            
+
             if ($refundToReceive > 0) {
-                app(\App\Services\CashFlowService::class)->recordInflow(
+                app(CashFlowService::class)->recordInflow(
                     $po->shop_id,
                     $refundToReceive,
                     'refund',
-                    'Refund for Cancelled Purchase Order #' . $po->id,
+                    'Refund for Cancelled Purchase Order #'.$po->id,
                     PurchaseOrder::class,
                     $po->id
                 );
             }
             if ($lossAmount > 0) {
-                \App\Models\Expense::create([
+                Expense::create([
                     'shop_id' => $po->shop_id,
-                    'title' => 'Sunk Cost on PO Cancellation (Order #' . $po->id . ')',
+                    'title' => 'Sunk Cost on PO Cancellation (Order #'.$po->id.')',
                     'amount' => $lossAmount,
                     'incurred_at' => now(),
                     'category' => 'PO Sunk Cost',
@@ -522,7 +524,7 @@ class PurchaseOrderService
             $po->save();
 
             $po->logAction('cancelled', [
-                'reason' => $reason
+                'reason' => $reason,
             ]);
 
             return $po;

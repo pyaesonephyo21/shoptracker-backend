@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
-use Inertia\Inertia;
-use Illuminate\Http\Request;
 use App\Models\Courier;
-use App\Models\SalesOrder;
 use App\Models\PaymentMethod;
+use App\Models\SalesOrder;
 use App\Services\SalesOrderService;
+use Illuminate\Http\Request;
+use Inertia\Inertia;
 
 class CourierSettlementController extends Controller
 {
@@ -23,8 +23,8 @@ class CourierSettlementController extends Controller
         $couriers = Courier::all();
         $paymentMethods = PaymentMethod::all();
         $selectedCourierId = $request->input('courier_id');
-        
-        if ($selectedCourierId && !$couriers->contains('id', $selectedCourierId)) {
+
+        if ($selectedCourierId && ! $couriers->contains('id', $selectedCourierId)) {
             $selectedCourierId = null;
         }
 
@@ -41,9 +41,9 @@ class CourierSettlementController extends Controller
                         'id' => $order->id,
                         'date' => $order->created_at->format('M d, Y'),
                         'customer_name' => $order->customer_name,
-                        'net_revenue' => (float)$order->net_revenue,
-                        'paid_amount' => (float)$order->paid_amount,
-                        'balance' => (float)($order->net_revenue - $order->paid_amount),
+                        'net_revenue' => (float) $order->net_revenue,
+                        'paid_amount' => (float) $order->paid_amount,
+                        'balance' => (float) ($order->net_revenue - $order->paid_amount),
                     ];
                 });
         }
@@ -52,7 +52,7 @@ class CourierSettlementController extends Controller
             'couriers' => $couriers,
             'paymentMethods' => $paymentMethods,
             'unsettledOrders' => $unsettledOrders,
-            'selectedCourierId' => (int)$selectedCourierId,
+            'selectedCourierId' => (int) $selectedCourierId,
         ]);
     }
 
@@ -66,6 +66,6 @@ class CourierSettlementController extends Controller
 
         $this->salesOrderService->batchSettle($validated['order_ids'], $validated['payment_method']);
 
-        return redirect()->back()->with('success', count($validated['order_ids']) . ' orders successfully settled.');
+        return redirect()->back()->with('success', count($validated['order_ids']).' orders successfully settled.');
     }
 }

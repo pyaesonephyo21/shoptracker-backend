@@ -3,9 +3,9 @@
 namespace App\Http\Controllers\Management;
 
 use App\Http\Controllers\Controller;
+use App\Models\Category;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use App\Models\Category;
 
 class CategoryController extends Controller
 {
@@ -24,7 +24,7 @@ class CategoryController extends Controller
             'categories' => $categories,
             'filters' => [
                 'search' => $request->search ?? '',
-            ]
+            ],
         ]);
     }
 
@@ -38,9 +38,10 @@ class CategoryController extends Controller
 
         return redirect()->back()->with('success', 'Category created successfully.');
     }
+
     public function update(Request $request, Category $category)
     {
-        
+
         $validated = $request->validate([
             'name' => 'required|string|max:255',
         ]);

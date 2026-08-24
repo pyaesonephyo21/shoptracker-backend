@@ -2,13 +2,13 @@
 
 namespace App\Http\Controllers\Management;
 
+use App\Exports\ExpenseExport;
 use App\Http\Controllers\Controller;
 use App\Models\Expense;
+use App\Services\CashFlowService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
-use App\Exports\ExpenseExport;
-use App\Services\CashFlowService;
 
 class ExpenseController extends Controller
 {
@@ -33,7 +33,7 @@ class ExpenseController extends Controller
             'filters' => [
                 'start_date' => $request->start_date ?? '',
                 'end_date' => $request->end_date ?? '',
-            ]
+            ],
         ]);
     }
 
@@ -66,8 +66,6 @@ class ExpenseController extends Controller
             'category' => 'nullable|string|max:255',
             'note' => 'nullable|string',
         ]);
-
-
 
         $expense = Expense::create($validated);
 

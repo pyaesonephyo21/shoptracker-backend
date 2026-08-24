@@ -2,7 +2,8 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\PurchaseOrder;
+use App\Models\PurchaseOrderItem;
 use Illuminate\Database\Seeder;
 
 class PurchaseOrderSeeder extends Seeder
@@ -15,7 +16,7 @@ class PurchaseOrderSeeder extends Seeder
         $shopId = 1;
 
         // 1. A pending foreign order
-        $po1 = \App\Models\PurchaseOrder::create([
+        $po1 = PurchaseOrder::create([
             'shop_id' => $shopId,
             'supplier_id' => 1, // Tech Supply Co (from SupplierSeeder)
             'batch_name' => 'SEP-001',
@@ -30,7 +31,7 @@ class PurchaseOrderSeeder extends Seeder
             'paid_amount' => 100000.00,
         ]);
 
-        \App\Models\PurchaseOrderItem::create([
+        PurchaseOrderItem::create([
             'purchase_order_id' => $po1->id,
             'product_id' => 1, // Premium T-Shirt
             'quantity' => 100,
@@ -40,7 +41,7 @@ class PurchaseOrderSeeder extends Seeder
         ]);
 
         // 2. An arrived local order
-        $po2 = \App\Models\PurchaseOrder::create([
+        $po2 = PurchaseOrder::create([
             'shop_id' => $shopId,
             'supplier_id' => null,
             'local_shop_name' => 'Local Tech Market',
@@ -56,7 +57,7 @@ class PurchaseOrderSeeder extends Seeder
             'paid_amount' => 102000.00,
         ]);
 
-        \App\Models\PurchaseOrderItem::create([
+        PurchaseOrderItem::create([
             'purchase_order_id' => $po2->id,
             'product_id' => 2, // Wireless Mouse
             'quantity' => 10,

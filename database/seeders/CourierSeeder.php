@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Console\Seeds\WithoutModelEvents;
+use App\Models\Courier;
 use Illuminate\Database\Seeder;
 
 class CourierSeeder extends Seeder
@@ -18,7 +18,7 @@ class CourierSeeder extends Seeder
         ];
 
         foreach ($couriers as $courier) {
-            \App\Models\Courier::create($courier);
+            Courier::create($courier);
         }
     }
 }

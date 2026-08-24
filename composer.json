@@ -1,9 +1,9 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "pyaesonephyo21/shoptracker-backend",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "ShopTracker - Modern Multi-Shop Inventory, Order, Finance & Courier Management System built with Laravel, Inertia.js, and React.",
+    "keywords": ["laravel", "inertia", "react", "inventory-management", "order-tracking", "pos", "ecommerce", "multi-tenant", "courier-settlement"],
     "license": "MIT",
     "require": {
         "php": "^8.3",

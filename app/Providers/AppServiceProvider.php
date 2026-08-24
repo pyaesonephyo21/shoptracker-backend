@@ -8,7 +8,6 @@ use Google\Client;
 use Google\Service\Drive;
 use Illuminate\Filesystem\FilesystemAdapter;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Session;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -34,14 +33,14 @@ class AppServiceProvider extends ServiceProvider
     {
         Storage::extend('google', function ($app, $config) {
             $options = [];
-            if (!empty($config['teamDriveId'] ?? null)) {
+            if (! empty($config['teamDriveId'] ?? null)) {
                 $options['teamDriveId'] = $config['teamDriveId'];
             }
-            if (!empty($config['sharedFolderId'] ?? null)) {
+            if (! empty($config['sharedFolderId'] ?? null)) {
                 $options['sharedFolderId'] = $config['sharedFolderId'];
             }
 
-            $client = new Client();
+            $client = new Client;
             $client->setClientId($config['clientId']);
             $client->setClientSecret($config['clientSecret']);
             $client->refreshToken($config['refreshToken']);
@@ -60,6 +59,7 @@ class AppServiceProvider extends ServiceProvider
             'auth' => function () {
                 /** @var User $user */
                 $user = Auth::user();
+
                 return [
                     'user' => $user ? $user->only('id', 'name', 'email', 'role', 'shop_id') : null,
                     'shop' => $user && $user->shop ? $user->shop->only('id', 'name', 'settings') : null,

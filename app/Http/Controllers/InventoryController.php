@@ -16,47 +16,18 @@ class InventoryController extends Controller
 {
     public function index(Request $request)
     {
+        $status = $request->input('status', 'active');
         $query = Product::with(['category', 'variants'])
             ->withSum('variants', 'stock_quantity')
-            ->withSum('variants', 'pending_stock');
+            ->withSum('variants', 'pending_stock')
+            ->filter([
+                'search' => $request->search,
+                'type' => $request->type,
+                'category_id' => $request->category_id,
+                'status' => $status,
+                'filter' => $request->filter,
+            ]);
 
-        if ($request->has('search') && $request->search !== '') {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhereHas('variants', function ($vq) use ($search) {
-                        $vq->where('sku', 'like', "%{$search}%");
-                    });
-            });
-        }
-
-        if ($request->has('type') && $request->type !== '') {
-            $query->where('type', $request->type);
-        }
-
-        if ($request->filled('category_id')) {
-            if ($request->category_id === 'uncategorized') {
-                $query->whereNull('category_id');
-            } else {
-                $query->where('category_id', $request->category_id);
-            }
-        }
-
-        $status = $request->input('status', 'active');
-        if ($status === 'active') {
-            $query->where('is_active', true);
-        } elseif ($status === 'archived') {
-            $query->where('is_active', false);
-        }
-
-        if ($request->has('filter') && $request->filter === 'low_stock') {
-            $query->where(function ($q) {
-                $q->selectRaw('coalesce(sum(stock_quantity), 0)')
-                  ->from('product_variants')
-                  ->whereColumn('product_variants.product_id', 'products.id')
-                  ->whereNull('product_variants.deleted_at');
-            }, '<=', 5);
-        }
         $products = $query->latest()->paginate(15)->withQueryString();
         $categories = Category::orderBy('name')->get(['id', 'name']);
 
@@ -69,7 +40,7 @@ class InventoryController extends Controller
                 'filter' => $request->filter ?? '',
                 'category_id' => $request->category_id ?? '',
                 'status' => $status,
-            ]
+            ],
         ]);
     }
 
@@ -88,7 +59,6 @@ class InventoryController extends Controller
             ->latest('created_at')
             ->first();
 
-
         $pendingCost = PurchaseOrderItem::whereIn('product_variant_id', $product->variants->pluck('id'))
             ->whereHas('purchaseOrder', function ($q) {
                 $q->where('status', 'pending');
@@ -101,21 +71,22 @@ class InventoryController extends Controller
 
         return Inertia::render('Inventory/ProductDetail', [
             'product' => $product,
-            'latestCost' => (float)$latestCost,
-            'latestRetailPrice' => (float)$latestRetailPrice,
-            'pendingCost' => (float)$pendingCost
+            'latestCost' => (float) $latestCost,
+            'latestRetailPrice' => (float) $latestRetailPrice,
+            'pendingCost' => (float) $pendingCost,
         ]);
     }
 
     public function create()
     {
         $categories = Category::all();
+
         return Inertia::render('Inventory/AddProduct', [
-            'categories' => $categories
+            'categories' => $categories,
         ]);
     }
 
-    public function store(\Illuminate\Http\Request $request)
+    public function store(Request $request)
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
@@ -159,7 +130,7 @@ class InventoryController extends Controller
 
         return Inertia::render('Inventory/EditProduct', [
             'product' => $product,
-            'categories' => $categories
+            'categories' => $categories,
         ]);
     }
 
@@ -237,10 +208,11 @@ class InventoryController extends Controller
     public function toggleActive(Product $product)
     {
         $product->update([
-            'is_active' => !$product->is_active
+            'is_active' => ! $product->is_active,
         ]);
 
         $statusMessage = $product->is_active ? 'restored' : 'archived';
+
         return back()->with('success', "Product {$statusMessage} successfully.");
     }
 
@@ -255,7 +227,7 @@ class InventoryController extends Controller
     public function updateRetailPrice(Request $request, ProductVariant $variant)
     {
         $validated = $request->validate([
-            'retail_price' => 'required|numeric|min:0'
+            'retail_price' => 'required|numeric|min:0',
         ]);
 
         DB::transaction(function () use ($variant, $validated) {
@@ -269,6 +241,7 @@ class InventoryController extends Controller
         if ($request->wantsJson()) {
             return response()->json(['success' => true]);
         }
+
         return back()->with('success', 'Retail price updated successfully.');
     }
 }

@@ -42,6 +42,7 @@ class PurchaseOrderRepository
     {
         $po = $this->findById($id);
         $po->update(['status' => $status]);
+
         return $po;
     }
 }

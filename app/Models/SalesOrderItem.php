@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class SalesOrderItem extends Model
 {
     use HasFactory;
+
     protected $guarded = ['id'];
 
     protected $casts = [

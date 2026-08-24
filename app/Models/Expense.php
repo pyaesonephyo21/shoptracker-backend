@@ -2,13 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Traits\BelongsToShop;
 
 class Expense extends Model
 {
-    use HasFactory, BelongsToShop;
+    use BelongsToShop, HasFactory;
 
     protected $fillable = [
         'shop_id',
@@ -23,5 +23,4 @@ class Expense extends Model
         'incurred_at' => 'date',
         'amount' => 'decimal:2',
     ];
-
 }

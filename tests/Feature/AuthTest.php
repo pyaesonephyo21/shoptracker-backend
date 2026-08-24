@@ -31,7 +31,6 @@ class AuthTest extends TestCase
     {
         $shop = Shop::create([
             'name' => 'Main Test Store',
-            'slug' => 'main-test-store',
         ]);
 
         $user = User::factory()->create([
@@ -53,7 +52,6 @@ class AuthTest extends TestCase
     {
         $shop = Shop::create([
             'name' => 'Main Test Store',
-            'slug' => 'main-test-store',
         ]);
 
         $user = User::factory()->create([
@@ -74,7 +72,6 @@ class AuthTest extends TestCase
     {
         $shop = Shop::create([
             'name' => 'Main Test Store',
-            'slug' => 'main-test-store',
         ]);
 
         $user = User::factory()->create([

@@ -32,7 +32,7 @@ class AiAddressParserTest extends TestCase
 
     public function test_ai_parser_validates_text_field(): void
     {
-        $shop = Shop::create(['name' => 'Store', 'slug' => 'store']);
+        $shop = Shop::create(['name' => 'Store']);
         $user = User::factory()->create(['shop_id' => $shop->id]);
 
         $response = $this->actingAs($user)->postJson('/api/ai/parse-address', []);
@@ -46,7 +46,7 @@ class AiAddressParserTest extends TestCase
         Config::set('services.gemini.api_key', null);
         Config::set('services.openrouter.api_key', null);
 
-        $shop = Shop::create(['name' => 'Store', 'slug' => 'store']);
+        $shop = Shop::create(['name' => 'Store']);
         $user = User::factory()->create(['shop_id' => $shop->id]);
 
         $response = $this->actingAs($user)->postJson('/api/ai/parse-address', [

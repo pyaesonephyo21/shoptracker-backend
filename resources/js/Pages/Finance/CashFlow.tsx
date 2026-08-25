@@ -11,6 +11,7 @@ import Pagination from '@/components/Pagination';
 import { Select, SelectContent, SelectItem, SelectTrigger } from '@/components/ui/select';
 import { DatePicker } from '@/components/ui/date-picker';
 import { format } from 'date-fns';
+import { useRevalidateOnBack } from '@/hooks/useRevalidateOnBack';
 
 interface CashTransaction {
     id: number;
@@ -62,6 +63,8 @@ export default function CashFlow({ transactions, totalBalance, filters }: CashFl
             type: typeFilter
         }, { preserveState: true, preserveScroll: true });
     }, [startDate, endDate, typeFilter]);
+
+    useRevalidateOnBack(['transactions', 'totalBalance']);
 
     const { data, setData, post, processing, errors, reset, clearErrors } = useForm({
         amount: '',

@@ -73,15 +73,16 @@ export interface PurchaseOrderItemInput {
 }
 
 export interface PurchaseOrderItem {
-    batch_unit_cost: undefined;
-    product_variant: any;
     id: number;
+    purchase_order_id?: number;
     product_variant_id: number;
+    product_variant?: ProductVariant;
     quantity: number;
     received_quantity?: number | null;
     original_cost: number;
     unit_cost: number;
-    retail_price?: number;
+    batch_unit_cost?: number | null;
+    retail_price?: number | null;
     line_total: number;
     allocated_cargo_fee?: number | null;
     allocated_adjustment_amount?: number | null;
@@ -89,7 +90,7 @@ export interface PurchaseOrderItem {
     latest_retail_price?: number | null;
     previous_retail_prices?: number[];
     pending_retail_price?: number | null;
-    product: {
+    product?: {
         id: number;
         name: string;
         sku: string | null;
@@ -98,16 +99,20 @@ export interface PurchaseOrderItem {
 }
 
 export interface PurchaseOrder {
-    total_discount(total_discount: any): unknown;
-    supplier: any;
-    order_type: string;
     id: number;
     batch_name: string;
-    status: "pending" | "arrived" | "cancelled";
+    order_type: string;
+    status: "pending" | "partially_arrived" | "arrived" | "cancelled";
     supplier_name: string;
     supplier_id: number | null;
+    supplier?: {
+        id: number;
+        name: string;
+        currency?: string;
+    };
     exchange_rate: number;
     total_goods_cost: number;
+    total_discount?: number;
     supplier_fee: number;
     cargo_fee: number;
     local_deli_fee: number;
@@ -122,6 +127,5 @@ export interface PurchaseOrder {
     created_at: string;
     updated_at: string;
     foreign_deli_fee?: number;
-
     items?: PurchaseOrderItem[];
 }

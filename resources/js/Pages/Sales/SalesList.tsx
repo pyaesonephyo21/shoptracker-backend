@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { Filter } from 'lucide-react';
+import { useRevalidateOnBack } from '@/hooks/useRevalidateOnBack';
 
 export default function SalesList({ orders, filters = { status: '', settlement_status: '', search: '', start_date: '', end_date: '' } }: { orders: PaginatedData<SalesOrder>, filters: { status: string, settlement_status: string, search: string, start_date: string, end_date: string } }) {
     const paymentMethods = usePage<any>().props.auth?.payment_methods || [];
@@ -38,14 +39,7 @@ export default function SalesList({ orders, filters = { status: '', settlement_s
         return () => clearTimeout(timer);
     }, [searchVal]); // Only trigger on searchVal change
 
-    useEffect(() => {
-        // When navigating back via browser/PWA back button, Inertia restores the cached state.
-        // This ensures we always fetch fresh data after restoring so the list is up-to-date.
-        const unlisten = router.on('restore', () => {
-            router.reload({ only: ['orders'], preserveScroll: true, preserveState: true });
-        });
-        return () => unlisten();
-    }, []);
+    useRevalidateOnBack(['orders']);
 
     const handleFilterChange = (status: string, search: string, settlement: string, method: string, start?: Date, end?: Date) => {
         router.get('/sales', {

@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { Filter } from 'lucide-react';
+import { useRevalidateOnBack } from '@/hooks/useRevalidateOnBack';
 
 interface CategoryItem {
     id: number;
@@ -58,6 +59,8 @@ export default function InventoryList({
         }, 300);
         return () => clearTimeout(timer);
     }, [searchQuery]); // Only trigger on searchQuery change
+
+    useRevalidateOnBack(['products']);
 
     const handleFilterChange = (search: string, type: string, filter: string, status: string, categoryId: string = activeCategory) => {
         router.get('/inventory', {

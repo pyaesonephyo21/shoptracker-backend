@@ -281,7 +281,7 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                 </header>
 
                 <div 
-                    className="flex-1 overflow-y-auto pb-24 md:pb-0 scroll-smooth relative"
+                    className="flex-1 overflow-y-auto pb-24 md:pb-0 relative"
                     scroll-region="true"
                 >
                     {/* Page Content */}
@@ -299,6 +299,11 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                         <Link
                             key={item.name}
                             href={item.href}
+                            onClick={() => {
+                                if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+                                    navigator.vibrate?.(10);
+                                }
+                            }}
                             className={twMerge(
                                 'flex flex-col items-center justify-center w-full h-full gap-1 active:scale-95 transition-all',
                                 isActive ? 'text-black dark:text-white font-bold' : 'text-zinc-500 dark:text-zinc-500'

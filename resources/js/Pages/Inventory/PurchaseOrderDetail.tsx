@@ -23,61 +23,52 @@ const formatLogValue = (val: any) => {
 
 export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder }) {
     const isArrived = order.status === 'arrived';
+    const isPartiallyArrived = order.status === 'partially_arrived';
     const isCancelled = order.status === 'cancelled';
     const isPending = order.status === 'pending';
     const [isReceivingMode, setIsReceivingMode] = useState(false);
     const [showCancelModal, setShowCancelModal] = useState(false);
     const [cancelReason, setCancelReason] = useState("");
     const [refundAmount, setRefundAmount] = useState<string | number>("");
-    
+
+    const initialReceivedItems = order.items?.map(item => {
+        const alreadyReceived = item.received_quantity || 0;
+        const remaining = Math.max(0, item.quantity - alreadyReceived);
+        const rp = item.retail_price || item.product_variant?.retail_price;
+        return {
+            id: item.id,
+            received_quantity: remaining > 0 ? remaining.toString() : '0',
+            retail_price: (rp === 0 || !rp) ? '' : rp.toString(),
+            allocated_cargo_fee: '',
+            allocated_adjustment_amount: ''
+        };
+    }) || [];
 
     const { data, setData, post, processing, errors, clearErrors } = useForm({
         cargo_fee: '',
         local_deli_fee: '',
         adjustment_amount: '',
         adjustment_reason: '',
-        received_items: order.items?.map(item => {
-            const rp = item.retail_price || item.product_variant?.retail_price;
-            return {
-                id: item.id,
-                received_quantity: item.quantity.toString(),
-                retail_price: (rp === 0 || !rp) ? '' : rp.toString(),
-                allocated_cargo_fee: '',
-                allocated_adjustment_amount: ''
-            };
-        }) || []
+        received_items: initialReceivedItems
     });
 
-    const [manualAllocation, setManualAllocation] = useState(false);
-
-    useEffect(() => {
-        if (!isReceivingMode || manualAllocation) return;
-
-        const totalCargo = Number(data.cargo_fee) || 0;
-        const totalAdjustment = Number(data.adjustment_amount) || 0;
-
-        // Calculate total received quantity
-        let totalQty = 0;
-        data.received_items.forEach(item => {
-            totalQty += Number(item.received_quantity) || 0;
-        });
-
-        const newItems = data.received_items.map(item => {
-            const itemQty = Number(item.received_quantity) || 0;
-            const cargo = totalQty > 0 ? (itemQty / totalQty) * totalCargo : 0;
-            const adj = totalQty > 0 ? (itemQty / totalQty) * totalAdjustment : 0;
-
-            return {
-                ...item,
-                allocated_cargo_fee: Math.round(cargo).toString(),
-                allocated_adjustment_amount: Math.round(adj).toString()
-            };
-        });
-
-        setData('received_items', newItems);
-    }, [data.cargo_fee, data.adjustment_amount, isReceivingMode]);
-
     const formatMMK = (val: number) => Math.round(Number(val)).toLocaleString();
+
+    // Calculate total receiving now across items
+    const totalReceivingNow = data.received_items.reduce((sum, ri) => sum + (Number(ri.received_quantity) || 0), 0);
+
+    // Sum of item-level cargo fees
+    const sumAllocatedCargo = data.received_items.reduce((sum, ri) => sum + (Number(ri.allocated_cargo_fee) || 0), 0);
+    const effectiveShipmentCargo = sumAllocatedCargo > 0 ? sumAllocatedCargo : (Number(data.cargo_fee) || 0);
+    const totalShipmentCashOutflow = effectiveShipmentCargo + (Number(data.local_deli_fee) || 0) + (Number(data.adjustment_amount) || 0);
+
+    // Check if this shipment completes all remaining items
+    const willFullyComplete = (order.items || []).every(item => {
+        const alreadyReceived = item.received_quantity || 0;
+        const remaining = Math.max(0, item.quantity - alreadyReceived);
+        const receivingNow = Number(data.received_items.find(ri => ri.id === item.id)?.received_quantity) || 0;
+        return receivingNow >= remaining;
+    });
 
     const CostRow = ({ label, value, isTotal = false }: { label: string, value: number, isTotal?: boolean }) => (
         <div className={twMerge("flex justify-between items-start gap-4 mb-3", isTotal ? "mt-4 pt-4 border-t border-zinc-200 dark:border-zinc-700 items-center" : "")}>
@@ -92,7 +83,7 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
         e.preventDefault();
         post(`/inventory/purchase-orders/${order.id}/arrive`, {
             onSuccess: () => setIsReceivingMode(false),
-            onError: () => alert('Failed to process arrival')
+            onError: () => alert('Failed to process shipment arrival')
         });
     };
 
@@ -110,6 +101,18 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
         });
     };
 
+    const setItemField = (itemId: number, field: string, val: string) => {
+        const newItems = [...data.received_items];
+        const idx = newItems.findIndex(ri => ri.id === itemId);
+        if (idx !== -1) {
+            (newItems[idx] as any)[field] = val;
+            setData('received_items', newItems);
+            if (field === 'retail_price') {
+                clearErrors(`received_items.${idx}.retail_price`);
+            }
+        }
+    };
+
     return (
         <AppLayout title={order.batch_name}>
             <Head title={`PO: ${order.batch_name}`} />
@@ -123,9 +126,10 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                             <div className="flex items-center gap-2 mt-1">
                                 <span className={twMerge("text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded border",
                                     isArrived ? "bg-black text-white dark:bg-white dark:text-black border-black dark:border-white" :
-                                        isCancelled ? "bg-transparent border-zinc-300 dark:border-zinc-700 text-zinc-500 line-through decoration-zinc-400" :
-                                            "bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400")}>
-                                    {order.status}
+                                        isPartiallyArrived ? "bg-amber-50 dark:bg-amber-950/40 border-amber-500/50 text-amber-600 dark:text-amber-400" :
+                                            isCancelled ? "bg-transparent border-zinc-300 dark:border-zinc-700 text-zinc-500 line-through decoration-zinc-400" :
+                                                "bg-transparent border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400")}>
+                                    {order.status.replace(/_/g, ' ')}
                                 </span>
                                 <span className="text-xs text-zinc-400 font-medium">
                                     {new Date(order.created_at).toLocaleDateString()} • {order.supplier_name || 'Local Shop'}
@@ -138,7 +142,7 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                             )}
                         </div>
                     </div>
-                    {order.status === 'pending' && (
+                    {(order.status === 'pending' || order.status === 'partially_arrived') && !isReceivingMode && (
                         <Link
                             href={`/inventory/purchase-orders/${order.id}/edit`}
                             className="inline-flex items-center justify-center border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-xs font-bold uppercase tracking-widest h-9 px-4 rounded-md transition-colors"
@@ -165,10 +169,10 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                             {Number(order.total_discount) > 0 && <CostRow label={`Total Discount (${(order.total_discount || 0).toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={-(order.total_discount || 0) * order.exchange_rate} />}
                             {order.supplier_fee > 0 && <CostRow label={`Supplier Service Fee (${order.supplier_fee.toLocaleString()} ${order.supplier?.currency || 'CNY'})`} value={order.supplier_fee * order.exchange_rate} />}
 
-                            {order.cargo_fee > 0 && <CostRow label="Cargo Fee" value={order.cargo_fee} />}
+                            {order.cargo_fee > 0 && <CostRow label="Cargo Fee (Cumulative)" value={order.cargo_fee} />}
                             {order.local_deli_fee > 0 && <CostRow label="Local Delivery" value={order.local_deli_fee} />}
                             {order.adjustment_amount !== undefined && order.adjustment_amount !== null && Number(order.adjustment_amount) !== 0 && (
-                                <CostRow label={`Adjustment (${order.adjustment_reason})`} value={Number(order.adjustment_amount)} />
+                                <CostRow label={`Adjustment (${order.adjustment_reason || 'Misc'})`} value={Number(order.adjustment_amount)} />
                             )}
 
                             <CostRow label="GRAND TOTAL" value={order.grand_total} isTotal />
@@ -187,285 +191,292 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
                         </div>
                     </div>
 
-                    {/* RIGHT COL: Items */}
+                    {/* RIGHT COL: Items & Receiving */}
                     <div className="lg:col-span-2 flex flex-col gap-8">
-                        <div>
-                            <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-4">Items ({order.items?.length || 0})</span>
+                        {!isReceivingMode ? (
+                            <div>
+                                <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-4">Items ({order.items?.length || 0})</span>
 
-                            <div className="flex flex-col border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-black">
-                                {order.items?.map((item) => (
-                                    <div key={item.id} className="p-4 border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 flex flex-col gap-2">
-                                        <div className="flex justify-between items-start">
-                                            <div className="flex-1 mr-4">
-                                                <h4 className="font-bold text-black dark:text-white text-base mb-1">
-                                                    {item.product_variant?.product?.name} - {Object.values(item.product_variant?.attributes || {}).join(' / ') || 'Default'}
-                                                </h4>
-                                                <span className="text-xs text-zinc-500 block">
-                                                    Ordered: {item.quantity} units @ {formatMMK(item.unit_cost)} MMK
-                                                    {order.order_type === 'global' && (
-                                                        <span className="text-zinc-400 ml-1">
-                                                            (Original: {item.original_cost} {order.supplier?.currency || 'CNY'}, Rate: {order.exchange_rate})
+                                <div className="flex flex-col border border-zinc-100 dark:border-zinc-800 rounded-2xl overflow-hidden bg-white dark:bg-black">
+                                    {order.items?.map((item) => {
+                                        const alreadyReceived = item.received_quantity || 0;
+                                        const isFullyReceived = alreadyReceived >= item.quantity;
+                                        const isPartiallyRcvd = alreadyReceived > 0 && alreadyReceived < item.quantity;
+
+                                        return (
+                                            <div key={item.id} className="p-4 border-b border-zinc-100 dark:border-zinc-800 last:border-b-0 flex flex-col gap-2">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex-1 mr-4">
+                                                        <h4 className="font-bold text-black dark:text-white text-base mb-1">
+                                                            {item.product_variant?.product?.name} - {Object.values(item.product_variant?.attributes || {}).join(' / ') || 'Default'}
+                                                        </h4>
+                                                        <span className="text-xs text-zinc-500 block">
+                                                            Ordered: {item.quantity} units @ {formatMMK(item.unit_cost)} MMK
+                                                            {order.order_type === 'global' && (
+                                                                <span className="text-zinc-400 ml-1">
+                                                                    (Original: {item.original_cost} {order.supplier?.currency || 'CNY'}, Rate: {order.exchange_rate})
+                                                                </span>
+                                                            )}
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex flex-col items-end">
+                                                        <span className="font-black text-black dark:text-white text-lg">
+                                                            {formatMMK(item.line_total)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-2 flex flex-wrap items-center gap-2">
+                                                    {isFullyReceived ? (
+                                                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-green-50 dark:bg-green-950/40 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800">
+                                                            ✓ Received: {alreadyReceived} / {item.quantity}
+                                                        </span>
+                                                    ) : isPartiallyRcvd ? (
+                                                        <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800">
+                                                            ⚡ Received: {alreadyReceived} / {item.quantity} ({item.quantity - alreadyReceived} remaining)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="text-[11px] font-medium text-zinc-400">
+                                                            Pending Arrival (0 / {item.quantity} received)
                                                         </span>
                                                     )}
-                                                </span>
+
+                                                    {Number(item.allocated_cargo_fee) > 0 && (
+                                                        <span className="text-[11px] text-zinc-500 font-medium ml-2">
+                                                            Cargo Paid: {formatMMK(Number(item.allocated_cargo_fee))} MMK
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
-                                            <div className="flex flex-col items-end">
-                                                <span className="font-black text-black dark:text-white text-lg">
-                                                    {formatMMK(item.line_total)}
-                                                </span>
-                                                {order.order_type === 'global' && (
-                                                    <span className="text-[10px] text-zinc-400 font-medium">
-                                                        {((item.received_quantity ?? item.quantity) * item.original_cost).toLocaleString()} {order.supplier?.currency || 'CNY'}
-                                                    </span>
+                                        );
+                                    })}
+                                    {(!order.items || order.items.length === 0) && (
+                                        <div className="p-8 flex justify-center text-zinc-400 text-sm">No items found.</div>
+                                    )}
+                                </div>
+                            </div>
+                        ) : (
+                            /* RECEIVING MODE - MOBILE FIRST PRODUCT CARDS */
+                            <form onSubmit={handleConfirmArrive} className="flex flex-col gap-6">
+                                <div className="flex justify-between items-center">
+                                    <div>
+                                        <h3 className="text-lg font-black text-black dark:text-white">Receive Shipment</h3>
+                                        <p className="text-xs text-zinc-500">Enter arriving quantities and cargo fees for this specific shipment.</p>
+                                    </div>
+                                    <button 
+                                        type="button" 
+                                        onClick={() => setIsReceivingMode(false)}
+                                        className="text-xs font-bold uppercase tracking-widest text-zinc-400 hover:text-black dark:hover:text-white"
+                                    >
+                                        ✕ Cancel
+                                    </button>
+                                </div>
+
+                                <div className="flex flex-col gap-4">
+                                    {order.items?.map((item) => {
+                                        const alreadyReceived = item.received_quantity || 0;
+                                        const remaining = Math.max(0, item.quantity - alreadyReceived);
+                                        const itemForm = data.received_items.find(ri => ri.id === item.id);
+                                        const receivingNow = Number(itemForm?.received_quantity) || 0;
+                                        const isCompleted = remaining === 0;
+
+                                        const itemCargo = Number(itemForm?.allocated_cargo_fee) || 0;
+                                        const estUnitCargo = receivingNow > 0 ? (itemCargo / receivingNow) : 0;
+                                        const baseUnitCost = item.unit_cost || (item.original_cost * order.exchange_rate);
+                                        const estLandedCost = baseUnitCost + estUnitCargo;
+
+                                        return (
+                                            <div 
+                                                key={item.id} 
+                                                className={twMerge(
+                                                    "p-4 rounded-2xl border transition-all duration-200",
+                                                    isCompleted 
+                                                        ? "bg-zinc-50/50 dark:bg-zinc-900/30 border-zinc-100 dark:border-zinc-800 opacity-60" 
+                                                        : receivingNow > 0 
+                                                            ? "bg-white dark:bg-zinc-900 border-black dark:border-white shadow-sm" 
+                                                            : "bg-white dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800"
                                                 )}
+                                            >
+                                                {/* Header */}
+                                                <div className="flex justify-between items-start gap-2 mb-3">
+                                                    <div>
+                                                        <h4 className="font-bold text-black dark:text-white text-sm sm:text-base">
+                                                            {item.product_variant?.product?.name}
+                                                        </h4>
+                                                        <p className="text-xs text-zinc-500 font-medium">
+                                                            {Object.values(item.product_variant?.attributes || {}).join(' / ') || 'Default Variant'}
+                                                        </p>
+                                                    </div>
+                                                    <span className={twMerge(
+                                                        "text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 uppercase tracking-wider",
+                                                        isCompleted 
+                                                            ? "bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300"
+                                                            : "bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                                                    )}>
+                                                        {alreadyReceived} / {item.quantity} Received
+                                                    </span>
+                                                </div>
+
+                                                {isCompleted ? (
+                                                    <p className="text-xs text-zinc-400 italic">This product has been fully received in prior shipments.</p>
+                                                ) : (
+                                                    <div className="flex flex-col gap-4">
+                                                        {/* Stepper and quick fill */}
+                                                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                                                            <div>
+                                                                <Label className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">
+                                                                    Arriving in This Shipment:
+                                                                </Label>
+                                                                <div className="flex items-center gap-2">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const val = Math.max(0, receivingNow - 1);
+                                                                            setItemField(item.id, 'received_quantity', val.toString());
+                                                                        }}
+                                                                        className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 font-bold text-sm flex items-center justify-center transition-colors"
+                                                                    >
+                                                                        -
+                                                                    </button>
+                                                                    <Input
+                                                                        type="number"
+                                                                        value={itemForm?.received_quantity || ''}
+                                                                        onChange={(e) => setItemField(item.id, 'received_quantity', e.target.value)}
+                                                                        className="w-16 h-8 text-center text-sm font-bold border-zinc-200 dark:border-zinc-800"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                            const val = Math.min(remaining, receivingNow + 1);
+                                                                            setItemField(item.id, 'received_quantity', val.toString());
+                                                                        }}
+                                                                        className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 font-bold text-sm flex items-center justify-center transition-colors"
+                                                                    >
+                                                                        +
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setItemField(item.id, 'received_quantity', remaining.toString())}
+                                                                        className="text-[11px] font-bold px-2 py-1.5 rounded-lg bg-zinc-100 dark:bg-zinc-800 hover:bg-zinc-200 dark:hover:bg-zinc-700 text-zinc-600 dark:text-zinc-300 ml-1 transition-colors"
+                                                                    >
+                                                                        All ({remaining})
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setItemField(item.id, 'received_quantity', '0')}
+                                                                        className="text-[11px] font-medium text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 px-1"
+                                                                    >
+                                                                        None
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* Item Cargo Fee */}
+                                                            {receivingNow > 0 && (
+                                                                <div className="flex-1 sm:max-w-[200px]">
+                                                                    <Label className="text-[10px] uppercase font-bold text-zinc-400 block mb-1">
+                                                                        Cargo Fee (MMK):
+                                                                    </Label>
+                                                                    <FormattedNumberInput
+                                                                        value={itemForm?.allocated_cargo_fee || ''}
+                                                                        onChange={(val) => setItemField(item.id, 'allocated_cargo_fee', val)}
+                                                                        placeholder="0"
+                                                                        className="h-8 text-xs border-zinc-200 dark:border-zinc-800"
+                                                                    />
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Retail Price & Landed preview */}
+                                                        {receivingNow > 0 && (
+                                                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">
+                                                                        Retail Price:
+                                                                    </Label>
+                                                                    <FormattedNumberInput
+                                                                        value={itemForm?.retail_price || ''}
+                                                                        onChange={(val) => setItemField(item.id, 'retail_price', val)}
+                                                                        placeholder="Set Retail"
+                                                                        className="w-28 h-7 text-xs border-zinc-200 dark:border-zinc-800"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center gap-2 text-zinc-500 font-medium">
+                                                                    <span>Est. Landed Cost:</span>
+                                                                    <span className="font-bold text-black dark:text-white">
+                                                                        ~{formatMMK(estLandedCost)} MMK / unit
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+
+                                {/* SHIPMENT SUMMARY & SUBMISSION */}
+                                <div className="p-6 bg-zinc-950 text-white rounded-2xl shadow-xl flex flex-col gap-4">
+                                    <div className="flex justify-between items-center border-b border-zinc-800 pb-3">
+                                        <h4 className="font-black text-sm uppercase tracking-widest text-zinc-300">Shipment Summary</h4>
+                                        <span className="text-xs font-bold text-zinc-400">{totalReceivingNow} pcs arriving</span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <Label className="text-[10px] uppercase font-bold text-zinc-400">Total Shipment Cargo (MMK)</Label>
+                                            <div className="text-base font-black text-white mt-1">
+                                                {formatMMK(effectiveShipmentCargo)} MMK
                                             </div>
                                         </div>
 
                                         <div>
-                                            {isArrived && item.received_quantity !== null && item.received_quantity !== undefined && (
-                                                <div className="flex flex-col mt-2">
-                                                    <span className={twMerge("text-xs font-bold",
-                                                        item.received_quantity !== item.quantity ? "text-orange-600 dark:text-orange-500" : "text-green-600 dark:text-green-500"
-                                                    )}>
-                                                        Received: {item.received_quantity} units
-                                                    </span>
-                                                    <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-[11px] font-medium text-zinc-500">
-                                                        {item.batch_unit_cost !== null && item.batch_unit_cost !== undefined && (
-                                                            <span className="text-blue-600 dark:text-blue-400 font-bold">
-                                                                Final Cost: {formatMMK(item.batch_unit_cost)} MMK/unit
-                                                            </span>
-                                                        )}
-                                                        {Number(order.cargo_fee) > 0 && (() => {
-                                                            let allocatedCargo = 0;
-                                                            if (item.allocated_cargo_fee !== undefined && item.allocated_cargo_fee !== null) {
-                                                                allocatedCargo = Number(item.allocated_cargo_fee);
-                                                            } else {
-                                                                let totalQty = 0;
-                                                                order.items?.forEach(i => {
-                                                                    totalQty += Number(i.received_quantity) || 0;
-                                                                });
-                                                                const itemQty = Number(item.received_quantity) || 0;
-                                                                const fraction = totalQty > 0 ? (itemQty / totalQty) : 0;
-                                                                allocatedCargo = (Number(order.cargo_fee) || 0) * fraction;
-                                                            }
-                                                            return (
-                                                                <span>Allocated Cargo: {formatMMK(allocatedCargo)} MMK (total)</span>
-                                                            );
-                                                        })()}
-                                                        {item.batch_retail_price !== null && item.batch_retail_price !== undefined && (
-                                                            <div className="flex items-center gap-1.5">
-                                                                <span>Retail Set: {formatMMK(item.batch_retail_price)} MMK</span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                            {!isArrived && !isReceivingMode && item.retail_price !== null && item.retail_price !== undefined && (
-                                                <span className="text-xs font-bold text-zinc-500 block mt-1">
-                                                    Pending Retail Price: {formatMMK(item.retail_price)} MMK
-                                                </span>
-                                            )}
-
-                                            {isReceivingMode && (
-                                                <div className="mt-2 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 flex-wrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Received Qty:</Label>
-                                                        <Input
-                                                            type="number"
-                                                            value={data.received_items.find(ri => ri.id === item.id)?.received_quantity || ''}
-                                                            onChange={(e) => {
-                                                                const newItems = [...data.received_items];
-                                                                const idx = newItems.findIndex(ri => ri.id === item.id);
-                                                                if (idx !== -1) {
-                                                                    newItems[idx].received_quantity = e.target.value;
-                                                                    setData('received_items', newItems);
-                                                                }
-                                                            }}
-                                                            className="w-20 h-7 text-xs border-zinc-200 dark:border-zinc-800"
-                                                        />
-                                                    </div>
-                                                    <div className="flex items-center gap-2">
-                                                        <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Retail Price:</Label>
-                                                        <FormattedNumberInput
-                                                            value={data.received_items.find(ri => ri.id === item.id)?.retail_price || ''}
-                                                            onChange={(val) => {
-                                                                const newItems = [...data.received_items];
-                                                                const idx = newItems.findIndex(ri => ri.id === item.id);
-                                                                if (idx !== -1) {
-                                                                    newItems[idx].retail_price = val;
-                                                                    setData('received_items', newItems);
-                                                                }
-                                                                clearErrors(`received_items.${idx}.retail_price`);
-                                                            }}
-                                                            className="w-24 h-7 text-xs border-zinc-200 dark:border-zinc-800"
-                                                        />
-                                                    </div>
-                                                    {manualAllocation && (
-                                                        <>
-                                                            <div className="flex items-center gap-2">
-                                                                <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Allocated Cargo:</Label>
-                                                                <FormattedNumberInput
-                                                                    value={data.received_items.find(ri => ri.id === item.id)?.allocated_cargo_fee || ''}
-                                                                    onChange={(val) => {
-                                                                        const newItems = [...data.received_items];
-                                                                        const idx = newItems.findIndex(ri => ri.id === item.id);
-                                                                        if (idx !== -1) {
-                                                                            newItems[idx].allocated_cargo_fee = val;
-                                                                            setData('received_items', newItems);
-                                                                        }
-                                                                    }}
-                                                                    className="w-24 h-7 text-xs border-zinc-200 dark:border-zinc-800"
-                                                                />
-                                                            </div>
-                                                            <div className="flex items-center gap-2">
-                                                                <Label className="text-[10px] uppercase font-bold text-zinc-400 whitespace-nowrap">Allocated Adj:</Label>
-                                                                <FormattedNumberInput
-                                                                    value={data.received_items.find(ri => ri.id === item.id)?.allocated_adjustment_amount || ''}
-                                                                    onChange={(val) => {
-                                                                        const newItems = [...data.received_items];
-                                                                        const idx = newItems.findIndex(ri => ri.id === item.id);
-                                                                        if (idx !== -1) {
-                                                                            newItems[idx].allocated_adjustment_amount = val;
-                                                                            setData('received_items', newItems);
-                                                                        }
-                                                                    }}
-                                                                    className="w-24 h-7 text-xs border-zinc-200 dark:border-zinc-800"
-                                                                />
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                </div>
-                                            )}
-
-                                            {(!isArrived || isReceivingMode) && (
-                                                <div className="mt-3 p-3 bg-zinc-50 dark:bg-zinc-900 rounded-xl border border-zinc-100 dark:border-zinc-800">
-                                                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block mb-2">Pricing History</span>
-                                                    <div className="flex flex-wrap gap-4 text-xs">
-                                                        {item.latest_retail_price ? (
-                                                            <div className="flex flex-col">
-                                                                <span className="text-zinc-500 font-medium">Latest Retail</span>
-                                                                <span className="font-bold text-black dark:text-white">{formatMMK(item.latest_retail_price)}</span>
-                                                            </div>
-                                                        ) : (
-                                                            <span className="text-zinc-400 italic">No previous batches</span>
-                                                        )}
-
-                                                        {item.previous_retail_prices && item.previous_retail_prices.length > 0 && (
-                                                            <div className="flex flex-col">
-                                                                <span className="text-zinc-500 font-medium">Previous</span>
-                                                                <span className="font-bold text-black dark:text-white">{item.previous_retail_prices.map(p => formatMMK(p)).join(' / ')}</span>
-                                                            </div>
-                                                        )}
-
-                                                        {item.pending_retail_price ? (
-                                                            <div className="flex flex-col border-l border-zinc-200 dark:border-zinc-700 pl-4">
-                                                                <span className="text-orange-500 dark:text-orange-400 font-medium">Other Pending</span>
-                                                                <span className="font-bold text-orange-600 dark:text-orange-500">{formatMMK(item.pending_retail_price)}</span>
-                                                            </div>
-                                                        ) : null}
-                                                    </div>
-                                                </div>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                                {(!order.items || order.items.length === 0) && (
-                                    <div className="p-8 flex justify-center text-zinc-400 text-sm">No items found.</div>
-                                )}
-                            </div>
-                        </div>
-
-                        {!isArrived && !isCancelled && (
-                            <div className="flex flex-col gap-4">
-                                {!isReceivingMode ? (
-                                    <>
-                                        <Button onClick={() => setIsReceivingMode(true)} className="w-full h-14 tracking-widest uppercase font-bold text-sm">
-                                            RECEIVE BATCH (MARK ARRIVED)
-                                        </Button>
-                                        <Button onClick={() => setShowCancelModal(true)} variant="outline" className="w-full h-12 tracking-widest uppercase font-bold text-sm text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:hover:bg-red-900/20">
-                                            CANCEL ORDER
-                                        </Button>
-                                    </>
-                                ) : (
-                                    <form onSubmit={handleConfirmArrive} className="p-6 bg-black dark:bg-zinc-900 rounded-2xl shadow-xl flex flex-col gap-4 text-white">
-                                        <h3 className="text-lg font-black text-white">Finalize Costs</h3>
-                                        <p className="text-xs text-zinc-400 mb-2">Enter additional fees to calculate true item cost.</p>
-
-                                        <div className="p-3 bg-green-500/10 border border-green-500/20 rounded-xl mb-2 flex justify-between items-start gap-4">
-                                            <div>
-                                                <p className="text-[10px] text-green-400 font-bold uppercase tracking-widest">Auto-Settlement & Auto-Distribution</p>
-                                                <p className="text-xs text-green-300/80 mt-1">This order will be automatically marked as 100% paid in full. Cargo and Adjustments will be distributed automatically based on product value unless manual allocation is checked.</p>
-                                            </div>
-                                            <div className="flex flex-col items-center shrink-0">
-                                                <Label className="text-[9px] uppercase font-bold text-green-400 mb-1">Manual Override</Label>
-                                                <input
-                                                    type="checkbox"
-                                                    checked={manualAllocation}
-                                                    onChange={(e) => { setManualAllocation(e.target.checked); clearErrors('received_items'); }}
-                                                    className="w-5 h-5 rounded border-green-500/30 bg-green-900/50 text-green-500 focus:ring-green-500"
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div className="flex flex-col gap-2">
-                                            <Label className="text-zinc-300">Cargo Fee (MMK)</Label>
-                                            <FormattedNumberInput
-                                                value={data.cargo_fee}
-                                                onChange={(val) => { setData('cargo_fee', val); clearErrors('cargo_fee'); }}
-                                                placeholder="0"
-                                                className="bg-zinc-900 border-zinc-800 text-white"
-                                            />
-                                            {errors.cargo_fee && <span className="text-red-500 text-xs">{errors.cargo_fee}</span>}
-                                        </div>
-
-                                        <div className="flex flex-col gap-2">
-                                            <Label className="text-zinc-300">Local Delivery (MMK)</Label>
+                                            <Label className="text-[10px] uppercase font-bold text-zinc-400">Local Delivery / Taxi Fee (MMK)</Label>
                                             <FormattedNumberInput
                                                 value={data.local_deli_fee}
                                                 onChange={(val) => { setData('local_deli_fee', val); clearErrors('local_deli_fee'); }}
                                                 placeholder="0"
-                                                className="bg-zinc-900 border-zinc-800 text-white"
+                                                className="bg-zinc-900 border-zinc-800 text-white h-8 mt-1 text-xs"
                                             />
-                                            {errors.local_deli_fee && <span className="text-red-500 text-xs">{errors.local_deli_fee}</span>}
                                         </div>
+                                    </div>
 
-                                        <div className="flex flex-col gap-2">
-                                            <Label className="text-zinc-300">Adjustment Amount (MMK)</Label>
-                                            <FormattedNumberInput
-                                                value={data.adjustment_amount}
-                                                onChange={(val) => { setData('adjustment_amount', val); clearErrors('adjustment_amount'); }}
-                                                placeholder="e.g. -5000 or 2000"
-                                                className="bg-zinc-900 border-zinc-800 text-white"
-                                            />
-                                            <span className="text-[10px] text-zinc-500 mt-0.5">Use negative numbers for discounts/missing items.</span>
-                                            {errors.adjustment_amount && <span className="text-red-500 text-xs">{errors.adjustment_amount}</span>}
+                                    <div className="flex justify-between items-center pt-3 border-t border-zinc-800">
+                                        <div>
+                                            <span className="text-[10px] uppercase font-bold text-zinc-400 block">Finance Cash Outflow</span>
+                                            <span className="text-lg font-black text-white">{formatMMK(totalShipmentCashOutflow)} MMK</span>
                                         </div>
-
-                                        {data.adjustment_amount && data.adjustment_amount !== '0' && (
-                                            <div className="flex flex-col gap-2">
-                                                <Label className="text-zinc-300">Adjustment Reason</Label>
-                                                <Input
-                                                    type="text"
-                                                    value={data.adjustment_reason}
-                                                    onChange={(e) => { setData('adjustment_reason', e.target.value); clearErrors('adjustment_reason'); }}
-                                                    placeholder="Required for adjustments"
-                                                    className="bg-zinc-900 border-zinc-800 text-white"
-                                                />
-                                                {errors.adjustment_reason && <span className="text-red-500 text-xs">{errors.adjustment_reason}</span>}
-                                            </div>
-                                        )}
-
-                                        <div className="mt-4 flex flex-col gap-2">
-                                            <Button type="submit" disabled={processing || (data.adjustment_amount !== '' && data.adjustment_amount !== '0' && !data.adjustment_reason)} variant="secondary" className="w-full bg-white text-black hover:bg-zinc-200 font-bold">
-                                                CONFIRM & SETTLE FULLY
-                                            </Button>
-                                            <button type="button" onClick={() => setIsReceivingMode(false)} className="py-2 text-xs font-bold text-zinc-500 hover:text-white uppercase tracking-widest mt-2">
-                                                CANCEL
-                                            </button>
+                                        <div className="text-right">
+                                            <span className="text-[10px] uppercase font-bold text-zinc-400 block">PO Status After</span>
+                                            <span className={twMerge("text-xs font-bold uppercase tracking-wider", willFullyComplete ? "text-green-400" : "text-amber-400")}>
+                                                {willFullyComplete ? "✓ Fully Complete (Arrived)" : "⚡ Partially Arrived"}
+                                            </span>
                                         </div>
-                                    </form>
-                                )}
+                                    </div>
+
+                                    <Button
+                                        type="submit"
+                                        disabled={processing || totalReceivingNow === 0}
+                                        className="w-full h-12 bg-white text-black hover:bg-zinc-200 font-bold uppercase tracking-wider text-xs mt-2"
+                                    >
+                                        {willFullyComplete 
+                                            ? `CONFIRM & COMPLETE PURCHASE ORDER (${totalReceivingNow} PCS)`
+                                            : `RECEIVE PARTIAL SHIPMENT (${totalReceivingNow} PCS)`
+                                        }
+                                    </Button>
+                                </div>
+                            </form>
+                        )}
+
+                        {!isArrived && !isCancelled && !isReceivingMode && (
+                            <div className="flex flex-col gap-4">
+                                <Button onClick={() => setIsReceivingMode(true)} className="w-full h-14 tracking-widest uppercase font-bold text-sm">
+                                    {isPartiallyArrived ? "RECEIVE NEXT SHIPMENT" : "RECEIVE SHIPMENT (MARK ARRIVED)"}
+                                </Button>
+                                <Button onClick={() => setShowCancelModal(true)} variant="outline" className="w-full h-12 tracking-widest uppercase font-bold text-sm text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700 dark:border-red-900/50 dark:hover:bg-red-900/20">
+                                    CANCEL ORDER
+                                </Button>
                             </div>
                         )}
                     </div>

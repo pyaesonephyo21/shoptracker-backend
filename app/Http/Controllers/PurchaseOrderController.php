@@ -230,7 +230,7 @@ class PurchaseOrderController extends Controller
         try {
             $service->markAsArrived($purchaseOrder, $validated);
 
-            return back()->with('success', 'Purchase order marked as arrived.');
+            return back()->with('success', 'Shipment arrival processed successfully.');
         } catch (\Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }

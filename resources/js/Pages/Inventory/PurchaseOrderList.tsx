@@ -11,6 +11,7 @@ import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { Filter } from 'lucide-react';
 import { router } from '@inertiajs/react';
+import { useRevalidateOnBack } from '@/hooks/useRevalidateOnBack';
 
 export default function PurchaseOrderList({ orders, filters = { search: '', status: '', payment_status: '', start_date: '', end_date: '' } }: { orders: PaginatedData<PurchaseOrder>, filters: { search: string, status: string, payment_status: string, start_date: string, end_date: string } }) {
     const [searchVal, setSearchVal] = useState(filters.search || '');
@@ -36,6 +37,8 @@ export default function PurchaseOrderList({ orders, filters = { search: '', stat
         }, 300);
         return () => clearTimeout(timer);
     }, [searchVal]); // Only trigger on searchVal change
+
+    useRevalidateOnBack(['orders']);
 
     const handleFilterChange = (search: string, status: string, payment: string, start?: Date, end?: Date) => {
         router.get('/inventory/purchase-orders', {
@@ -70,6 +73,7 @@ export default function PurchaseOrderList({ orders, filters = { search: '', stat
     const getOrderStatusStyle = (status: string) => {
         const s = status.toUpperCase();
         if (s === "PENDING") return "border border-zinc-200 dark:border-zinc-800 text-zinc-600 dark:text-zinc-400 bg-transparent";
+        if (s === "PARTIALLY_ARRIVED") return "border border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30";
         if (s === "ARRIVED") return "bg-black text-white dark:bg-white dark:text-black border border-black dark:border-white";
         if (s === "CANCELLED") return "border border-zinc-300 dark:border-zinc-700 text-zinc-500 line-through decoration-zinc-400 bg-transparent";
         return "border border-zinc-200 dark:border-zinc-800 text-zinc-500 bg-transparent";
@@ -165,6 +169,7 @@ export default function PurchaseOrderList({ orders, filters = { search: '', stat
                                         {[
                                             { key: '', label: 'All' },
                                             { key: 'pending', label: 'Pending' },
+                                            { key: 'partially_arrived', label: 'Partially Arrived' },
                                             { key: 'arrived', label: 'Arrived' },
                                             { key: 'cancelled', label: 'Cancelled' }
                                         ].map(item => {

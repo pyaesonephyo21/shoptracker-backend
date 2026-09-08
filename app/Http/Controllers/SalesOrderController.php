@@ -169,7 +169,8 @@ class SalesOrderController extends Controller
                 'overcharge' => (float) $orderModel->overcharge,
                 'retained_revenue' => (float) $orderModel->retained_revenue,
                 'paid_amount' => (float) $orderModel->paid_amount,
-                'balance' => (float) ($orderModel->courier_id ? $orderModel->net_revenue - $orderModel->paid_amount : $orderModel->customer_grand_total - $orderModel->paid_amount),
+                'target_collection' => (float) $orderModel->target_collection,
+                'balance' => (float) $orderModel->balance,
                 'payment_status' => $orderModel->payment_status,
                 'grand_total' => (float) $orderModel->customer_grand_total,
                 'net_revenue' => (float) $orderModel->net_revenue,
@@ -266,7 +267,22 @@ class SalesOrderController extends Controller
         $couriers = Courier::all();
 
         return Inertia::render('Sales/FulfillOrder', [
-            'order' => ['id' => $order->id],
+            'order' => [
+                'id' => $order->id,
+                'financials' => [
+                    'paid_amount' => (float) $order->paid_amount,
+                    'overcharge' => (float) $order->overcharge,
+                ],
+                'delivery' => [
+                    'tracking' => $order->tracking_number,
+                    'fee' => (float) $order->delivery_fee,
+                    'courier_service_fee' => (float) $order->courier_service_fee,
+                    'collected_by' => $order->money_collected_by,
+                    'is_prepaid' => (bool) $order->is_deli_prepaid,
+                    'note' => $order->delivery_note,
+                ],
+                'note' => $order->note,
+            ],
             'couriers' => $couriers,
         ]);
     }

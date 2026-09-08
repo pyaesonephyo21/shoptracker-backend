@@ -62,9 +62,7 @@ class SalesOrderExport implements FromQuery, ShouldAutoSize, WithColumnFormattin
             $order->customer_grand_total,
             $order->net_revenue, // Net Revenue (Actual amount we get)
             $order->paid_amount,
-            $order->courier_id
-                ? ($order->net_revenue - $order->paid_amount)
-                : ($order->customer_grand_total - $order->paid_amount), // Remaining Amount
+            $order->balance, // Remaining Amount
             strtoupper(str_replace('_', ' ', $order->status)),
             strtoupper(str_replace('_', ' ', $order->payment_status)),
             strtoupper($paymentMethod),

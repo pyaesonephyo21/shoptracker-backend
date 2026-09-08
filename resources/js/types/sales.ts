@@ -19,6 +19,7 @@ export interface SalesOrder {
         discount_value: number;
         discount_reason: string | null;
         paid_amount: number;
+        target_collection?: number;
         balance: number;
         payment_status: "paid" | "partial" | "unpaid" | "overpaid";
         grand_total: number;

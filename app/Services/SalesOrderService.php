@@ -332,9 +332,7 @@ class SalesOrderService
 
             // Case 1: Order with Courier Settlement
             if ($order->courier_id) {
-                $targetPayment = ($order->money_collected_by === 'seller' && $order->is_deli_prepaid)
-                    ? $order->customer_grand_total
-                    : $order->net_revenue;
+                $targetPayment = $order->target_collection;
 
                 $amountToPay = $targetPayment - $order->paid_amount;
 

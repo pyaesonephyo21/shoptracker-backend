@@ -38,7 +38,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post(`/sales/${order.id}/fulfill`, {
-            preserveScroll: true,
+            preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: () => alert('Failed to fulfill order')
         });
     };

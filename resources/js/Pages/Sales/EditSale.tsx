@@ -120,7 +120,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         }));
 
         put(`/sales/${order.id}`, {
-            preserveScroll: true,
+            preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
                     alert('Failed to update order');

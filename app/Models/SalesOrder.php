@@ -36,6 +36,27 @@ class SalesOrder extends Model
         return $this->hasMany(SalesOrderItem::class);
     }
 
+    public function getTargetCollectionAttribute(): float
+    {
+        if (! $this->courier_id) {
+            return (float) $this->customer_grand_total;
+        }
+
+        if ($this->money_collected_by === 'seller') {
+            return (float) ($this->is_deli_prepaid
+                ? $this->customer_grand_total
+                : (($this->subtotal - $this->discount_total) + $this->extra_fee));
+        }
+
+        // COD: Courier collects from customer and remits net revenue to seller
+        return (float) $this->net_revenue;
+    }
+
+    public function getBalanceAttribute(): float
+    {
+        return (float) ($this->target_collection - $this->paid_amount);
+    }
+
     // FIX: Relationship must point to Courier, not Item
     public function courier()
     {

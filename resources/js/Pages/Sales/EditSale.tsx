@@ -269,7 +269,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                                                     ...prev,
                                                     courier_id: val ?? 'none',
                                                     courier_service_fee: selected ? String(Number(selected.default_service_fee || 0)) : prev.courier_service_fee,
-                                                    overcharge: prev.money_collected_by === 'courier' && selected ? String(Number(selected.default_overcharge || 0)) : (prev.overcharge || '')
+                                                    overcharge: selected ? String(Number(selected.default_overcharge || 0)) : (prev.overcharge || '')
                                                 }));
                                             }
                                         }}

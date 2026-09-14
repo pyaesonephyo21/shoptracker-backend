@@ -70,8 +70,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                                 ...current,
                                 courier_id: val,
                                 courier_service_fee: selected ? String(Number(selected.default_service_fee || 0)) : current.courier_service_fee,
-                                // For COD orders apply default overcharge; for prepaid keep existing or 0
-                                overcharge: current.money_collected_by === 'courier' && selected ? String(Number(selected.default_overcharge || 0)) : current.overcharge
+                                overcharge: selected ? String(Number(selected.default_overcharge || 0)) : current.overcharge
                             }));
                         }}>
                             <SelectTrigger>

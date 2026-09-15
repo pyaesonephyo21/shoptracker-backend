@@ -143,7 +143,7 @@ ShopTracker follows clean Laravel design patterns:
 | **Database** | SQLite (Default for zero-config speed) / MySQL / PostgreSQL |
 | **Excel Processing** | [Maatwebsite Excel 3.1](https://laravel-excel.com) |
 | **Media & Logging** | [Spatie MediaLibrary](https://spatie.be/docs/laravel-medialibrary), [Spatie ActivityLog](https://spatie.be/docs/laravel-activitylog) |
-| **AI Integrations** | Google Gemini API (`gemini-2.5-flash`, `gemini-3.5-flash`) & OpenRouter |
+| **AI Integrations** | Google Gemini API (`gemini-flash-lite-latest`, `gemini-3.6-flash`) & OpenRouter |
 | **DevOps & CI/CD** | Docker, Docker Compose, Nginx, GitHub Actions |
 
 ---

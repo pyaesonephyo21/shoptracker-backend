@@ -43,7 +43,7 @@ const MYANMAR_TOWNSHIPS = [
 // Address structural keywords and landmark indicators
 const ADDRESS_KEYWORDS = [
     'လမ်း', 'လမ်းသွယ်', 'လမ်းမ', 'လမ်းမကြီး', 'ရပ်ကွက်', 'ကျေးရွာ', 'ရွာ', 'အမှတ်', 'အိမ်အမှတ်',
-    'တိုက်', 'အခန်း', 'လွှာ', 'ထပ်', 'ကွန်ဒို', 'တိုက်ခန်း', 'စက်မှုဇုန်', 'ဇုန်', 'ဈေး', 'ဘုရား',
+    'တိုက်', 'အခန်း', 'လွှာ', 'ထပ်', 'ကွန်ဒို', 'တိုက်ခန်း', 'ဆောင်', 'အဆောင်', 'စက်မှုဇုန်', 'ဇုန်', 'ဈေး', 'ဘုရား',
     'ဂိတ်', 'ကားဂိတ်', 'အဝေးပြေးဂိတ်', 'မှတ်တိုင်', 'အနီး', 'ဘေး', 'ရှေ့', 'မျက်နှာချင်းဆိုင်', 'ထောင့်', 'လမ်းဆုံ', 'မြို့နယ်', 'မြို့',
     'အထက', 'အလက', 'အမက', 'ကျောင်း', 'ဆေးရုံ', 'ရုံး',
     'center', 'centre', 'school', 'language', 'hotel', 'plaza', 'tower', 'condo', 'mall', 'mart', 'hospital'
@@ -119,11 +119,21 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
         extractedPhone = cleanedPhones.join(', ');
     }
 
-    // 3. Process line by line
-    const lines = normalized
+    // 3. Process line by line or slash-delimited segments
+    const rawLines = normalized
         .split(/\r?\n/)
         .map(l => l.trim())
         .filter(l => l.length > 0);
+
+    const lines: string[] = [];
+    for (const l of rawLines) {
+        if (l.includes('/')) {
+            const parts = l.split('/').map(p => p.trim()).filter(p => p.length > 0);
+            lines.push(...parts);
+        } else {
+            lines.push(l);
+        }
+    }
 
     const unassignedLines: string[] = [];
 

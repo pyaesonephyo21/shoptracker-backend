@@ -29,10 +29,11 @@ You are an expert AI assistant specialized in parsing Myanmar e-commerce custome
 
 Your goals:
 1. Customer Name:
-   - Extract the real person's name.
+   - Extract the real person's complete name.
    - Preserve genuine name honorifics if present (e.g., "ကို", "မ", "မောင်", "ဒေါ်", "ဦး", "Dr.").
-   - Strip conversational vocatives & prefixes (e.g., "အမရေ", "အစ်မ", "အကို", "ညီမလေး", "မင်္ဂလာပါ", "Name:", "Acc Name:", "Customer Name:").
-   - Strip Burmese polite ending particles (e.g., "ပါ", "ပါရှင့်", "ပါခင်ဗျာ", "ပါဗျ", "ပါနော်", "ပါ့မယ်", "ရှင့်", "ခင်ဗျာ", "ကတော့").
+   - CRITICAL: Never truncate legitimate Burmese name syllables (e.g., "ခင်", "ဝင်း", "အေး", "ဖြူ", "နွယ်", "မိုး", "ထွေး", "ဆွေ", "ကြည်"). For example, "မအိမ့်မှူးခင်" must be preserved as "မအိမ့်မှူးခင်", NOT "မအိမ့်မှူး". "ခင်" is a standard name syllable, not a polite particle.
+   - Strip conversational vocatives & greetings (e.g., "မင်္ဂလာပါ", "အမရေ", "အစ်မ", "အကို", "ညီမလေး", "Name:", "Acc Name:", "Customer Name:").
+   - Only strip polite particles when they are standalone sentence endings (e.g., "ပါရှင့်", "ပါခင်ဗျာ", "ပါဗျ", "ပါနော်", "ပါ့မယ်", "ရှင့်", "ကတော့"). Never cut into the person's actual name. Example: "ကိုဝင်းဇော်ခင်ဗျာ" -> "ကိုဝင်းဇော်", but "မအိမ့်မှူးခင်" -> "မအိမ့်မှူးခင်".
    - Never mistake ordered items (e.g. "T-shirt 2 ထည်", "Lipstick", "Dress M size") for the customer name.
 
 2. Customer Phone:
@@ -43,7 +44,8 @@ Your goals:
    - If a 2nd phone number is missing 09 (e.g. "09772775937 / 776573573"), restore the full 09 prefix.
 
 3. Delivery Address:
-   - Extract full address including city, township, street name, house/building number, ward, landmarks, school/office buildings, and Highway Express gates (ကားဂိတ် / အဝေးပြေးဂိတ်).
+   - Extract full address including city, township, street name, house/building number, ward, landmarks, school/office buildings, hostels/halls (ဆောင်), and Highway Express gates (ကားဂိတ် / အဝေးပြေးဂိတ်).
+   - If message components are delimited by slashes (/), commas, or newlines, extract all address components cleanly.
    - Format with neat Burmese commas (၊) or spaces between components for readability.
    - Example: "သာကေတ စက်မှုဇုန် မြန်မာ့ဂုဏ်ရည်လမ်း Metro IT Center" -> "သာကေတ စက်မှုဇုန်၊ မြန်မာ့ဂုဏ်ရည်လမ်း၊ Metro IT Center".
 
@@ -63,17 +65,17 @@ PROMPT;
             $content = '';
             $source = '';
 
-            // 1. Try Native Google Gemini Models First (Rotates on 429/quota or failure)
+            // 1. Try Native Google Gemini Models First (Rotates on 429/quota, 503, or failure)
             if (! empty($geminiKey)) {
                 $geminiModels = [
+                    'gemini-flash-lite-latest',
+                    'gemini-3.6-flash',
                     'gemini-flash-latest',
-                    'gemini-2.5-flash',
-                    'gemini-3.5-flash',
                 ];
 
                 foreach ($geminiModels as $gModel) {
                     try {
-                        $http = Http::connectTimeout(3)->timeout(10)->withHeaders([
+                        $http = Http::connectTimeout(3)->timeout(8)->withHeaders([
                             'Content-Type' => 'application/json',
                         ]);
 
@@ -128,21 +130,28 @@ PROMPT;
                             'body' => $geminiResponse->body(),
                         ]);
                     } catch (\Throwable $e) {
-                        Log::warning("Gemini connection error on {$gModel}: ".$e->getMessage().'. Likely VPN disconnected or timeout.');
-                        // If connection timed out, break immediately to OpenRouter to save user from waiting
-                        break;
+                        Log::warning("Gemini connection error on {$gModel}: ".$e->getMessage());
+
+                        // If TCP connection or DNS lookup failed outright (e.g. VPN disconnected), jump to OpenRouter immediately
+                        if (str_contains($e->getMessage(), 'Failed to connect') ||
+                            str_contains($e->getMessage(), 'Could not resolve host') ||
+                            str_contains($e->getMessage(), 'Connection timed out after')) {
+                            break;
+                        }
+
+                        continue;
                     }
                 }
             }
 
             // 2. Try OpenRouter Fallback Chain (Works globally without VPN)
             if (empty($content) && ! empty($openRouterKey)) {
-                $primaryModel = config('services.openrouter.model', 'meta-llama/llama-3.1-8b-instruct:free');
+                $primaryModel = config('services.openrouter.model', 'nvidia/nemotron-3.5-lightning:free');
                 $modelChain = array_unique([
                     $primaryModel,
-                    'google/gemma-2-9b-it:free',
-                    'microsoft/phi-3-mini-128k-instruct:free',
-                    'openrouter/free',
+                    'nvidia/nemotron-3.5-lightning:free',
+                    'liquid/lfm-2.5-2.6b:free',
+                    'google/gemma-4-26b-a4b-it:free',
                 ]);
 
                 foreach ($modelChain as $currentModel) {

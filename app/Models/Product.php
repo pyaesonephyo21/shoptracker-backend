@@ -61,9 +61,16 @@ class Product extends Model implements HasMedia
         });
     }
 
-    public function getImageUrlAttribute()
+    public function getImageUrlAttribute(): ?string
     {
-        return $this->getFirstMediaUrl('products');
+        $url = $this->getFirstMediaUrl('products');
+        if (! $url) {
+            return null;
+        }
+
+        $path = parse_url($url, PHP_URL_PATH);
+
+        return $path ?: $url;
     }
 
     public function category()

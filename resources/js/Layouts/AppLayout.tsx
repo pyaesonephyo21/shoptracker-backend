@@ -5,9 +5,49 @@ import { twMerge } from 'tailwind-merge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GlobalToast } from '@/components/GlobalToast';
 
+interface AuthUser {
+    id: number;
+    name: string;
+    email: string;
+    shop_id: number | null;
+}
+
+interface AuthShop {
+    id: number;
+    name: string;
+    slug: string;
+    settings?: Record<string, any>;
+}
+
+interface AuthShopSummary {
+    id: number;
+    name: string;
+    slug: string;
+}
+
+interface AuthData {
+    user: AuthUser | null;
+    roles: string[];
+    permissions: string[];
+    shop: AuthShop | null;
+    all_shops: AuthShopSummary[];
+    payment_methods?: Array<{ id: number; name: string; code: string }>;
+}
+
+export interface SharedPageProps {
+    auth: AuthData;
+    flash?: {
+        success?: string | null;
+        error?: string | null;
+    };
+    errors?: Record<string, string[]>;
+    [key: string]: unknown;
+}
+
 interface NavItem {
     name: string;
     href: string;
+    activePrefix?: string;
     icon: React.ReactNode;
 }
 
@@ -28,15 +68,15 @@ const FinanceIcon = () => (
 );
 
 const NAV_ITEMS: NavItem[] = [
-    { name: 'Dashboard', href: '/', icon: <HomeIcon /> },
+    { name: 'Dashboard', href: '/dashboard', icon: <HomeIcon /> },
     { name: 'Sales', href: '/sales', icon: <SalesIcon /> },
     { name: 'Inventory', href: '/inventory', icon: <InventoryIcon /> },
-    { name: 'Finance', href: '/finance/cash-flow', icon: <FinanceIcon /> },
-    { name: 'Management', href: '/management', icon: <ManagementIcon /> },
+    { name: 'Finance', href: '/finance/cash-flow', activePrefix: '/finance', icon: <FinanceIcon /> },
+    { name: 'Management', href: '/management/notes', activePrefix: '/management', icon: <ManagementIcon /> },
 ];
 
 export default function AppLayout({ children, title }: { children: React.ReactNode; title?: string }) {
-    const { url, props } = usePage<any>();
+    const { url, props } = usePage<SharedPageProps>();
     const { auth } = props;
 
     const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -129,32 +169,60 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                                         <span className="truncate">{auth.shop?.name}</span>
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {auth.all_shops?.map((s: any) => (
+                                        {auth.all_shops?.map((s) => (
                                              <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <span className="text-[10px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block mt-1 border border-black dark:border-white truncate max-w-full">
-                                    {auth.user?.name}
-                                </span>
+                                <div className="flex items-center gap-2 mt-1">
+                                    <span className="text-[10px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
+                                        {auth.user?.name}
+                                    </span>
+                                    {auth?.shop?.slug && (
+                                        <a
+                                            href={`/${auth.shop.slug}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[11px] font-bold text-zinc-500 hover:text-black dark:hover:text-white flex items-center gap-1 transition-colors"
+                                            title="View Storefront"
+                                        >
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                            <span>Store</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         ) : (
                             <div className="w-full overflow-hidden">
                                 <h1 className="text-xl font-black tracking-tight truncate">{auth?.shop?.name || 'ShopTracker'}</h1>
-                                {auth?.user && (
-                                    <div className="mt-1">
+                                <div className="flex items-center gap-2 mt-1">
+                                    {auth?.user && (
                                         <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
                                             {auth.user.name}
                                         </span>
-                                    </div>
-                                )}
+                                    )}
+                                    {auth?.shop?.slug && (
+                                        <a
+                                            href={`/${auth.shop.slug}`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="text-[11px] font-bold text-zinc-500 hover:text-black dark:hover:text-white flex items-center gap-1 transition-colors"
+                                            title="View Storefront"
+                                        >
+                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                            <span>Store</span>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                                        </a>
+                                    )}
+                                </div>
                             </div>
                         )
                     )}
                 </div>
                 <nav className={twMerge("flex flex-col gap-2 flex-1 w-full", isSidebarCollapsed ? "items-center" : "")}>
                     {NAV_ITEMS.map((item) => {
-                        const isActive = url === item.href || (item.href !== '/' && url.startsWith(item.href));
+                        const isActive = item.activePrefix ? url.startsWith(item.activePrefix) : (url === item.href || (item.href !== '/' && url.startsWith(item.href)));
                         return (
                             <Link
                                 key={item.name}
@@ -181,28 +249,43 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                         onClick={handleRefresh}
                         disabled={isRefreshing}
                         className={twMerge(
-                            "flex items-center rounded-xl text-left text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-all group",
-                            isSidebarCollapsed ? "w-12 h-12 p-3 justify-center" : "w-full px-4 py-3 gap-3"
+                            "flex items-center rounded-xl text-zinc-500 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-all group active:scale-[0.98]",
+                            isSidebarCollapsed ? "p-3 justify-center w-12 h-12" : "px-4 py-3 gap-3 w-full"
                         )}
-                        title={isSidebarCollapsed ? "Refresh" : undefined}
+                        title="Refresh page data"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={twMerge("opacity-70 group-hover:opacity-100 transition-transform duration-500", isRefreshing && "animate-spin text-black dark:text-white opacity-100")}><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" /><path d="M16 21h5v-5" /></svg>
-                        {!isSidebarCollapsed && <span className="font-medium">{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>}
-                    </button>
-
-                    {auth?.user && (
-                        <Link 
-                            href="/logout" 
-                            method="post" 
-                            as="button" 
-                            className={twMerge(
-                                "flex items-center rounded-xl text-left text-zinc-600 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-colors group",
-                                isSidebarCollapsed ? "w-12 h-12 p-3 justify-center" : "w-full px-4 py-3 gap-3"
-                            )}
-                            title={isSidebarCollapsed ? "Logout" : undefined}
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            className={twMerge("transition-transform duration-500", isRefreshing && "animate-spin text-black dark:text-white")}
                         >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100 transition-opacity"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" x2="9" y1="12" y2="12" /></svg>
-                            {!isSidebarCollapsed && <span className="font-medium">Logout</span>}
+                            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                            <path d="M3 3v5h5" />
+                            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                            <path d="M16 21h5v-5" />
+                        </svg>
+                        {!isSidebarCollapsed && <span className="text-sm font-medium">Refresh Data</span>}
+                    </button>
+                    {auth?.user && (
+                        <Link
+                            href="/logout"
+                            method="post"
+                            as="button"
+                            className={twMerge(
+                                "flex items-center rounded-xl text-zinc-500 hover:bg-zinc-200 hover:text-black dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-white transition-all group active:scale-[0.98]",
+                                isSidebarCollapsed ? "p-3 justify-center w-12 h-12" : "px-4 py-3 gap-3 w-full"
+                            )}
+                            title="Log out"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-70 group-hover:opacity-100"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                            {!isSidebarCollapsed && <span className="text-sm font-medium">Logout</span>}
                         </Link>
                     )}
                 </div>
@@ -211,25 +294,26 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
             {/* Main Content Area */}
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-white dark:bg-black">
                 {/* Mobile Header with Safe Area Notch Padding & Quick Refresh */}
-                <header className="md:hidden flex items-center justify-between min-h-16 pt-[env(safe-area-inset-top,0px)] px-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 sticky top-0 bg-white/90 dark:bg-black/90 backdrop-blur-md z-10">
-                    <div className="py-2 flex-1 min-w-0 pr-2">
+                <header className="md:hidden flex items-center justify-between p-4 border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 shrink-0">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-10 h-10 flex items-center justify-center bg-black dark:bg-white text-white dark:text-black rounded-xl font-black text-lg shadow-sm shrink-0">
+                            {auth?.shop?.name?.[0]?.toUpperCase() || 'S'}
+                        </div>
                         {auth?.all_shops?.length > 1 ? (
                             <div className="flex flex-col">
                                 <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
-                                    <SelectTrigger className="w-fit justify-start font-black text-xl sm:text-2xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent tracking-tight shadow-none flex items-center gap-1.5 max-w-[200px] sm:max-w-[300px]">
+                                    <SelectTrigger className="w-fit justify-start font-black text-xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent uppercase tracking-tight shadow-none flex items-center gap-1.5 max-w-full">
                                         <span className="truncate">{auth.shop?.name}</span>
                                     </SelectTrigger>
                                     <SelectContent>
-                                        {auth.all_shops?.map((s: any) => (
-                                            <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
+                                        {auth.all_shops?.map((s) => (
+                                             <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
                                         ))}
                                     </SelectContent>
                                 </Select>
-                                <div className="mt-0.5">
-                                    <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
-                                        {auth.user?.name}
-                                    </span>
-                                </div>
+                                <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block mt-0.5 border border-black dark:border-white truncate max-w-full w-fit">
+                                    {auth.user?.name}
+                                </span>
                             </div>
                         ) : (
                             <div className="flex flex-col">
@@ -245,8 +329,19 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                         )}
                     </div>
                     
-                    {/* Header Right Actions: Refresh + Logout */}
+                    {/* Header Right Actions: Storefront + Refresh + Logout */}
                     <div className="flex items-center gap-1 shrink-0">
+                        {auth?.shop?.slug && (
+                            <a
+                                href={`/${auth.shop.slug}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="p-2 rounded-lg text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+                                title="View Storefront"
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>
+                            </a>
+                        )}
                         <button
                             onClick={handleRefresh}
                             disabled={isRefreshing}
@@ -294,7 +389,7 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
             {/* Mobile Bottom Tab Bar with Safe Area Bottom Padding */}
             <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 z-20">
                 {NAV_ITEMS.map((item) => {
-                    const isActive = url === item.href || (item.href !== '/' && url.startsWith(item.href));
+                    const isActive = item.activePrefix ? url.startsWith(item.activePrefix) : (url === item.href || (item.href !== '/' && url.startsWith(item.href)));
                     return (
                         <Link
                             key={item.name}

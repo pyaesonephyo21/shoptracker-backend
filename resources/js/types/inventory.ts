@@ -36,6 +36,9 @@ export interface ProductVariant {
     pending_stock: number;
     retail_price: number | null;
     effective_retail_price: number;
+    image_url?: string | null;
+    image?: File | null;
+    remove_image?: boolean;
     product?: Product;
     inventory_logs?: InventoryLog[];
     batches?: ProductBatch[];
@@ -47,13 +50,15 @@ export interface Product {
     name: string;
     retail_price: number;
     base_cost: number;
-    image: string | null;
+    image_url?: string | null;
+    image?: string | File | null;
+    remove_image?: boolean;
     category_id?: number | null;
     category?: Category;
     type: "local" | "global";
     status: "in_stock" | "out_of_stock";
     is_active?: boolean;
-    product_variant_id: number,
+    product_variant_id: number;
     variant_options: VariantOption[] | null;
     variants?: ProductVariant[];
 }

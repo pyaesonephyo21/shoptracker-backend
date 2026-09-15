@@ -143,7 +143,7 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
         }));
 
         put(`/inventory/purchase-orders/${order.id}`, {
-            preserveScroll: true,
+            preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
                     alert('Failed to update purchase order');

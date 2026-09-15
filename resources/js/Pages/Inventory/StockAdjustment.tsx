@@ -34,7 +34,7 @@ export default function StockAdjustment({ product }: { product: Product }) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post(`/inventory/${product.id}/adjust`, {
-            preserveScroll: true,
+            preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: () => alert('Failed to adjust stock')
         });
     };

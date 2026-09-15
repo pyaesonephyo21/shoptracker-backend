@@ -126,7 +126,7 @@ export default function AddPurchaseOrder({ products = [], suppliers = [], curren
         }));
 
         post('/inventory/purchase-orders', {
-            preserveScroll: true,
+            preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
                     alert('Failed to create purchase order');

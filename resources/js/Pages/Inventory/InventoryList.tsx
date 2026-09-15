@@ -364,20 +364,29 @@ export default function InventoryList({
                                     key={item.id}
                                     href={`/inventory/${item.id}`}
                                     className={twMerge(
-                                        "py-4 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-center transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group",
+                                        "py-3.5 border-b border-zinc-100 dark:border-zinc-800/50 flex justify-between items-center transition-all hover:bg-zinc-50 dark:hover:bg-zinc-900/50 -mx-4 px-4 rounded-xl group",
                                         item.is_active === false && "opacity-60 grayscale hover:opacity-100 bg-zinc-50/50 dark:bg-zinc-900/20"
                                     )}
                                 >
-                                    <div className="flex-1 mr-4 overflow-hidden">
-                                        <p className={twMerge("font-bold text-base truncate flex items-center gap-2", item.is_active === false ? "text-zinc-500 line-through decoration-zinc-300 dark:decoration-zinc-700" : "text-black dark:text-white")}>
-                                            {item.name}
-                                            {item.is_active === false && (
-                                                <span className="text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded uppercase tracking-widest font-black border border-red-200 dark:border-red-900/50 no-underline">Archived</span>
+                                    <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
+                                        <div className="w-11 h-11 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center shrink-0 overflow-hidden border border-zinc-200/60 dark:border-zinc-800">
+                                            {item.image_url ? (
+                                                <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />
+                                            ) : (
+                                                <span className="text-lg select-none opacity-60">📦</span>
                                             )}
-                                        </p>
-                                        <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                            {item.category?.name || "Uncategorized"}
-                                        </p>
+                                        </div>
+                                        <div className="flex-1 min-w-0 overflow-hidden">
+                                            <p className={twMerge("font-bold text-base truncate flex items-center gap-2", item.is_active === false ? "text-zinc-500 line-through decoration-zinc-300 dark:decoration-zinc-700" : "text-black dark:text-white")}>
+                                                <span className="truncate">{item.name}</span>
+                                                {item.is_active === false && (
+                                                    <span className="text-[9px] bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 px-2 py-0.5 rounded uppercase tracking-widest font-black border border-red-200 dark:border-red-900/50 no-underline shrink-0">Archived</span>
+                                                )}
+                                            </p>
+                                            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5 truncate">
+                                                {item.category?.name || "Uncategorized"}
+                                            </p>
+                                        </div>
                                     </div>
 
                                     <div className="flex flex-col items-end min-w-[70px]">

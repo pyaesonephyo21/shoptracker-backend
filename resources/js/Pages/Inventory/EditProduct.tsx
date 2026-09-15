@@ -12,7 +12,7 @@ import { useState } from 'react';
 import VariantBuilder, { VariantOption, Variant } from '@/components/VariantBuilder';
 
 export default function EditProduct({ product, categories = [] }: { product: Product, categories: Category[] }) {
-    const { data, setData, put, processing, errors, clearErrors } = useForm<{
+    const { data, setData, post, processing, errors, clearErrors } = useForm<{
         name: string;
         category_id: string;
         type: string;
@@ -20,6 +20,9 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
         retail_price: number | string;
         variant_options: VariantOption[];
         variants: Variant[];
+        image: File | null;
+        remove_image: boolean;
+        _method: string;
     }>({
         name: product.name || '',
         category_id: product.category_id ? String(product.category_id) : '',
@@ -27,7 +30,19 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
         base_cost: product.base_cost || '',
         retail_price: product.retail_price || '',
         variant_options: product.variant_options || [],
-        variants: product.variants || [],
+        variants: (product.variants || []).map(v => ({
+            id: v.id,
+            sku: v.sku,
+            attributes: v.attributes || {},
+            retail_price: v.retail_price,
+            image_url: v.image_url,
+            image: null,
+            image_preview: null,
+            remove_image: false,
+        })),
+        image: null,
+        remove_image: false,
+        _method: 'put',
     });
 
     const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -45,8 +60,9 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
-        put(`/inventory/${product.id}`, {
-            preserveScroll: true,
+        post(`/inventory/${product.id}`, {
+            preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
+            forceFormData: true,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
                     alert('Failed to update product');
@@ -129,6 +145,59 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
                                     </SelectContent>
                                 </Select>
                                 {errors.type && <span className="text-red-500 text-xs">{errors.type}</span>}
+                            </div>
+
+                            <div className="flex flex-col gap-2">
+                                <Label htmlFor="image">Product Image (Optional)</Label>
+                                {data.image ? (
+                                    <div className="relative inline-block w-24 h-24 mb-2">
+                                        <img 
+                                            src={URL.createObjectURL(data.image)} 
+                                            alt="New preview" 
+                                            className="w-24 h-24 object-cover rounded-lg border border-zinc-200 dark:border-zinc-800" 
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('image', null)}
+                                            className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-1 shadow-sm hover:bg-red-700 transition-colors"
+                                            title="Clear selected image"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                        </button>
+                                    </div>
+                                ) : product.image_url && !data.remove_image ? (
+                                    <div className="relative inline-block w-24 h-24 mb-2">
+                                        <img 
+                                            src={product.image_url} 
+                                            alt={product.name} 
+                                            className="w-24 h-24 object-cover rounded-lg border border-zinc-200 dark:border-zinc-800" 
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setData('remove_image', true)}
+                                            className="absolute -top-1.5 -right-1.5 bg-red-600 text-white rounded-full p-1 shadow-sm hover:bg-red-700 transition-colors"
+                                            title="Delete product image"
+                                        >
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                                        </button>
+                                    </div>
+                                ) : null}
+                                <Input 
+                                    id="image" 
+                                    type="file" 
+                                    accept="image/*"
+                                    onChange={(e) => {
+                                        if (e.target.files && e.target.files[0]) {
+                                            setData((prev) => ({
+                                                ...prev,
+                                                image: e.target.files![0],
+                                                remove_image: false,
+                                            }));
+                                            clearErrors('image');
+                                        }
+                                    }} 
+                                />
+                                {errors.image && <span className="text-red-500 text-xs">{errors.image}</span>}
                             </div>
                         </div>
                     </section>

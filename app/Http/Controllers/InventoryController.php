@@ -17,7 +17,7 @@ class InventoryController extends Controller
     public function index(Request $request)
     {
         $status = $request->input('status', 'active');
-        $query = Product::with(['category', 'variants'])
+        $query = Product::with(['category', 'variants.media', 'media'])
             ->withSum('variants', 'stock_quantity')
             ->withSum('variants', 'pending_stock')
             ->filter([
@@ -46,9 +46,9 @@ class InventoryController extends Controller
 
     public function show(Product $product)
     {
-        $product->load(['category', 'variants' => function ($q) {
+        $product->load(['category', 'media', 'variants' => function ($q) {
             $q->withTrashed();
-        }, 'variants.inventoryLogs' => function ($q) {
+        }, 'variants.media', 'variants.inventoryLogs' => function ($q) {
             $q->orderBy('created_at', 'desc')->with('reference');
         }, 'variants.batches' => function ($q) {
             $q->orderBy('created_at', 'desc');
@@ -99,9 +99,11 @@ class InventoryController extends Controller
             'variants.*.sku' => 'nullable|string|max:255|unique:product_variants,sku',
             'variants.*.attributes' => 'nullable|array',
             'variants.*.retail_price' => 'nullable|numeric|min:0',
+            'variants.*.image' => 'nullable|image|max:5120',
+            'image' => 'nullable|image|max:5120',
         ]);
 
-        DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated, $request) {
             $product = Product::create([
                 'name' => $validated['name'],
                 'category_id' => $validated['category_id'] ?? null,
@@ -111,12 +113,20 @@ class InventoryController extends Controller
                 'variant_options' => $validated['variant_options'] ?? null,
             ]);
 
-            foreach ($validated['variants'] as $v) {
-                $product->variants()->create([
+            foreach ($validated['variants'] as $index => $v) {
+                $variant = $product->variants()->create([
                     'sku' => $v['sku'] ?? null,
                     'attributes' => $v['attributes'] ?? null,
                     'retail_price' => $v['retail_price'] ?? null,
                 ]);
+
+                if ($request->hasFile("variants.{$index}.image")) {
+                    $variant->addMedia($request->file("variants.{$index}.image"))->toMediaCollection('variants');
+                }
+            }
+
+            if ($request->hasFile('image')) {
+                $product->addMedia($request->file('image'))->toMediaCollection('products');
             }
         });
 
@@ -125,7 +135,7 @@ class InventoryController extends Controller
 
     public function edit(Product $product)
     {
-        $product->load('variants');
+        $product->load(['media', 'variants.media']);
         $categories = Category::all();
 
         return Inertia::render('Inventory/EditProduct', [
@@ -148,9 +158,13 @@ class InventoryController extends Controller
             'variants.*.sku' => 'nullable|string|max:255',
             'variants.*.attributes' => 'nullable|array',
             'variants.*.retail_price' => 'nullable|numeric|min:0',
+            'variants.*.image' => 'nullable|image|max:5120',
+            'variants.*.remove_image' => 'nullable|boolean',
+            'image' => 'nullable|image|max:5120',
+            'remove_image' => 'nullable|boolean',
         ]);
 
-        DB::transaction(function () use ($validated, $product) {
+        DB::transaction(function () use ($validated, $request, $product) {
             $product->update([
                 'name' => $validated['name'],
                 'category_id' => $validated['category_id'] ?? null,
@@ -160,8 +174,15 @@ class InventoryController extends Controller
                 'variant_options' => $validated['variant_options'] ?? null,
             ]);
 
+            if ($request->boolean('remove_image')) {
+                $product->clearMediaCollection('products');
+            } elseif ($request->hasFile('image')) {
+                $product->clearMediaCollection('products');
+                $product->addMedia($request->file('image'))->toMediaCollection('products');
+            }
+
             $existingVariantIds = [];
-            foreach ($validated['variants'] as $v) {
+            foreach ($validated['variants'] as $index => $v) {
                 if (isset($v['id'])) {
                     $variant = $product->variants()->find($v['id']);
                     if ($variant) {
@@ -170,6 +191,14 @@ class InventoryController extends Controller
                             'attributes' => $v['attributes'] ?? null,
                             'retail_price' => $v['retail_price'] ?? null,
                         ]);
+
+                        if (!empty($v['remove_image'])) {
+                            $variant->clearMediaCollection('variants');
+                        } elseif ($request->hasFile("variants.{$index}.image")) {
+                            $variant->clearMediaCollection('variants');
+                            $variant->addMedia($request->file("variants.{$index}.image"))->toMediaCollection('variants');
+                        }
+
                         $existingVariantIds[] = $variant->id;
                     }
                 } else {
@@ -178,6 +207,11 @@ class InventoryController extends Controller
                         'attributes' => $v['attributes'] ?? null,
                         'retail_price' => $v['retail_price'] ?? null,
                     ]);
+
+                    if ($request->hasFile("variants.{$index}.image")) {
+                        $newVariant->addMedia($request->file("variants.{$index}.image"))->toMediaCollection('variants');
+                    }
+
                     $existingVariantIds[] = $newVariant->id;
                 }
             }

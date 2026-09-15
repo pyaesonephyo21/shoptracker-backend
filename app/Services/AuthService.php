@@ -22,8 +22,9 @@ class AuthService
                 'email' => $data['email'],
                 'password' => Hash::make($data['password']),
                 'shop_id' => $shop->id,
-                'role' => 'owner', // Force role to owner
             ]);
+
+            $user->assignRole('admin');
 
             // 3. Issue Token immediately
             $token = $user->createToken($data['device_name'])->plainTextToken;
@@ -58,6 +59,8 @@ class AuthService
 
     public function logout(User $user): void
     {
-        $user->currentAccessToken()->delete();
+        /** @var \Illuminate\Database\Eloquent\Model|null $token */
+        $token = $user->currentAccessToken();
+        $token?->delete();
     }
 }

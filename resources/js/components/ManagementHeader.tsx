@@ -10,6 +10,7 @@ interface ManagementTab {
 const MANAGEMENT_TABS: ManagementTab[] = [
     { name: 'Notes', href: '/management/notes' },
     { name: 'Other Expenses', href: '/management/expenses' },
+    { name: 'Storefront', href: '/management/storefront' },
     { name: 'Suppliers', href: '/management/suppliers' },
     { name: 'Couriers', href: '/management/couriers' },
     { name: 'Categories', href: '/management/categories' },
@@ -21,14 +22,20 @@ interface ManagementHeaderProps {
 }
 
 export default function ManagementHeader({ children }: ManagementHeaderProps) {
-    const { url } = usePage();
+    const { url, props } = usePage<any>();
+    const isSuperAdmin = props.auth?.roles?.includes('superadmin') || props.auth?.user?.role === 'superadmin';
+
+    const visibleTabs = [...MANAGEMENT_TABS];
+    if (isSuperAdmin) {
+        visibleTabs.push({ name: 'Users', href: '/management/users' });
+    }
 
     return (
         <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
             <div className="flex flex-col gap-6 w-full min-w-0">
                 <h1 className="text-3xl font-black text-black dark:text-white tracking-tight shrink-0">Management</h1>
                 <div className="flex gap-4 sm:gap-6 w-full overflow-x-auto no-scrollbar pb-[17px] -mb-[17px]">
-                    {MANAGEMENT_TABS.map((tab) => {
+                    {visibleTabs.map((tab) => {
                         const isActive = url === tab.href || url.startsWith(tab.href + '?') || url.startsWith(tab.href + '/');
                         return (
                             <Link

@@ -117,8 +117,12 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                                     Archived
                                 </div>
                             )}
-                            <div className="w-24 h-24 bg-white dark:bg-black rounded-2xl mb-4 items-center justify-center shadow-sm flex">
-                                <span className="text-4xl">📦</span>
+                            <div className="w-24 h-24 bg-white dark:bg-black rounded-2xl mb-4 items-center justify-center shadow-sm flex overflow-hidden border border-zinc-200 dark:border-zinc-800">
+                                {product.image_url ? (
+                                    <img src={product.image_url} alt={product.name} className="w-full h-full object-cover" />
+                                ) : (
+                                    <span className="text-4xl">📦</span>
+                                )}
                             </div>
                             <h2 className={twMerge("text-2xl font-black mb-2", product.is_active ? "text-black dark:text-white" : "text-zinc-500 line-through decoration-zinc-300 dark:decoration-zinc-600")}>
                                 {product.name}
@@ -202,6 +206,7 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                                 <table className="w-full text-xs sm:text-sm text-left">
                                     <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-[10px] sm:text-xs uppercase text-zinc-500 font-bold">
                                         <tr>
+                                            <th className="px-2 sm:px-3 py-3 w-12 text-center">Photo</th>
                                             <th className="px-2 sm:px-4 py-3">Variant</th>
                                             <th className="px-2 sm:px-4 py-3">SKU</th>
                                             {activeVariantTab === 'active' ? (
@@ -220,6 +225,13 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                                     <tbody>
                                         {product.variants?.filter(v => activeVariantTab === 'active' ? !v.deleted_at : v.deleted_at).map(v => (
                                             <tr key={v.id} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0 bg-white dark:bg-black">
+                                                <td className="px-2 sm:px-3 py-2 text-center align-middle">
+                                                    {v.image_url ? (
+                                                        <img src={v.image_url} alt={v.sku} className="w-8 h-8 object-cover rounded-md border border-zinc-200 dark:border-zinc-700 mx-auto" />
+                                                    ) : (
+                                                        <span className="text-xs text-zinc-300 dark:text-zinc-600">—</span>
+                                                    )}
+                                                </td>
                                                 <td className="px-2 sm:px-4 py-3 font-medium whitespace-nowrap">
                                                     {Object.values(v.attributes || {}).join(' / ') || 'Default'}
                                                 </td>

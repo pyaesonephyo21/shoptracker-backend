@@ -13,7 +13,7 @@ class AuthController extends Controller
     {
         // If already logged in, go to dashboard
         if (Auth::check()) {
-            return redirect('/');
+            return redirect('/dashboard');
         }
 
         return Inertia::render('Auth/Login');
@@ -29,7 +29,7 @@ class AuthController extends Controller
         if (Auth::attempt($credentials)) {
             $request->session()->regenerate();
 
-            return redirect()->intended('/');
+            return redirect()->intended('/dashboard');
         }
 
         return back()->withErrors([
@@ -53,8 +53,7 @@ class AuthController extends Controller
         /** @var User $user */
         $user = Auth::user();
 
-        // Superadmin can switch to ANY shop. Others can only switch to authorized shops.
-        if ($user->role === 'superadmin' || $user->shops()->where('shops.id', $request->shop_id)->exists()) {
+        if ($user->hasRole('superadmin') || $user->shops()->where('shops.id', $request->shop_id)->exists()) {
             $user->shop_id = $request->shop_id;
             $user->save();
         }
@@ -65,7 +64,7 @@ class AuthController extends Controller
         // it is a detail page specific to the old shop. Returning back will cause a 404.
         // Redirect to dashboard instead.
         if ($previousPath && preg_match('/\/(\d+)(\/|$)/', $previousPath)) {
-            return redirect('/');
+            return redirect('/dashboard');
         }
 
         return back();

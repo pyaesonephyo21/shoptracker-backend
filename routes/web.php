@@ -11,11 +11,34 @@ use App\Http\Controllers\Management\CourierController;
 use App\Http\Controllers\Management\ExpenseController;
 use App\Http\Controllers\Management\NoteController;
 use App\Http\Controllers\Management\PaymentMethodController;
+use App\Http\Controllers\Management\ShopController;
+use App\Http\Controllers\Management\StorefrontSettingsController;
 use App\Http\Controllers\Management\SupplierController;
+use App\Http\Controllers\Management\UserController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\StockAdjustmentController;
+use App\Http\Controllers\StorefrontController;
+use App\Models\Shop;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Auth;
+
+/*
+|--------------------------------------------------------------------------
+| Public Storefront Routes
+|--------------------------------------------------------------------------
+*/
+// Root URL redirection
+Route::get('/', function () {
+    if (Auth::check()) {
+        return redirect()->route('dashboard');
+    }
+    $shop = Shop::first();
+    if ($shop && $shop->slug) {
+        return redirect()->route('storefront.home', ['shop' => $shop->slug]);
+    }
+    return redirect('/login');
+});
 
 /*
 |--------------------------------------------------------------------------
@@ -34,7 +57,7 @@ Route::post('/switch-shop', [AuthController::class, 'switchShop'])->name('switch
 */
 Route::middleware('auth')->group(function () {
     // Dashboard
-    Route::get('/', [DashboardController::class, 'index'])->name('dashboard');
+    Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
     // Inventory & Products
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
@@ -85,6 +108,10 @@ Route::middleware('auth')->group(function () {
     // Management Resources
     Route::redirect('/management', '/management/notes');
     Route::prefix('management')->name('management.')->group(function () {
+        Route::get('storefront', [StorefrontSettingsController::class, 'index'])->name('storefront.index');
+        Route::post('storefront', [StorefrontSettingsController::class, 'update'])->name('storefront.update');
+        Route::resource('shops', ShopController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::resource('users', UserController::class)->except(['show', 'create', 'edit']);
         Route::resource('suppliers', SupplierController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::resource('couriers', CourierController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::resource('categories', CategoryController::class)->only(['index', 'store', 'update', 'destroy']);
@@ -103,4 +130,14 @@ Route::middleware('auth')->group(function () {
 
     // AI Tools
     Route::post('/api/ai/parse-address', [AiAddressParserController::class, 'parse'])->name('api.ai.parse-address');
+});
+
+/*
+|--------------------------------------------------------------------------
+| Public Storefront Dynamic Routes (Must be at the end to prevent collisions)
+|--------------------------------------------------------------------------
+*/
+Route::prefix('{shop:slug}')->name('storefront.')->group(function () {
+    Route::get('/', [StorefrontController::class, 'index'])->name('home');
+    Route::get('/products', [StorefrontController::class, 'products'])->name('products');
 });

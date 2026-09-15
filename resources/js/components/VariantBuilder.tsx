@@ -1,9 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Trash, Plus, X } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Trash, Plus, X, Upload } from 'lucide-react';
 
 export interface VariantOption {
     name: string;
@@ -15,6 +13,10 @@ export interface Variant {
     sku: string;
     attributes: Record<string, string>;
     retail_price?: number | null;
+    image_url?: string | null;
+    image?: File | null;
+    image_preview?: string | null;
+    remove_image?: boolean;
 }
 
 interface Props {
@@ -34,7 +36,6 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
         }
         return Math.random().toString(36).substring(2, 6).toUpperCase();
     });
-    const prevBaseSkuRef = useRef(baseSku);
 
     const addOption = () => {
         if (!newOptionName.trim()) return;
@@ -65,6 +66,25 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
         setOptions(newOptions);
     };
 
+    const handleImageChange = (idx: number, file: File | null) => {
+        const newVariants = [...variants];
+        if (file) {
+            newVariants[idx].image = file;
+            newVariants[idx].image_preview = URL.createObjectURL(file);
+            newVariants[idx].remove_image = false;
+        }
+        setVariants(newVariants);
+    };
+
+    const handleRemoveImage = (idx: number) => {
+        const newVariants = [...variants];
+        newVariants[idx].image = null;
+        newVariants[idx].image_preview = null;
+        newVariants[idx].image_url = null;
+        newVariants[idx].remove_image = true;
+        setVariants(newVariants);
+    };
+
     // Auto-generate variants when options change
     useEffect(() => {
         if (options.length === 0 || options.every(o => o.values.length === 0)) {
@@ -93,7 +113,7 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
             combinations.splice(0, combinations.length, ...newCombinations);
         }
 
-        const newVariants: Variant[] = combinations.map((combo, idx) => {
+        const newVariants: Variant[] = combinations.map((combo) => {
             // Find if we already have this combination
             const existing = variants.find(v => {
                 const keys = Object.keys(combo);
@@ -126,6 +146,8 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
             const old = variants[i];
             if (nv.sku !== old.sku) return true;
             if (nv.retail_price !== old.retail_price) return true;
+            if (nv.image !== old.image) return true;
+            if (nv.remove_image !== old.remove_image) return true;
             if (JSON.stringify(nv.attributes) !== JSON.stringify(old.attributes)) return true;
             return false;
         });
@@ -201,44 +223,82 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
                         <table className="w-full text-sm text-left">
                             <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase text-zinc-500 font-bold">
                                 <tr>
+                                    <th className="px-3 py-3 w-16 text-center">Photo</th>
                                     <th className="px-4 py-3">Variant</th>
-                                    <th className="px-4 py-3 w-48">SKU</th>
-                                    <th className="px-4 py-3 w-32">Retail Price Override</th>
+                                    <th className="px-4 py-3 w-44">SKU</th>
+                                    <th className="px-4 py-3 w-32">Price Override</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                {variants.map((v, idx) => (
-                                    <tr key={idx} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0 bg-white dark:bg-black">
-                                        <td className="px-4 py-3 font-medium">
-                                            {Object.values(v.attributes || {}).join(' / ') || 'Default'}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <Input 
-                                                value={v.sku} 
-                                                onChange={e => {
-                                                    const newVariants = [...variants];
-                                                    newVariants[idx].sku = e.target.value;
-                                                    setVariants(newVariants);
-                                                }}
-                                                className="h-8"
-                                                placeholder="SKU"
-                                            />
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <Input 
-                                                type="number" 
-                                                value={v.retail_price || ''} 
-                                                onChange={e => {
-                                                    const newVariants = [...variants];
-                                                    newVariants[idx].retail_price = e.target.value ? Number(e.target.value) : undefined;
-                                                    setVariants(newVariants);
-                                                }}
-                                                className="h-8"
-                                                placeholder="Fallback to Default"
-                                            />
-                                        </td>
-                                    </tr>
-                                ))}
+                                {variants.map((v, idx) => {
+                                    const displayImg = v.image_preview || (!v.remove_image ? v.image_url : null);
+
+                                    return (
+                                        <tr key={idx} className="border-b border-zinc-100 dark:border-zinc-800 last:border-0 bg-white dark:bg-black">
+                                            <td className="px-3 py-2 text-center align-middle">
+                                                {displayImg ? (
+                                                    <div className="relative inline-block group">
+                                                        <img 
+                                                            src={displayImg} 
+                                                            alt={v.sku} 
+                                                            className="w-10 h-10 object-cover rounded-lg border border-zinc-200 dark:border-zinc-700" 
+                                                        />
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleRemoveImage(idx)}
+                                                            className="absolute -top-1 -right-1 bg-red-600 text-white rounded-full p-0.5 shadow-sm hover:bg-red-700 transition-colors"
+                                                            title="Remove image"
+                                                        >
+                                                            <X className="w-3 h-3" />
+                                                        </button>
+                                                    </div>
+                                                ) : (
+                                                    <label className="cursor-pointer inline-flex items-center justify-center w-10 h-10 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 hover:border-zinc-400 dark:hover:border-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900 text-zinc-400 hover:text-zinc-600 transition-colors">
+                                                        <Upload className="w-4 h-4" />
+                                                        <input 
+                                                            type="file" 
+                                                            accept="image/*" 
+                                                            className="hidden" 
+                                                            onChange={(e) => {
+                                                                if (e.target.files && e.target.files[0]) {
+                                                                    handleImageChange(idx, e.target.files[0]);
+                                                                }
+                                                            }} 
+                                                        />
+                                                    </label>
+                                                )}
+                                            </td>
+                                            <td className="px-4 py-3 font-medium">
+                                                {Object.values(v.attributes || {}).join(' / ') || 'Default'}
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Input 
+                                                    value={v.sku} 
+                                                    onChange={e => {
+                                                        const newVariants = [...variants];
+                                                        newVariants[idx].sku = e.target.value;
+                                                        setVariants(newVariants);
+                                                    }}
+                                                    className="h-8"
+                                                    placeholder="SKU"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <Input 
+                                                    type="number" 
+                                                    value={v.retail_price ?? ''} 
+                                                    onChange={e => {
+                                                        const newVariants = [...variants];
+                                                        newVariants[idx].retail_price = e.target.value ? Number(e.target.value) : undefined;
+                                                        setVariants(newVariants);
+                                                    }}
+                                                    className="h-8"
+                                                    placeholder="Default"
+                                                />
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>

@@ -61,9 +61,11 @@ class AppServiceProvider extends ServiceProvider
                 $user = Auth::user();
 
                 return [
-                    'user' => $user ? $user->only('id', 'name', 'email', 'role', 'shop_id') : null,
-                    'shop' => $user && $user->shop ? $user->shop->only('id', 'name', 'settings') : null,
-                    'all_shops' => $user ? ($user->role === 'superadmin' ? Shop::select('id', 'name')->get() : $user->shops()->select('shops.id', 'shops.name')->get()) : [],
+                    'user' => $user ? $user->only('id', 'name', 'email', 'shop_id') : null,
+                    'roles' => $user ? $user->getRoleNames() : [],
+                    'permissions' => $user ? $user->getAllPermissions()->pluck('name') : [],
+                    'shop' => $user && $user->shop ? $user->shop->fresh()->only('id', 'name', 'slug', 'settings') : null,
+                    'all_shops' => $user ? ($user->hasRole('superadmin') ? Shop::select('id', 'name', 'slug')->get() : $user->shops()->select('shops.id', 'shops.name', 'shops.slug')->get()) : [],
                     'payment_methods' => $user && $user->shop ? $user->shop->paymentMethods()->where('is_active', true)->select('id', 'name', 'code')->get() : [],
                 ];
             },

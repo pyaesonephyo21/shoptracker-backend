@@ -4,6 +4,7 @@ namespace App\Services;
 
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Throwable;
 
 class AiAddressParserService
 {
@@ -68,14 +69,14 @@ PROMPT;
             // 1. Try Native Google Gemini Models First (Rotates on 429/quota, 503, or failure)
             if (! empty($geminiKey)) {
                 $geminiModels = [
-                    'gemini-flash-lite-latest',
+                    'gemini-3.5-flash-lite',
                     'gemini-3.6-flash',
-                    'gemini-flash-latest',
+                    'gemini-flash-lite-latest',
                 ];
 
                 foreach ($geminiModels as $gModel) {
                     try {
-                        $http = Http::connectTimeout(3)->timeout(8)->withHeaders([
+                        $http = Http::connectTimeout(2)->timeout(4)->withHeaders([
                             'Content-Type' => 'application/json',
                         ]);
 
@@ -129,13 +130,16 @@ PROMPT;
                         Log::warning("Gemini model {$gModel} failed (status: {$geminiResponse->status()}). Trying next model...", [
                             'body' => $geminiResponse->body(),
                         ]);
-                    } catch (\Throwable $e) {
+                    } catch (Throwable $e) {
                         Log::warning("Gemini connection error on {$gModel}: ".$e->getMessage());
 
-                        // If TCP connection or DNS lookup failed outright (e.g. VPN disconnected), jump to OpenRouter immediately
-                        if (str_contains($e->getMessage(), 'Failed to connect') ||
-                            str_contains($e->getMessage(), 'Could not resolve host') ||
-                            str_contains($e->getMessage(), 'Connection timed out after')) {
+                        $msg = strtolower($e->getMessage());
+                        if (str_contains($msg, 'failed to connect') ||
+                            str_contains($msg, 'could not resolve host') ||
+                            str_contains($msg, 'timed out') ||
+                            str_contains($msg, 'curl error 28') ||
+                            str_contains($msg, 'curl error 7') ||
+                            str_contains($msg, 'curl error 6')) {
                             break;
                         }
 
@@ -146,17 +150,15 @@ PROMPT;
 
             // 2. Try OpenRouter Fallback Chain (Works globally without VPN)
             if (empty($content) && ! empty($openRouterKey)) {
-                $primaryModel = config('services.openrouter.model', 'nvidia/nemotron-3.5-lightning:free');
+                $primaryModel = config('services.openrouter.model', 'nex-agi/nex-n2.5-mini:free');
                 $modelChain = array_unique([
                     $primaryModel,
-                    'nvidia/nemotron-3.5-lightning:free',
-                    'liquid/lfm-2.5-2.6b:free',
-                    'google/gemma-4-26b-a4b-it:free',
+                    'nex-agi/nex-n2.5-mini:free',
                 ]);
 
                 foreach ($modelChain as $currentModel) {
                     try {
-                        $orResponse = Http::timeout(15)
+                        $orResponse = Http::connectTimeout(2)->timeout(5)
                             ->withHeaders([
                                 'Authorization' => "Bearer {$openRouterKey}",
                                 'HTTP-Referer' => config('app.url', 'http://localhost:8080'),
@@ -182,7 +184,7 @@ PROMPT;
                         }
 
                         Log::warning("OpenRouter model {$currentModel} failed (status: {$orResponse->status()}). Trying next...");
-                    } catch (\Throwable $e) {
+                    } catch (Throwable $e) {
                         Log::warning("OpenRouter error on {$currentModel}: ".$e->getMessage());
                     }
                 }

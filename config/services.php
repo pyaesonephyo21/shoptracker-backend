@@ -37,7 +37,7 @@ return [
 
     'openrouter' => [
         'api_key' => env('OPENROUTER_API_KEY'),
-        'model' => env('OPENROUTER_MODEL', 'nvidia/nemotron-3.5-lightning:free'),
+        'model' => env('OPENROUTER_MODEL', 'nex-agi/nex-n2.5-mini:free'),
     ],
 
     'gemini' => [

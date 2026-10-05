@@ -242,7 +242,7 @@ ShopTracker includes ready-to-use `Dockerfile` and `docker-compose.yml` configur
    ```
 
 3. **Open the application:**
-   The Nginx web server will be available at [http://localhost:8080](http://localhost:8080).
+   The Nginx web server will be available at [http://localhost:8088](http://localhost:8088).
 
 ---
 

@@ -161,7 +161,7 @@ PROMPT;
                         $orResponse = Http::connectTimeout(2)->timeout(5)
                             ->withHeaders([
                                 'Authorization' => "Bearer {$openRouterKey}",
-                                'HTTP-Referer' => config('app.url', 'http://localhost:8080'),
+                                'HTTP-Referer' => config('app.url', 'http://localhost:8088'),
                                 'X-Title' => 'ShopTracker',
                                 'Content-Type' => 'application/json',
                             ])

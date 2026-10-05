@@ -13,13 +13,23 @@ export interface InventoryLog {
     created_at: string;
 }
 
+export interface ProductBatchReference {
+    id: number;
+    batch_name?: string;
+    reason?: string;
+    note?: string;
+}
+
 export interface ProductBatch {
     id: number;
     initial_quantity: number;
     remaining_quantity: number;
-    retail_price: number;
+    retail_price: number | null;
     unit_cost: number;
     created_at: string;
+    reference_type?: string | null;
+    reference_id?: number | null;
+    reference?: ProductBatchReference | null;
 }
 
 export interface VariantOption {
@@ -59,10 +69,16 @@ export interface Product {
 }
 
 export interface StockAdjustmentRequest {
-    product_id: number;
-    quantity: number;
-    reason: "damage" | "loss" | "return" | "correction";
+    product_variant_id: string;
+    action_type: 'add' | 'remove';
+    quantity: string | number;
+    reason: 'damage' | 'loss' | 'return' | 'correction';
     note?: string;
+    batch_pricing_mode?: 'default' | 'existing' | 'new';
+    selected_batch_id?: string | number;
+    unit_cost?: string | number;
+    retail_price?: string | number;
+    update_variant_retail_price?: boolean;
 }
 
 export interface PurchaseOrderItemInput {

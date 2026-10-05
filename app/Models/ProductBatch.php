@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\BelongsToShop;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class ProductBatch extends Model
 {
@@ -24,5 +25,10 @@ class ProductBatch extends Model
     public function shop()
     {
         return $this->belongsTo(Shop::class);
+    }
+
+    public function reference(): MorphTo
+    {
+        return $this->morphTo();
     }
 }

@@ -44,10 +44,10 @@ export default function StockAdjustment({ product }: { product: Product }) {
         });
     };
 
-    const handleVariantChange = (val: string) => {
+    const handleVariantChange = (val: string | null) => {
         setData(prev => ({
             ...prev,
-            product_variant_id: val,
+            product_variant_id: val ?? '',
             selected_batch_id: '',
         }));
         clearErrors('product_variant_id');

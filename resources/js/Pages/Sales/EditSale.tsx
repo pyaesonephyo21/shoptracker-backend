@@ -52,8 +52,8 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         tracking_number: order.tracking_number || '',
         delivery_fee: order.delivery_fee || '',
         courier_service_fee: order.courier_service_fee || '',
-        money_collected_by: order.money_collected_by || 'seller',
-        is_deli_prepaid: Boolean(order.is_deli_prepaid ?? true)
+        money_collected_by: order.money_collected_by || 'courier',
+        is_deli_prepaid: Boolean(order.is_deli_prepaid ?? false)
     });
 
     // Subtotal from existing items (cannot be edited)

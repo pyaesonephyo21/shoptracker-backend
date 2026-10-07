@@ -40,7 +40,7 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
         courier_service_fee: '',
         overcharge: '',
         delivery_note: '',
-        money_collected_by: 'seller' as 'seller' | 'courier',
+        money_collected_by: 'courier' as 'seller' | 'courier',
         is_deli_prepaid: false
     });
 
@@ -495,7 +495,7 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
                                             courier_service_fee: '',
                                             overcharge: '',
                                             delivery_note: '',
-                                            money_collected_by: 'seller',
+                                            money_collected_by: 'courier',
                                             is_deli_prepaid: false
                                         }));
                                     }}

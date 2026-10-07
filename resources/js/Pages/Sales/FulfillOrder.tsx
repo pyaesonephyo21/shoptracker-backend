@@ -27,8 +27,8 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
         courier_service_fee: order.delivery?.courier_service_fee ? String(order.delivery.courier_service_fee) : '',
         overcharge: order.financials?.overcharge ? String(order.financials.overcharge) : '',
         delivery_note: order.delivery?.note || order.note || '',
-        money_collected_by: (order.delivery?.collected_by || (isPrepaid ? 'seller' : 'courier')) as 'seller' | 'courier',
-        is_deli_prepaid: Boolean(order.delivery?.is_prepaid ?? isPrepaid)
+        money_collected_by: (order.delivery?.collected_by || 'courier') as 'seller' | 'courier',
+        is_deli_prepaid: Boolean(order.delivery?.is_prepaid ?? false)
     });
 
     const selectedCourier = couriers.find(c => c.id === Number(data.courier_id));

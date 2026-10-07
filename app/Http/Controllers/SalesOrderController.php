@@ -3,10 +3,16 @@
 namespace App\Http\Controllers;
 
 use App\Exports\SalesOrderExport;
+use Exception;
+use App\Http\Requests\BulkDeliverCodRequest;
+use App\Http\Requests\BulkFulfillCodRequest;
+use App\Http\Requests\BulkSettleCodRequest;
 use App\Models\Courier;
+use App\Models\PaymentMethod;
 use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Services\SalesOrderService;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
@@ -36,12 +42,19 @@ class SalesOrderController extends Controller
                 'id' => $order->id,
                 'status' => $order->status,
                 'is_preorder' => (bool) $order->is_preorder,
+                'is_cod' => (bool) $order->is_cod,
+                'courier_id' => $order->courier_id,
+                'settlement_status' => $order->settlement_status,
                 'date' => $order->created_at->format('Y-m-d'),
-                'customer' => ['name' => $order->customer_name],
+                'customer' => [
+                    'name' => $order->customer_name,
+                    'address' => $order->delivery_address,
+                ],
                 'financials' => [
                     'payment_status' => $order->payment_status,
                     'paid_amount' => $order->paid_amount,
                     'grand_total' => $order->customer_grand_total,
+                    'balance' => $order->balance,
                     'payment_method' => $paymentMethod,
                 ],
             ];
@@ -49,6 +62,8 @@ class SalesOrderController extends Controller
 
         return Inertia::render('Sales/SalesList', [
             'orders' => $paginatedOrders,
+            'couriers' => Courier::all(['id', 'name', 'default_service_fee', 'default_overcharge']),
+            'payment_methods' => PaymentMethod::where('is_active', true)->get(['id', 'name', 'code']),
             'filters' => [
                 'status' => $request->status ?? '',
                 'settlement_status' => $request->settlement_status ?? '',
@@ -135,7 +150,7 @@ class SalesOrderController extends Controller
             'delivery_fee' => $validated['delivery_fee'] ?? 0,
             'courier_service_fee' => $validated['courier_service_fee'] ?? 0,
             'overcharge' => $validated['overcharge'] ?? 0,
-            'money_collected_by' => $validated['money_collected_by'] ?? 'seller',
+            'money_collected_by' => $validated['money_collected_by'] ?? 'courier',
             'is_deli_prepaid' => (bool) ($validated['is_deli_prepaid'] ?? false),
         ];
 
@@ -368,5 +383,44 @@ class SalesOrderController extends Controller
         );
 
         return back()->with('success', 'Order cancelled successfully.');
+    }
+
+    public function bulkFulfill(BulkFulfillCodRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $result = $this->service->bulkFulfillCodOrders($validated['order_ids'], $validated);
+
+            return back()->with('success', "Delivery arranged for {$result['processed_count']} COD orders.");
+        } catch (Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function bulkDeliver(BulkDeliverCodRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $result = $this->service->bulkMarkDeliveredCodOrders($validated['order_ids']);
+
+            return back()->with('success', "Marked {$result['processed_count']} COD orders as delivered.");
+        } catch (Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+
+    public function bulkSettle(BulkSettleCodRequest $request): RedirectResponse
+    {
+        $validated = $request->validated();
+
+        try {
+            $result = $this->service->bulkSettleCodOrders($validated['order_ids'], $validated['payment_method']);
+
+            return back()->with('success', "Settled {$result['processed_count']} COD orders.");
+        } catch (Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
     }
 }

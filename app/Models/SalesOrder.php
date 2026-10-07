@@ -57,6 +57,23 @@ class SalesOrder extends Model
         return (float) ($this->target_collection - $this->paid_amount);
     }
 
+    public function getIsCodAttribute(): bool
+    {
+        if ((float) $this->paid_amount > 0) {
+            return false;
+        }
+
+        if (in_array($this->payment_status, ['paid', 'partial'])) {
+            return false;
+        }
+
+        if ($this->courier_id && ($this->money_collected_by === 'seller' || $this->is_deli_prepaid)) {
+            return false;
+        }
+
+        return true;
+    }
+
     // FIX: Relationship must point to Courier, not Item
     public function courier()
     {
@@ -106,6 +123,7 @@ class SalesOrder extends Model
             $query->where(function ($q) use ($search) {
                 $q->where('customer_name', 'like', "%{$search}%")
                     ->orWhere('customer_phone', 'like', "%{$search}%")
+                    ->orWhere('delivery_address', 'like', "%{$search}%")
                     ->orWhere('id', 'like', "%{$search}%");
             });
         })->when($filters['start_date'] ?? null, function ($query, $startDate) {

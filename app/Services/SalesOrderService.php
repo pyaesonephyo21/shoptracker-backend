@@ -30,7 +30,7 @@ class SalesOrderService
                 // Logistics
                 'courier_id' => $data['courier_id'] ?? null,
                 'tracking_number' => $data['tracking_number'] ?? null,
-                'money_collected_by' => $data['money_collected_by'] ?? 'seller',
+                'money_collected_by' => $data['money_collected_by'] ?? 'courier',
                 'is_deli_prepaid' => (bool) ($data['is_deli_prepaid'] ?? false),
                 'overcharge' => (float) ($data['overcharge'] ?? 0),
                 'extra_fee' => (float) ($data['extra_fee'] ?? 0),
@@ -527,6 +527,105 @@ class SalesOrderService
             }
 
             return $settledCount;
+        });
+    }
+
+    public function bulkFulfillCodOrders(array $orderIds, array $data): array
+    {
+        return DB::transaction(function () use ($orderIds, $data) {
+            $orders = SalesOrder::whereIn('id', $orderIds)->lockForUpdate()->get();
+
+            $courierId = (int) $data['courier_id'];
+            $deliveryFee = isset($data['delivery_fee']) && $data['delivery_fee'] !== '' ? (float) $data['delivery_fee'] : null;
+            $courierServiceFee = isset($data['courier_service_fee']) && $data['courier_service_fee'] !== '' ? (float) $data['courier_service_fee'] : null;
+            $overcharge = isset($data['overcharge']) && $data['overcharge'] !== '' ? (float) $data['overcharge'] : null;
+            $deliveryNote = $data['delivery_note'] ?? null;
+
+            $processedCount = 0;
+
+            foreach ($orders as $order) {
+                if (! $order->is_cod) {
+                    throw new Exception("Order #{$order->id} is a prepaid order and cannot be fulfilled in bulk.");
+                }
+
+                if (! in_array($order->status, ['pending', 'delivery_added'])) {
+                    continue;
+                }
+
+                $order->courier_id = $courierId;
+                if ($deliveryFee !== null) {
+                    $order->delivery_fee = $deliveryFee;
+                }
+                if ($courierServiceFee !== null) {
+                    $order->courier_service_fee = $courierServiceFee;
+                }
+                if ($overcharge !== null) {
+                    $order->overcharge = $overcharge;
+                }
+                if ($deliveryNote !== null) {
+                    $order->delivery_note = $deliveryNote;
+                }
+
+                $order->money_collected_by = 'courier';
+                $order->is_deli_prepaid = false;
+                $order->status = 'delivery_added';
+
+                $this->recalculateTotals($order);
+                $order->logAction('bulk_delivery_added', ['courier_id' => $courierId]);
+
+                $processedCount++;
+            }
+
+            return ['processed_count' => $processedCount];
+        });
+    }
+
+    public function bulkMarkDeliveredCodOrders(array $orderIds): array
+    {
+        return DB::transaction(function () use ($orderIds) {
+            $orders = SalesOrder::whereIn('id', $orderIds)->lockForUpdate()->get();
+            $processedCount = 0;
+
+            foreach ($orders as $order) {
+                if (! $order->is_cod) {
+                    throw new Exception("Order #{$order->id} is a prepaid order and cannot be modified in bulk.");
+                }
+
+                if ($order->status !== 'delivery_added') {
+                    continue;
+                }
+
+                $order->status = 'delivered';
+                $order->save();
+                $order->logAction('delivered', ['via' => 'bulk_action']);
+
+                $processedCount++;
+            }
+
+            return ['processed_count' => $processedCount];
+        });
+    }
+
+    public function bulkSettleCodOrders(array $orderIds, string $paymentMethod): array
+    {
+        return DB::transaction(function () use ($orderIds, $paymentMethod) {
+            $orders = SalesOrder::whereIn('id', $orderIds)->lockForUpdate()->get();
+            $processedCount = 0;
+
+            foreach ($orders as $order) {
+                if (! $order->is_cod) {
+                    throw new Exception("Order #{$order->id} is a prepaid order and cannot be settled in bulk.");
+                }
+
+                if ($order->status !== 'delivered' || $order->settlement_status === 'settled') {
+                    continue;
+                }
+
+                $this->settle($order->id, $paymentMethod);
+                $processedCount++;
+            }
+
+            return ['processed_count' => $processedCount];
         });
     }
 

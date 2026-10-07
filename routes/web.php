@@ -71,6 +71,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/sales/export', [SalesOrderController::class, 'export'])->name('sales.export');
     Route::get('/sales/create', [SalesOrderController::class, 'create'])->name('sales.create');
     Route::post('/sales', [SalesOrderController::class, 'store'])->name('sales.store');
+    Route::post('/sales/bulk-fulfill', [SalesOrderController::class, 'bulkFulfill'])->name('sales.bulk-fulfill');
+    Route::post('/sales/bulk-deliver', [SalesOrderController::class, 'bulkDeliver'])->name('sales.bulk-deliver');
+    Route::post('/sales/bulk-settle', [SalesOrderController::class, 'bulkSettle'])->name('sales.bulk-settle');
     Route::get('/sales/{salesOrder}', [SalesOrderController::class, 'show'])->name('sales.show');
     Route::get('/sales/{salesOrder}/edit', [SalesOrderController::class, 'edit'])->name('sales.edit');
     Route::put('/sales/{salesOrder}', [SalesOrderController::class, 'update'])->name('sales.update');

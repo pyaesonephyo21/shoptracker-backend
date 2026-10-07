@@ -11,8 +11,12 @@ export interface SalesOrder {
     };
     status: string;
     is_preorder?: boolean;
+    is_cod?: boolean;
+    courier_id?: number | null;
+    settlement_status?: string;
 
     financials: {
+        payment_method: string;
         subtotal: number;
         discount: number;
         discount_type: "fixed" | "percent" | "none";
@@ -99,4 +103,17 @@ export interface CreateSaleRequest {
 
     note?: string;
     items: SaleItemInput[];
+}
+
+export interface CourierOption {
+    id: number;
+    name: string;
+    default_service_fee: number;
+    default_overcharge: number;
+}
+
+export interface PaymentMethodOption {
+    id: number;
+    name: string;
+    code: string;
 }

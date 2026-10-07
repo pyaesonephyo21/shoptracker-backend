@@ -1,13 +1,14 @@
 import React from 'react';
 import { SalesOrder } from '@/types/sales';
 import { Button } from '@/components/ui/button';
-import { Truck, CheckCircle2, X, AlertCircle } from 'lucide-react';
+import { Truck, CheckCircle2, DollarSign, X, AlertCircle } from 'lucide-react';
 
 interface BulkActionBarProps {
     selectedOrders: SalesOrder[];
     onClearSelection: () => void;
     onOpenFulfill: () => void;
     onOpenDeliver: () => void;
+    onOpenSettle: () => void;
 }
 
 export default function BulkActionBar({
@@ -15,6 +16,7 @@ export default function BulkActionBar({
     onClearSelection,
     onOpenFulfill,
     onOpenDeliver,
+    onOpenSettle,
 }: BulkActionBarProps) {
     if (selectedOrders.length === 0) return null;
 
@@ -22,9 +24,10 @@ export default function BulkActionBar({
     const statuses = Array.from(new Set(selectedOrders.map((o) => o.status)));
 
     // Determine viable actions
-    const allPendingOrDeliveryAdded = statuses.every((s) => s === 'pending' || s === 'delivery_added');
+    const allPendingOrDeliveryAdded = statuses.length > 0 && statuses.every((s) => s === 'pending' || s === 'delivery_added');
     const allDeliveryAdded = statuses.length === 1 && statuses[0] === 'delivery_added';
-    const isMixedIncompatible = !allPendingOrDeliveryAdded;
+    const allDelivered = statuses.length === 1 && statuses[0] === 'delivered';
+    const isMixedIncompatible = !allPendingOrDeliveryAdded && !allDelivered;
 
     return (
         <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] left-3 right-3 sm:left-auto sm:right-5 sm:bottom-5 sm:max-w-lg z-45 transition-all duration-300 animate-in fade-in slide-in-from-bottom-3">
@@ -50,7 +53,7 @@ export default function BulkActionBar({
                 {isMixedIncompatible ? (
                     <div className="flex items-center gap-1.5 text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-2 rounded-lg border border-amber-200 dark:border-amber-900">
                         <AlertCircle className="w-3.5 h-3.5 shrink-0" />
-                        <span>Select orders of the same stage (Pending or Deli Added).</span>
+                        <span>Select orders of the same stage (Pending, Deli Added, or Delivered).</span>
                     </div>
                 ) : (
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -73,6 +76,17 @@ export default function BulkActionBar({
                             >
                                 <CheckCircle2 className="w-3.5 h-3.5 mr-1.5 shrink-0" />
                                 Mark Delivered
+                            </Button>
+                        )}
+
+                        {allDelivered && (
+                            <Button
+                                type="button"
+                                onClick={onOpenSettle}
+                                className="flex-1 h-9 min-h-[36px] text-[11px] font-bold uppercase tracking-wider bg-orange-600 hover:bg-orange-700 text-white shadow-sm"
+                            >
+                                <DollarSign className="w-3.5 h-3.5 mr-1.5 shrink-0" />
+                                Settle COD
                             </Button>
                         )}
                     </div>

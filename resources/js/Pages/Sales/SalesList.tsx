@@ -12,6 +12,7 @@ import { Filter, Check, Lock, MapPin } from 'lucide-react';
 import { useRevalidateOnBack } from '@/hooks/useRevalidateOnBack';
 import BulkFulfillCodModal from './Components/BulkFulfillCodModal';
 import BulkDeliverCodDialog from './Components/BulkDeliverCodDialog';
+import BulkSettleCodModal from './Components/BulkSettleCodModal';
 import BulkActionBar from './Components/BulkActionBar';
 
 interface SalesListFilters {
@@ -52,6 +53,7 @@ export default function SalesList({
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [isFulfillModalOpen, setIsFulfillModalOpen] = useState(false);
     const [isDeliverDialogOpen, setIsDeliverDialogOpen] = useState(false);
+    const [isSettleModalOpen, setIsSettleModalOpen] = useState(false);
 
     const hasActiveFilters = Boolean(
         filters.status ||
@@ -71,6 +73,10 @@ export default function SalesList({
     }, [searchVal]);
 
     useRevalidateOnBack(['orders']);
+
+    useEffect(() => {
+        setSelectedOrderIds([]);
+    }, [orders.current_page]);
 
     const handleFilterChange = (status: string, search: string, settlement: string, method: string, start?: Date, end?: Date) => {
         setSelectedOrderIds([]);
@@ -109,9 +115,10 @@ export default function SalesList({
         setIsFilterOpen(false);
     };
 
-    // Stage-specific COD collections on current page (Pending & Delivery Added)
+    // Stage-specific COD collections on current page (Pending, Delivery Added, Delivered)
     const pendingCodOrders = orders.data.filter((o) => Boolean(o.is_cod && o.status === 'pending'));
     const deliveryAddedCodOrders = orders.data.filter((o) => Boolean(o.is_cod && o.status === 'delivery_added'));
+    const deliveredCodOrders = orders.data.filter((o) => Boolean(o.is_cod && o.status === 'delivered'));
 
     const selectedOrders = orders.data.filter((order) => selectedOrderIds.includes(order.id));
 
@@ -124,6 +131,11 @@ export default function SalesList({
         deliveryAddedCodOrders.length > 0 &&
         deliveryAddedCodOrders.every((o) => selectedOrderIds.includes(o.id)) &&
         selectedOrders.every((o) => o.status === 'delivery_added');
+
+    const allDeliveredSelected =
+        deliveredCodOrders.length > 0 &&
+        deliveredCodOrders.every((o) => selectedOrderIds.includes(o.id)) &&
+        selectedOrders.every((o) => o.status === 'delivered');
 
     const toggleSelectPending = () => {
         if (allPendingSelected) {
@@ -141,6 +153,14 @@ export default function SalesList({
         }
     };
 
+    const toggleSelectDelivered = () => {
+        if (allDeliveredSelected) {
+            setSelectedOrderIds([]);
+        } else {
+            setSelectedOrderIds(deliveredCodOrders.map((o) => o.id));
+        }
+    };
+
     const toggleOrderSelection = (id: number) => {
         setSelectedOrderIds((prev) =>
             prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -152,7 +172,7 @@ export default function SalesList({
         setIsSelectMode(false);
     };
 
-    const hasCodOrders = pendingCodOrders.length > 0 || deliveryAddedCodOrders.length > 0;
+    const hasCodOrders = orders.data.length > 0;
 
     const getStatusStyle = (order: SalesOrder) => {
         if (order.status.toUpperCase() === 'CANCELLED') {
@@ -363,7 +383,7 @@ export default function SalesList({
                 </div>
 
                 {/* FLOATING STAGE-SPECIFIC COD OPTIONS (Only in Select Mode) */}
-                {isSelectMode && (pendingCodOrders.length > 0 || deliveryAddedCodOrders.length > 0) && (
+                {isSelectMode && (pendingCodOrders.length > 0 || deliveryAddedCodOrders.length > 0 || deliveredCodOrders.length > 0) && (
                     <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar animate-in fade-in duration-200">
                         {/* Option 1: Pending */}
                         <button
@@ -406,6 +426,27 @@ export default function SalesList({
                             </div>
                             <span className="whitespace-nowrap">Deli Added ({deliveryAddedCodOrders.length})</span>
                         </button>
+
+                        {/* Option 3: Delivered */}
+                        <button
+                            type="button"
+                            disabled={deliveredCodOrders.length === 0}
+                            onClick={toggleSelectDelivered}
+                            className={`h-8 px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none flex items-center gap-2 border shrink-0 whitespace-nowrap ${allDeliveredSelected
+                                    ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
+                                    : deliveredCodOrders.length > 0
+                                        ? 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
+                                        : 'opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400'
+                                }`}
+                        >
+                            <div className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center ${allDeliveredSelected
+                                    ? 'bg-white text-black dark:bg-black dark:text-white border-transparent'
+                                    : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
+                                }`}>
+                                {allDeliveredSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                            </div>
+                            <span className="whitespace-nowrap">Delivered ({deliveredCodOrders.length})</span>
+                        </button>
                     </div>
                 )}
 
@@ -423,7 +464,7 @@ export default function SalesList({
                         />
                     ) : (
                         orders.data.map((item) => {
-                            const isCodActive = Boolean(item.is_cod && ['pending', 'delivery_added'].includes(item.status));
+                            const isCodActive = Boolean(item.is_cod && ['pending', 'delivery_added', 'delivered'].includes(item.status));
                             const isSelected = selectedOrderIds.includes(item.id);
 
                             const cardContent = (
@@ -540,6 +581,7 @@ export default function SalesList({
                 onClearSelection={clearSelection}
                 onOpenFulfill={() => setIsFulfillModalOpen(true)}
                 onOpenDeliver={() => setIsDeliverDialogOpen(true)}
+                onOpenSettle={() => setIsSettleModalOpen(true)}
             />
 
             {/* BULK ACTION MODALS */}
@@ -555,6 +597,14 @@ export default function SalesList({
                 isOpen={isDeliverDialogOpen}
                 onClose={() => setIsDeliverDialogOpen(false)}
                 selectedOrderIds={selectedOrderIds}
+                onSuccess={clearSelection}
+            />
+
+            <BulkSettleCodModal
+                isOpen={isSettleModalOpen}
+                onClose={() => setIsSettleModalOpen(false)}
+                selectedOrderIds={selectedOrderIds}
+                paymentMethods={availablePaymentMethods}
                 onSuccess={clearSelection}
             />
         </AppLayout>

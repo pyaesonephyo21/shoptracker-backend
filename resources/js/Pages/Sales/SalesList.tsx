@@ -8,7 +8,7 @@ import { DatePicker } from '@/components/ui/date-picker';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
-import { Filter, Check, Lock, MapPin } from 'lucide-react';
+import { Filter, Check, Lock, MapPin, X } from 'lucide-react';
 import { useRevalidateOnBack } from '@/hooks/useRevalidateOnBack';
 import BulkFulfillCodModal from './Components/BulkFulfillCodModal';
 import BulkDeliverCodDialog from './Components/BulkDeliverCodDialog';
@@ -172,7 +172,6 @@ export default function SalesList({
         setIsSelectMode(false);
     };
 
-    const hasCodOrders = orders.data.length > 0;
 
     const getStatusStyle = (order: SalesOrder) => {
         if (order.status.toUpperCase() === 'CANCELLED') {
@@ -202,30 +201,9 @@ export default function SalesList({
             <div className="flex flex-col gap-4 sm:gap-5 pb-24">
                 {/* PAGE HEADER */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-2.5 flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2">
-                        <h1 className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tight">
-                            Sales
-                        </h1>
-
-                        {/* Toggle Select Mode button */}
-                        {hasCodOrders && (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (isSelectMode) {
-                                        setSelectedOrderIds([]);
-                                    }
-                                    setIsSelectMode(!isSelectMode);
-                                }}
-                                className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all select-none border ${isSelectMode
-                                        ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
-                                        : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-700 dark:text-zinc-300 border-transparent hover:bg-zinc-200 dark:hover:bg-zinc-700'
-                                    }`}
-                            >
-                                {isSelectMode ? 'Done' : 'Select'}
-                            </button>
-                        )}
-                    </div>
+                    <h1 className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tight">
+                        Sales
+                    </h1>
 
                     <div className="flex items-center gap-1.5 sm:gap-2">
                         <a
@@ -382,74 +360,6 @@ export default function SalesList({
                     </Dialog>
                 </div>
 
-                {/* FLOATING STAGE-SPECIFIC COD OPTIONS (Only in Select Mode) */}
-                {isSelectMode && (pendingCodOrders.length > 0 || deliveryAddedCodOrders.length > 0 || deliveredCodOrders.length > 0) && (
-                    <div className="flex items-center gap-2 overflow-x-auto py-1 no-scrollbar animate-in fade-in duration-200">
-                        {/* Option 1: Pending */}
-                        <button
-                            type="button"
-                            disabled={pendingCodOrders.length === 0}
-                            onClick={toggleSelectPending}
-                            className={`h-8 px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none flex items-center gap-2 border shrink-0 whitespace-nowrap ${allPendingSelected
-                                    ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
-                                    : pendingCodOrders.length > 0
-                                        ? 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
-                                        : 'opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400'
-                                }`}
-                        >
-                            <div className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center ${allPendingSelected
-                                    ? 'bg-white text-black dark:bg-black dark:text-white border-transparent'
-                                    : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
-                                }`}>
-                                {allPendingSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                            </div>
-                            <span className="whitespace-nowrap">Pending ({pendingCodOrders.length})</span>
-                        </button>
-
-                        {/* Option 2: Deli Added */}
-                        <button
-                            type="button"
-                            disabled={deliveryAddedCodOrders.length === 0}
-                            onClick={toggleSelectDeliveryAdded}
-                            className={`h-8 px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none flex items-center gap-2 border shrink-0 whitespace-nowrap ${allDeliveryAddedSelected
-                                    ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
-                                    : deliveryAddedCodOrders.length > 0
-                                        ? 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
-                                        : 'opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400'
-                                }`}
-                        >
-                            <div className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center ${allDeliveryAddedSelected
-                                    ? 'bg-white text-black dark:bg-black dark:text-white border-transparent'
-                                    : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
-                                }`}>
-                                {allDeliveryAddedSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                            </div>
-                            <span className="whitespace-nowrap">Deli Added ({deliveryAddedCodOrders.length})</span>
-                        </button>
-
-                        {/* Option 3: Delivered */}
-                        <button
-                            type="button"
-                            disabled={deliveredCodOrders.length === 0}
-                            onClick={toggleSelectDelivered}
-                            className={`h-8 px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none flex items-center gap-2 border shrink-0 whitespace-nowrap ${allDeliveredSelected
-                                    ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
-                                    : deliveredCodOrders.length > 0
-                                        ? 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
-                                        : 'opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400'
-                                }`}
-                        >
-                            <div className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center ${allDeliveredSelected
-                                    ? 'bg-white text-black dark:bg-black dark:text-white border-transparent'
-                                    : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
-                                }`}>
-                                {allDeliveredSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
-                            </div>
-                            <span className="whitespace-nowrap">Delivered ({deliveredCodOrders.length})</span>
-                        </button>
-                    </div>
-                )}
-
                 {/* ORDERS LIST */}
                 <div className="flex flex-col">
                     {orders.data.length === 0 ? (
@@ -575,10 +485,111 @@ export default function SalesList({
                 <Pagination meta={orders} />
             </div>
 
+            {/* PERSISTENT FLOATING SELECT BUTTON (Normal Browsing Mode) */}
+            {!isSelectMode && orders.data.length > 0 && (
+                <button
+                    type="button"
+                    onClick={() => setIsSelectMode(true)}
+                    className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] right-3.5 sm:right-6 sm:bottom-6 z-40 h-10 px-4 rounded-full bg-black text-white dark:bg-white dark:text-black font-bold text-xs uppercase tracking-wider shadow-xl border border-black dark:border-white flex items-center gap-2 hover:scale-105 active:scale-95 transition-all select-none"
+                    title="Select Orders"
+                >
+                    <Check className="w-3.5 h-3.5 stroke-[3]" />
+                    <span>Select</span>
+                </button>
+            )}
+
+            {/* PERSISTENT FLOATING SELECTION DOCK (In Select Mode, No Orders Selected Yet) */}
+            {isSelectMode && selectedOrderIds.length === 0 && (
+                <div className="fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom,0px))] left-3 right-3 sm:left-auto sm:right-5 sm:bottom-5 sm:max-w-lg z-40 transition-all duration-300 animate-in fade-in slide-in-from-bottom-3">
+                    <div className="bg-white/95 dark:bg-zinc-900/95 backdrop-blur-md border border-zinc-200 dark:border-zinc-800 shadow-xl rounded-xl p-2 sm:p-2.5 flex items-center justify-between gap-2">
+                        {(pendingCodOrders.length > 0 || deliveryAddedCodOrders.length > 0 || deliveredCodOrders.length > 0) ? (
+                            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar flex-1 min-w-0 py-0.5">
+                                {/* Option 1: Pending */}
+                                <button
+                                    type="button"
+                                    disabled={pendingCodOrders.length === 0}
+                                    onClick={toggleSelectPending}
+                                    className={`h-8 px-2.5 sm:px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none flex items-center gap-1.5 border shrink-0 whitespace-nowrap ${allPendingSelected
+                                            ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
+                                            : pendingCodOrders.length > 0
+                                                ? 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
+                                                : 'opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400'
+                                        }`}
+                                >
+                                    <div className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center ${allPendingSelected
+                                            ? 'bg-white text-black dark:bg-black dark:text-white border-transparent'
+                                            : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
+                                        }`}>
+                                        {allPendingSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                    </div>
+                                    <span className="whitespace-nowrap">Pending ({pendingCodOrders.length})</span>
+                                </button>
+
+                                {/* Option 2: Deli Added */}
+                                <button
+                                    type="button"
+                                    disabled={deliveryAddedCodOrders.length === 0}
+                                    onClick={toggleSelectDeliveryAdded}
+                                    className={`h-8 px-2.5 sm:px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none flex items-center gap-1.5 border shrink-0 whitespace-nowrap ${allDeliveryAddedSelected
+                                            ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
+                                            : deliveryAddedCodOrders.length > 0
+                                                ? 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
+                                                : 'opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400'
+                                        }`}
+                                >
+                                    <div className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center ${allDeliveryAddedSelected
+                                            ? 'bg-white text-black dark:bg-black dark:text-white border-transparent'
+                                            : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
+                                        }`}>
+                                        {allDeliveryAddedSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                    </div>
+                                    <span className="whitespace-nowrap">Deli Added ({deliveryAddedCodOrders.length})</span>
+                                </button>
+
+                                {/* Option 3: Delivered */}
+                                <button
+                                    type="button"
+                                    disabled={deliveredCodOrders.length === 0}
+                                    onClick={toggleSelectDelivered}
+                                    className={`h-8 px-2.5 sm:px-3 rounded-full text-[11px] font-bold uppercase tracking-wider transition-all select-none flex items-center gap-1.5 border shrink-0 whitespace-nowrap ${allDeliveredSelected
+                                            ? 'bg-black text-white dark:bg-white dark:text-black border-black dark:border-white shadow-sm'
+                                            : deliveredCodOrders.length > 0
+                                                ? 'bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600'
+                                                : 'opacity-40 cursor-not-allowed border-zinc-200 dark:border-zinc-800 text-zinc-400'
+                                        }`}
+                                >
+                                    <div className={`w-3.5 h-3.5 rounded-full border shrink-0 flex items-center justify-center ${allDeliveredSelected
+                                            ? 'bg-white text-black dark:bg-black dark:text-white border-transparent'
+                                            : 'border-zinc-300 dark:border-zinc-700 bg-transparent'
+                                        }`}>
+                                        {allDeliveredSelected && <Check className="w-2.5 h-2.5 stroke-[3]" />}
+                                    </div>
+                                    <span className="whitespace-nowrap">Delivered ({deliveredCodOrders.length})</span>
+                                </button>
+                            </div>
+                        ) : (
+                            <span className="text-xs text-zinc-500 font-medium px-2">Tap orders to select</span>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSelectedOrderIds([]);
+                                setIsSelectMode(false);
+                            }}
+                            className="h-8 px-3 rounded-lg bg-black text-white dark:bg-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 shrink-0 transition-colors shadow-sm ml-auto"
+                        >
+                            <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                            <span>Done</span>
+                        </button>
+                    </div>
+                </div>
+            )}
+
             {/* FLOATING ACTION BAR FOR SELECTED COD ORDERS */}
             <BulkActionBar
                 selectedOrders={selectedOrders}
-                onClearSelection={clearSelection}
+                onClearSelection={() => setSelectedOrderIds([])}
                 onOpenFulfill={() => setIsFulfillModalOpen(true)}
                 onOpenDeliver={() => setIsDeliverDialogOpen(true)}
                 onOpenSettle={() => setIsSettleModalOpen(true)}

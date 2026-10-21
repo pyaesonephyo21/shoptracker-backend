@@ -71,7 +71,7 @@ PROMPT;
                 $geminiModels = [
                     'gemini-3.5-flash-lite',
                     'gemini-3.6-flash',
-                    'gemini-flash-lite-latest',
+                    'gemini-3.8-flash',
                 ];
 
                 foreach ($geminiModels as $gModel) {
@@ -150,10 +150,11 @@ PROMPT;
 
             // 2. Try OpenRouter Fallback Chain (Works globally without VPN)
             if (empty($content) && ! empty($openRouterKey)) {
-                $primaryModel = config('services.openrouter.model', 'nex-agi/nex-n2.5-mini:free');
+                $primaryModel = config('services.openrouter.model', 'google/gemma-4-27b-it:free');
                 $modelChain = array_unique([
                     $primaryModel,
-                    'nex-agi/nex-n2.5-mini:free',
+                    'google/gemma-4-27b-it:free',
+                    'openrouter/free',
                 ]);
 
                 foreach ($modelChain as $currentModel) {

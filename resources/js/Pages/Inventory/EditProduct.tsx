@@ -46,6 +46,7 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
         e.preventDefault();
 
         put(`/inventory/${product.id}`, {
+            replace: true,
             preserveScroll: true,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
@@ -55,14 +56,23 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
         });
     };
 
+    const handleCancel = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            router.visit(`/inventory/${product.id}`);
+        }
+    };
+
     const handleDelete = () => {
         router.delete(`/inventory/${product.id}`, {
+            replace: true,
             onSuccess: () => setShowDeleteModal(false)
         });
     };
 
     return (
-        <AppLayout title="Edit Product">
+        <AppLayout title={`Edit ${product.name}`} backUrl={`/inventory/${product.id}`} hideBottomNav>
             <Head title={`Edit ${product.name}`} />
 
             <div className="flex flex-col max-w-2xl mx-auto w-full">
@@ -72,7 +82,7 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
                     </h1>
                     <button
                         type="button"
-                        onClick={() => router.visit(`/inventory/${product.id}`)}
+                        onClick={handleCancel}
                         className="text-zinc-500 font-bold hover:text-black dark:hover:text-white transition-colors"
                     >
                         Cancel

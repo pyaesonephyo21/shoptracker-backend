@@ -8,6 +8,7 @@ import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { twMerge } from 'tailwind-merge';
+import { ChevronLeft } from 'lucide-react';
 const formatLogValue = (val: any) => {
     if (val === null || val === undefined || val === '') return 'none';
     if (typeof val === 'number') return val.toLocaleString();
@@ -114,13 +115,26 @@ export default function PurchaseOrderDetail({ order }: { order: PurchaseOrder })
     };
 
     return (
-        <AppLayout title={order.batch_name}>
+        <AppLayout title={order.batch_name} backUrl="/inventory/purchase-orders">
             <Head title={`PO: ${order.batch_name}`} />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/inventory/purchase-orders" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+                                    window.history.back();
+                                } else {
+                                    router.visit('/inventory/purchase-orders');
+                                }
+                            }}
+                            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+                            aria-label="Back to Purchase Orders"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">{order.batch_name}</h1>
                             <div className="flex items-center gap-2 mt-1">

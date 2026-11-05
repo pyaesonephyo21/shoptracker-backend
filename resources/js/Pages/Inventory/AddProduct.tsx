@@ -42,6 +42,7 @@ export default function AddProduct({ categories = [] }: { categories: Category[]
         e.preventDefault();
 
         post('/inventory', {
+            replace: true,
             preserveScroll: true,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
@@ -51,8 +52,16 @@ export default function AddProduct({ categories = [] }: { categories: Category[]
         });
     };
 
+    const handleCancel = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            router.visit('/inventory');
+        }
+    };
+
     return (
-        <AppLayout title="Add Product">
+        <AppLayout title="New Product" backUrl="/inventory" hideBottomNav>
             <Head title="New Product" />
 
             <div className="flex flex-col max-w-2xl mx-auto w-full">
@@ -62,7 +71,7 @@ export default function AddProduct({ categories = [] }: { categories: Category[]
                     </h1>
                     <button
                         type="button"
-                        onClick={() => router.visit('/inventory')}
+                        onClick={handleCancel}
                         className="text-zinc-500 font-bold hover:text-black dark:hover:text-white transition-colors"
                     >
                         Cancel

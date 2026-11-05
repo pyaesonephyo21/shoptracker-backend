@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { EmptyState } from '@/components/ui/empty-state';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { twMerge } from 'tailwind-merge';
+import { ChevronLeft } from 'lucide-react';
 
 export default function ProductDetail({ product, latestCost, latestRetailPrice, pendingCost }: { product: Product, latestCost: number, latestRetailPrice: number, pendingCost: number }) {
     const [activeTab, setActiveTab] = useState<'activity' | 'batches'>('activity');
@@ -87,7 +88,7 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
     };
 
     return (
-        <AppLayout title={product.name}>
+        <AppLayout title={product.name} backUrl="/inventory">
             <Head title={product.name} />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full pb-20">
@@ -95,7 +96,20 @@ export default function ProductDetail({ product, latestCost, latestRetailPrice, 
                 {/* Header */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/inventory" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+                                    window.history.back();
+                                } else {
+                                    router.visit('/inventory');
+                                }
+                            }}
+                            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+                            aria-label="Back to Inventory"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Product Details</h1>
                         </div>

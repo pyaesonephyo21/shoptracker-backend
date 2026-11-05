@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
 import { Checkbox } from '@/components/ui/checkbox';
 import { twMerge } from 'tailwind-merge';
+import { ChevronLeft } from 'lucide-react';
 
 export default function StockAdjustment({ product }: { product: Product }) {
     const { data, setData, post, processing, errors, clearErrors } = useForm({
@@ -66,8 +67,17 @@ export default function StockAdjustment({ product }: { product: Product }) {
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post(`/inventory/${product.id}/adjust`, {
+            replace: true,
             preserveScroll: true,
         });
+    };
+
+    const handleCancel = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            router.visit(`/inventory/${product.id}`);
+        }
     };
 
     const ReasonButton = ({ type, label }: { type: typeof data.reason, label: string }) => {
@@ -128,13 +138,20 @@ export default function StockAdjustment({ product }: { product: Product }) {
     const adjustmentQty = parseInt(data.quantity || '0', 10) || 0;
 
     return (
-        <AppLayout title="Adjust Stock">
+        <AppLayout title={`Adjust Stock: ${product.name}`} backUrl={`/inventory/${product.id}`} hideBottomNav>
             <Head title="Adjust Stock" />
 
             <div className="flex flex-col max-w-xl mx-auto w-full pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <button onClick={() => router.visit(`/inventory/${product.id}`)} type="button" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</button>
+                        <button
+                            onClick={handleCancel}
+                            type="button"
+                            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+                            aria-label="Back to Product"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Adjust Stock</h1>
                         </div>

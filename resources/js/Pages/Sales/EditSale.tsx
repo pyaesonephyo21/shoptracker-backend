@@ -21,7 +21,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
     const { data, setData, put, processing, errors, transform, clearErrors } = useForm<{
         customer_name: string;
         customer_phone: string;
-        address: string;
+        delivery_address: string;
         discount_type: string;
         discount_value: string | number;
         discount_reason: string;
@@ -39,7 +39,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
     }>({
         customer_name: order.customer_name || '',
         customer_phone: order.customer_phone || '',
-        address: order.delivery_address || '',
+        delivery_address: order.delivery_address || '',
         discount_type: order.discount_type || 'none',
         discount_value: order.discount_value || '',
         discount_reason: order.discount_reason || '',
@@ -120,6 +120,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         }));
 
         put(`/sales/${order.id}`, {
+            replace: true,
             preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
@@ -129,8 +130,16 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
         });
     };
 
+    const handleCancel = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            router.visit(`/sales/${order.id}`);
+        }
+    };
+
     return (
-        <AppLayout title="Edit Sale">
+        <AppLayout title={`Edit Order #${order.id}`} backUrl={`/sales/${order.id}`} hideBottomNav>
             <Head title={`Edit Order #${order.id}`} />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-0">
@@ -140,7 +149,7 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                     </h1>
                     <button
                         type="button"
-                        onClick={() => router.visit(`/sales/${order.id}`)}
+                        onClick={handleCancel}
                         className="text-zinc-500 font-bold hover:text-black dark:hover:text-white transition-colors"
                     >
                         Cancel
@@ -170,10 +179,10 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                                     ...prev,
                                     customer_name: parsed.customer_name || prev.customer_name,
                                     customer_phone: parsed.customer_phone || prev.customer_phone,
-                                    address: parsed.address || prev.address,
+                                    delivery_address: parsed.delivery_address || prev.delivery_address,
                                     note: parsed.delivery_notes ? (prev.note ? `${prev.note} | ${parsed.delivery_notes}` : parsed.delivery_notes) : prev.note
                                 }));
-                                clearErrors('customer_name', 'customer_phone', 'address', 'note');
+                                clearErrors('customer_name', 'customer_phone', 'delivery_address', 'note');
                             }}
                         />
 
@@ -199,14 +208,14 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
                             </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="address">Address (Optional)</Label>
+                            <Label htmlFor="delivery_address">Address (Optional)</Label>
                             <textarea
-                                id="address"
-                                value={data.address}
-                                onChange={(e) => { setData('address', e.target.value); clearErrors('address'); }}
+                                id="delivery_address"
+                                value={data.delivery_address}
+                                onChange={(e) => { setData('delivery_address', e.target.value); clearErrors('delivery_address'); }}
                                 className="flex min-h-[80px] w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:placeholder:text-zinc-400 dark:focus-visible:ring-zinc-300 resize-y"
                             />
-                            {errors.address && <span className="text-red-500 text-xs">{errors.address}</span>}
+                            {errors.delivery_address && <span className="text-red-500 text-xs">{errors.delivery_address}</span>}
                         </div>
                     </section>
 

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { SalesOrder } from '@/types/sales';
 import { twMerge } from 'tailwind-merge';
+import { ChevronLeft } from 'lucide-react';
 
 interface Courier {
     id: number;
@@ -38,19 +39,35 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         post(`/sales/${order.id}/fulfill`, {
+            replace: true,
             preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: () => alert('Failed to fulfill order')
         });
     };
 
+    const handleCancel = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            router.visit(`/sales/${order.id}`);
+        }
+    };
+
     return (
-        <AppLayout title={`Fulfill #${order.id}`}>
+        <AppLayout title={`Fulfill Order #${order.id}`} backUrl={`/sales/${order.id}`} hideBottomNav>
             <Head title={`Fulfill Order #${order.id}`} />
 
             <div className="flex flex-col max-w-2xl mx-auto w-full px-4 sm:px-0 pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <button type="button" onClick={() => router.visit(`/sales/${order.id}`)} className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</button>
+                        <button
+                            type="button"
+                            onClick={handleCancel}
+                            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+                            aria-label="Back to Order"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Arrange Delivery</h1>
                             <p className="text-sm font-medium text-zinc-500">Order #{order.id}</p>

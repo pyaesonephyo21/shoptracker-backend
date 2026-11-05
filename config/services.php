@@ -37,12 +37,13 @@ return [
 
     'openrouter' => [
         'api_key' => env('OPENROUTER_API_KEY'),
-        'model' => env('OPENROUTER_MODEL', 'nex-agi/nex-n2.5-mini:free'),
+        'model' => env('OPENROUTER_MODEL', 'nvidia/nemotron-3.5-super-vl:free'),
     ],
 
     'gemini' => [
         'api_key' => env('GEMINI_API_KEY'),
         'proxy' => env('GEMINI_PROXY_URL'),
+        'base_url' => env('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com'),
     ],
 
 ];

@@ -48,7 +48,7 @@ class SalesOrderController extends Controller
                 'date' => $order->created_at->format('Y-m-d'),
                 'customer' => [
                     'name' => $order->customer_name,
-                    'address' => $order->delivery_address,
+                    'delivery_address' => $order->delivery_address,
                 ],
                 'financials' => [
                     'payment_status' => $order->payment_status,
@@ -108,7 +108,7 @@ class SalesOrderController extends Controller
         $validated = $request->validate([
             'customer_name' => 'nullable|string',
             'customer_phone' => 'nullable|string',
-            'address' => 'nullable|string',
+            'delivery_address' => 'nullable|string',
             'cart' => 'required|array|min:1',
             'cart.*.product_variant_id' => 'required|exists:product_variants,id',
             'cart.*.quantity' => 'required|integer|min:1',
@@ -136,7 +136,7 @@ class SalesOrderController extends Controller
         $orderData = [
             'customer_name' => $validated['customer_name'] ?? 'Walk-in',
             'customer_phone' => $validated['customer_phone'] ?? '',
-            'delivery_address' => $validated['address'] ?? '',
+            'delivery_address' => $validated['delivery_address'] ?? '',
             'discount_type' => $validated['discount_type'] ?? 'none',
             'discount_value' => $validated['discount_value'] ?? 0,
             'discount_reason' => $validated['discount_reason'] ?? '',
@@ -172,7 +172,7 @@ class SalesOrderController extends Controller
             'customer' => [
                 'name' => $orderModel->customer_name,
                 'phone' => $orderModel->customer_phone,
-                'address' => $orderModel->delivery_address,
+                'delivery_address' => $orderModel->delivery_address,
             ],
             'financials' => [
                 'subtotal' => (float) $orderModel->subtotal,

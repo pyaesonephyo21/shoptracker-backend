@@ -11,6 +11,7 @@ import { Product, PurchaseOrderItemInput } from '@/types/inventory';
 import { twMerge } from 'tailwind-merge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
+import { ChevronLeft } from 'lucide-react';
 
 interface Supplier {
     id: number;
@@ -143,6 +144,7 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
         }));
 
         put(`/inventory/purchase-orders/${order.id}`, {
+            replace: true,
             preserveScroll: true,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
@@ -152,14 +154,29 @@ export default function EditPurchaseOrder({ order, products = [], suppliers = []
         });
     };
 
+    const handleCancel = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            router.visit(`/inventory/purchase-orders/${order.id}`);
+        }
+    };
+
     return (
-        <AppLayout title={`Edit Purchase Order #${order.id}`}>
+        <AppLayout title={`Edit PO #${order.id}`} backUrl={`/inventory/purchase-orders/${order.id}`} hideBottomNav>
             <Head title={`Edit Purchase Order #${order.id}`} />
 
             <div className="flex flex-col max-w-3xl mx-auto w-full pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <button type="button" onClick={() => router.visit(`/inventory/purchase-orders/${order.id}`)} className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</button>
+                        <button
+                            type="button"
+                            onClick={handleCancel}
+                            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+                            aria-label="Back to Purchase Order"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
                         <div>
                             <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">Edit Order #{order.id}</h1>
                         </div>

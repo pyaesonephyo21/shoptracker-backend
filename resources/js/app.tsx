@@ -21,19 +21,22 @@ createInertiaApp({
     },
 });
 
+// Automatically recover from stale chunks after a new server deployment
+window.addEventListener('vite:preloadError', () => {
+    window.location.reload();
+});
+
 // Register Progressive Web App Service Worker ONLY in Production
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
     window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js')
             .then((registration) => {
-                console.log('[PWA] Service Worker active, scope:', registration.scope);
-                // Check for updates periodically
                 registration.onupdatefound = () => {
                     const installingWorker = registration.installing;
                     if (installingWorker) {
                         installingWorker.onstatechange = () => {
                             if (installingWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                                console.log('[PWA] New update available; assets updated in background.');
+                                installingWorker.postMessage({ type: 'SKIP_WAITING' });
                             }
                         };
                     }
@@ -42,6 +45,14 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
             .catch((error) => {
                 console.error('[PWA] Service Worker registration failed:', error);
             });
+    });
+
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (!refreshing) {
+            refreshing = true;
+            window.location.reload();
+        }
     });
 } else if ('serviceWorker' in navigator) {
     // Unregister any active service worker during development so live Vite HMR isn't cached

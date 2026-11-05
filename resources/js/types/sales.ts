@@ -7,7 +7,7 @@ export interface SalesOrder {
     customer: {
         name: string | null;
         phone: string | null;
-        address: string | null;
+        delivery_address: string | null;
     };
     status: string;
     is_preorder?: boolean;

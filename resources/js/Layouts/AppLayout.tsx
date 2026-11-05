@@ -4,11 +4,20 @@ import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { GlobalToast } from '@/components/GlobalToast';
+import { ChevronLeft } from 'lucide-react';
 
 interface NavItem {
     name: string;
     href: string;
     icon: React.ReactNode;
+}
+
+export interface AppLayoutProps {
+    children: React.ReactNode;
+    title?: string;
+    backUrl?: string;
+    headerActions?: React.ReactNode;
+    hideBottomNav?: boolean;
 }
 
 const HomeIcon = () => (
@@ -35,7 +44,13 @@ const NAV_ITEMS: NavItem[] = [
     { name: 'Management', href: '/management', icon: <ManagementIcon /> },
 ];
 
-export default function AppLayout({ children, title }: { children: React.ReactNode; title?: string }) {
+export default function AppLayout({
+    children,
+    title,
+    backUrl,
+    headerActions,
+    hideBottomNav = false,
+}: AppLayoutProps) {
     const { url, props } = usePage<any>();
     const { auth } = props;
 
@@ -45,6 +60,14 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
 
     // Refresh State
     const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleBack = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else if (backUrl) {
+            router.visit(backUrl);
+        }
+    };
 
     const handleRefresh = () => {
         if (isRefreshing) return;
@@ -212,76 +235,130 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
             <main className="flex-1 flex flex-col min-w-0 overflow-hidden relative bg-white dark:bg-black">
                 {/* Mobile Header with Safe Area Notch Padding & Quick Refresh */}
                 <header className="md:hidden flex items-center justify-between min-h-16 pt-[env(safe-area-inset-top,0px)] px-4 border-b border-zinc-200 dark:border-zinc-800 shrink-0 sticky top-0 bg-white/90 dark:bg-black/90 backdrop-blur-md z-10">
-                    <div className="py-2 flex-1 min-w-0 pr-2">
-                        {auth?.all_shops?.length > 1 ? (
-                            <div className="flex flex-col">
-                                <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
-                                    <SelectTrigger className="w-fit justify-start font-black text-xl sm:text-2xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent tracking-tight shadow-none flex items-center gap-1.5 max-w-[200px] sm:max-w-[300px]">
-                                        <span className="truncate">{auth.shop?.name}</span>
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {auth.all_shops?.map((s: any) => (
-                                            <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                                <div className="mt-0.5">
-                                    <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
-                                        {auth.user?.name}
-                                    </span>
+                    {backUrl ? (
+                        <>
+                            <div className="flex items-center gap-2 flex-1 min-w-0 pr-2 py-2">
+                                <button
+                                    type="button"
+                                    onClick={handleBack}
+                                    className="flex items-center justify-center w-10 h-10 -ml-2 rounded-xl text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 active:scale-90 transition-all shrink-0"
+                                    aria-label="Go back"
+                                >
+                                    <ChevronLeft className="w-6 h-6" />
+                                </button>
+                                <div className="flex flex-col min-w-0">
+                                    <h1 className="text-base sm:text-lg font-bold tracking-tight truncate text-black dark:text-white">
+                                        {title || 'Back'}
+                                    </h1>
                                 </div>
                             </div>
-                        ) : (
-                            <div className="flex flex-col">
-                                <h1 className="text-lg font-bold tracking-tight truncate">{title || auth?.shop?.name || 'ShopTracker'}</h1>
-                                {auth?.user && (
-                                    <div className="mt-0.5">
-                                        <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
-                                            {auth.user.name}
-                                        </span>
+                            <div className="flex items-center gap-1 shrink-0">
+                                {headerActions || (
+                                    <button
+                                        onClick={handleRefresh}
+                                        disabled={isRefreshing}
+                                        className="p-2 rounded-lg text-zinc-500 hover:text-black dark:hover:text-white active:scale-90 transition-all"
+                                        title="Refresh page data"
+                                        aria-label="Refresh"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            width="18"
+                                            height="18"
+                                            viewBox="0 0 24 24"
+                                            fill="none"
+                                            stroke="currentColor"
+                                            strokeWidth="2.5"
+                                            strokeLinecap="round"
+                                            strokeLinejoin="round"
+                                            className={twMerge("transition-transform duration-500", isRefreshing && "animate-spin text-black dark:text-white")}
+                                        >
+                                            <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                            <path d="M3 3v5h5" />
+                                            <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                                            <path d="M16 21h5v-5" />
+                                        </svg>
+                                    </button>
+                                )}
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="py-2 flex-1 min-w-0 pr-2">
+                                {auth?.all_shops?.length > 1 ? (
+                                    <div className="flex flex-col">
+                                        <Select value={auth.shop?.id?.toString()} onValueChange={(val) => router.post('/switch-shop', { shop_id: val })}>
+                                            <SelectTrigger className="w-fit justify-start font-black text-xl sm:text-2xl border-none p-0 h-auto focus:ring-0 focus:ring-offset-0 bg-transparent tracking-tight shadow-none flex items-center gap-1.5 max-w-[200px] sm:max-w-[300px]">
+                                                <span className="truncate">{auth.shop?.name}</span>
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {auth.all_shops?.map((s: any) => (
+                                                    <SelectItem key={s.id} value={s.id.toString()} className="font-bold">{s.name}</SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        <div className="mt-0.5">
+                                            <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
+                                                {auth.user?.name}
+                                            </span>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col">
+                                        <h1 className="text-lg font-bold tracking-tight truncate">{title || auth?.shop?.name || 'ShopTracker'}</h1>
+                                        {auth?.user && (
+                                            <div className="mt-0.5">
+                                                <span className="text-[9px] uppercase font-bold text-white tracking-widest bg-black dark:bg-white dark:text-black px-2 py-0.5 rounded-full inline-block border border-black dark:border-white truncate max-w-full">
+                                                    {auth.user.name}
+                                                </span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
-                        )}
-                    </div>
-                    
-                    {/* Header Right Actions: Refresh + Logout */}
-                    <div className="flex items-center gap-1 shrink-0">
-                        <button
-                            onClick={handleRefresh}
-                            disabled={isRefreshing}
-                            className="p-2 rounded-lg text-zinc-500 hover:text-black dark:hover:text-white active:scale-90 transition-all"
-                            title="Refresh page data"
-                            aria-label="Refresh"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                width="18"
-                                height="18"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2.5"
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                className={twMerge("transition-transform duration-500", isRefreshing && "animate-spin text-black dark:text-white")}
-                            >
-                                <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                                <path d="M3 3v5h5" />
-                                <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
-                                <path d="M16 21h5v-5" />
-                            </svg>
-                        </button>
-                        {auth?.user && (
-                            <Link href="/logout" method="post" as="button" className="text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-black dark:hover:text-white py-2 px-2 rounded-lg active:scale-95">
-                                Logout
-                            </Link>
-                        )}
-                    </div>
+                            
+                            {/* Header Right Actions: Refresh + Logout */}
+                            <div className="flex items-center gap-1 shrink-0">
+                                <button
+                                    onClick={handleRefresh}
+                                    disabled={isRefreshing}
+                                    className="p-2 rounded-lg text-zinc-500 hover:text-black dark:hover:text-white active:scale-90 transition-all"
+                                    title="Refresh page data"
+                                    aria-label="Refresh"
+                                >
+                                    <svg
+                                        xmlns="http://www.w3.org/2000/svg"
+                                        width="18"
+                                        height="18"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2.5"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        className={twMerge("transition-transform duration-500", isRefreshing && "animate-spin text-black dark:text-white")}
+                                    >
+                                        <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                        <path d="M3 3v5h5" />
+                                        <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                                        <path d="M16 21h5v-5" />
+                                    </svg>
+                                </button>
+                                {auth?.user && (
+                                    <Link href="/logout" method="post" as="button" className="text-xs font-bold uppercase tracking-widest text-zinc-500 hover:text-black dark:hover:text-white py-2 px-2 rounded-lg active:scale-95">
+                                        Logout
+                                    </Link>
+                                )}
+                            </div>
+                        </>
+                    )}
                 </header>
 
                 <div 
-                    className="flex-1 overflow-y-auto pb-24 md:pb-0 relative"
+                    className={twMerge(
+                        "flex-1 overflow-y-auto relative",
+                        hideBottomNav ? "pb-6" : "pb-24 md:pb-0"
+                    )}
                     scroll-region="true"
                 >
                     {/* Page Content */}
@@ -292,7 +369,8 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
             </main>
 
             {/* Mobile Bottom Tab Bar with Safe Area Bottom Padding */}
-            <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 z-20">
+            {!hideBottomNav && (
+                <nav className="md:hidden fixed bottom-0 left-0 right-0 h-[calc(4rem+env(safe-area-inset-bottom,0px))] pb-[env(safe-area-inset-bottom,0px)] bg-white/90 dark:bg-black/90 backdrop-blur-xl border-t border-zinc-200 dark:border-zinc-800 flex items-center justify-around px-2 z-20">
                 {NAV_ITEMS.map((item) => {
                     const isActive = url === item.href || (item.href !== '/' && url.startsWith(item.href));
                     return (
@@ -319,6 +397,7 @@ export default function AppLayout({ children, title }: { children: React.ReactNo
                     );
                 })}
             </nav>
+            )}
 
             {/* Global Toast Notification */}
             <GlobalToast />

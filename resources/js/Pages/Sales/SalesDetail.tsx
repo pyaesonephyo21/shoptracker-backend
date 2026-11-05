@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { twMerge } from 'tailwind-merge';
 import { FormattedNumberInput } from '@/components/ui/formatted-number-input';
+import { ChevronLeft } from 'lucide-react';
 
 const formatLogValue = (val: any) => {
     if (val === null || val === undefined || val === '') return 'none';
@@ -173,7 +174,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
     );
 
     return (
-        <AppLayout title={`Order #${order.id}`}>
+        <AppLayout title={`Order #${order.id}`} backUrl="/sales">
             <Head title={`Order #${order.id}`} />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full pb-20">
@@ -181,7 +182,20 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                 {/* Header */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <div className="flex items-center gap-4">
-                        <Link href="/sales" className="text-zinc-500 hover:text-black dark:hover:text-white text-xl">←</Link>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+                                    window.history.back();
+                                } else {
+                                    router.visit('/sales');
+                                }
+                            }}
+                            className="hidden md:flex items-center justify-center w-9 h-9 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-black dark:hover:text-white transition-colors"
+                            aria-label="Back to Sales"
+                        >
+                            <ChevronLeft className="w-5 h-5" />
+                        </button>
                         <div>
                             <div className="flex items-center gap-2">
                                 <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Order #{order.id}</h1>
@@ -236,7 +250,11 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                             <span className="text-xs font-bold text-zinc-400 uppercase tracking-widest block mb-2">Customer</span>
                             <h3 className="text-xl font-bold text-black dark:text-white">{order.customer.name || 'Unknown'}</h3>
                             {order.customer.phone && <p className="text-sm text-zinc-600 dark:text-zinc-400 mt-1">{order.customer.phone}</p>}
-                            {order.customer.address && <p className="text-sm text-zinc-500 italic mt-2">{order.customer.address}</p>}
+                            {order.customer.delivery_address && (
+                                <p className="text-sm text-zinc-500 italic mt-2">
+                                    {order.customer.delivery_address}
+                                </p>
+                            )}
                         </div>
 
                         <div className="h-px bg-zinc-200 dark:bg-zinc-800 my-4" />

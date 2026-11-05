@@ -24,7 +24,7 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
     const { data, setData, post, processing, errors, clearErrors } = useForm({
         customer_name: '',
         customer_phone: '',
-        address: '',
+        delivery_address: '',
         cart: [] as SaleItemInput[],
         discount_type: 'none' as 'none' | 'fixed' | 'percent',
         discount_value: '',
@@ -237,6 +237,7 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
         }
 
         post('/sales', {
+            replace: true,
             preserveScroll: (page) => Object.keys(page.props.errors || {}).length > 0,
             onError: (err) => {
                 if (Object.keys(err).length === 0) {
@@ -246,8 +247,16 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
         });
     };
 
+    const handleCancel = () => {
+        if (typeof window !== 'undefined' && window.history.length > 1 && document.referrer && document.referrer.includes(window.location.host)) {
+            window.history.back();
+        } else {
+            router.visit('/sales');
+        }
+    };
+
     return (
-        <AppLayout title="Add Sale">
+        <AppLayout title="New Sale" backUrl="/sales" hideBottomNav>
             <Head title="New Order" />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full">
@@ -257,7 +266,7 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
                     </h1>
                     <button
                         type="button"
-                        onClick={() => router.visit('/sales')}
+                        onClick={handleCancel}
                         className="text-zinc-500 font-bold hover:text-black dark:hover:text-white transition-colors"
                     >
                         Cancel
@@ -274,10 +283,10 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
 
                         {/* Smart Address Paste */}
                         <SmartAddressPaste
-                            onApply={({ customer_name, customer_phone, address, delivery_notes }) => {
+                            onApply={({ customer_name, customer_phone, delivery_address, delivery_notes }) => {
                                 if (customer_name) setData('customer_name', customer_name);
                                 if (customer_phone) setData('customer_phone', customer_phone);
-                                if (address) setData('address', address);
+                                if (delivery_address) setData('delivery_address', delivery_address);
                                 if (delivery_notes) setData('note', delivery_notes);
                             }}
                         />
@@ -304,14 +313,14 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
                             </div>
                         </div>
                         <div className="flex flex-col gap-2">
-                            <Label htmlFor="address">Address (Optional)</Label>
+                            <Label htmlFor="delivery_address">Address (Optional)</Label>
                             <textarea
-                                id="address"
-                                value={data.address}
-                                onChange={(e) => { setData('address', e.target.value); clearErrors('address'); }}
+                                id="delivery_address"
+                                value={data.delivery_address}
+                                onChange={(e) => { setData('delivery_address', e.target.value); clearErrors('delivery_address'); }}
                                 className="flex min-h-[80px] w-full rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-zinc-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:ring-offset-zinc-950 dark:placeholder:text-zinc-400 dark:focus-visible:ring-zinc-300 resize-y"
                             />
-                            {errors.address && <span className="text-red-500 text-xs">{errors.address}</span>}
+                            {errors.delivery_address && <span className="text-red-500 text-xs">{errors.delivery_address}</span>}
                         </div>
                     </section>
 

@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { EmptyState } from '@/components/ui/empty-state';
 import { Button } from '@/components/ui/button';
 import { Filter, Check, Lock, MapPin, X } from 'lucide-react';
+import { twMerge } from 'tailwind-merge';
 import { useRevalidateOnBack } from '@/hooks/useRevalidateOnBack';
 import BulkFulfillCodModal from './Components/BulkFulfillCodModal';
 import BulkDeliverCodDialog from './Components/BulkDeliverCodDialog';
@@ -49,7 +50,9 @@ export default function SalesList({
     const [isFilterOpen, setIsFilterOpen] = useState(false);
 
     // Bulk action states (COD only)
-    const [selectedOrderIds, setSelectedOrderIds] = useState<number[]>([]);
+    const [selectedOrdersMap, setSelectedOrdersMap] = useState<Record<number, SalesOrder>>({});
+    const selectedOrders = Object.values(selectedOrdersMap);
+    const selectedOrderIds = Object.keys(selectedOrdersMap).map(Number);
     const [isSelectMode, setIsSelectMode] = useState(false);
     const [isFulfillModalOpen, setIsFulfillModalOpen] = useState(false);
     const [isDeliverDialogOpen, setIsDeliverDialogOpen] = useState(false);
@@ -74,12 +77,8 @@ export default function SalesList({
 
     useRevalidateOnBack(['orders']);
 
-    useEffect(() => {
-        setSelectedOrderIds([]);
-    }, [orders.current_page]);
-
     const handleFilterChange = (status: string, search: string, settlement: string, method: string, start?: Date, end?: Date) => {
-        setSelectedOrderIds([]);
+        setSelectedOrdersMap({});
         router.get(
             '/sales',
             {
@@ -120,55 +119,83 @@ export default function SalesList({
     const deliveryAddedCodOrders = orders.data.filter((o) => Boolean(o.is_cod && o.status === 'delivery_added'));
     const deliveredCodOrders = orders.data.filter((o) => Boolean(o.is_cod && o.status === 'delivered'));
 
-    const selectedOrders = orders.data.filter((order) => selectedOrderIds.includes(order.id));
-
     const allPendingSelected =
         pendingCodOrders.length > 0 &&
-        pendingCodOrders.every((o) => selectedOrderIds.includes(o.id)) &&
+        pendingCodOrders.every((o) => Boolean(selectedOrdersMap[o.id])) &&
         selectedOrders.every((o) => o.status === 'pending');
 
     const allDeliveryAddedSelected =
         deliveryAddedCodOrders.length > 0 &&
-        deliveryAddedCodOrders.every((o) => selectedOrderIds.includes(o.id)) &&
+        deliveryAddedCodOrders.every((o) => Boolean(selectedOrdersMap[o.id])) &&
         selectedOrders.every((o) => o.status === 'delivery_added');
 
     const allDeliveredSelected =
         deliveredCodOrders.length > 0 &&
-        deliveredCodOrders.every((o) => selectedOrderIds.includes(o.id)) &&
+        deliveredCodOrders.every((o) => Boolean(selectedOrdersMap[o.id])) &&
         selectedOrders.every((o) => o.status === 'delivered');
 
     const toggleSelectPending = () => {
         if (allPendingSelected) {
-            setSelectedOrderIds([]);
+            setSelectedOrdersMap((prev) => {
+                const next = { ...prev };
+                pendingCodOrders.forEach(o => delete next[o.id]);
+                return next;
+            });
         } else {
-            setSelectedOrderIds(pendingCodOrders.map((o) => o.id));
+            setSelectedOrdersMap((prev) => {
+                const next = { ...prev };
+                pendingCodOrders.forEach(o => { next[o.id] = o; });
+                return next;
+            });
         }
     };
 
     const toggleSelectDeliveryAdded = () => {
         if (allDeliveryAddedSelected) {
-            setSelectedOrderIds([]);
+            setSelectedOrdersMap((prev) => {
+                const next = { ...prev };
+                deliveryAddedCodOrders.forEach(o => delete next[o.id]);
+                return next;
+            });
         } else {
-            setSelectedOrderIds(deliveryAddedCodOrders.map((o) => o.id));
+            setSelectedOrdersMap((prev) => {
+                const next = { ...prev };
+                deliveryAddedCodOrders.forEach(o => { next[o.id] = o; });
+                return next;
+            });
         }
     };
 
     const toggleSelectDelivered = () => {
         if (allDeliveredSelected) {
-            setSelectedOrderIds([]);
+            setSelectedOrdersMap((prev) => {
+                const next = { ...prev };
+                deliveredCodOrders.forEach(o => delete next[o.id]);
+                return next;
+            });
         } else {
-            setSelectedOrderIds(deliveredCodOrders.map((o) => o.id));
+            setSelectedOrdersMap((prev) => {
+                const next = { ...prev };
+                deliveredCodOrders.forEach(o => { next[o.id] = o; });
+                return next;
+            });
         }
     };
 
-    const toggleOrderSelection = (id: number) => {
-        setSelectedOrderIds((prev) =>
-            prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
-        );
+    const toggleOrderSelection = (order: SalesOrder) => {
+        setSelectedOrdersMap((prev) => {
+            const next = { ...prev };
+            if (next[order.id]) {
+                delete next[order.id];
+            } else {
+                next[order.id] = order;
+            }
+            return next;
+        });
     };
 
     const clearSelection = () => {
-        setSelectedOrderIds([]);
+        setSelectedOrdersMap({});
         setIsSelectMode(false);
     };
 
@@ -198,7 +225,7 @@ export default function SalesList({
         <AppLayout title="Sales">
             <Head title="Sales" />
 
-            <div className="flex flex-col gap-4 sm:gap-5 pb-24">
+            <div className={twMerge("flex flex-col gap-4 sm:gap-5", isSelectMode || selectedOrders.length > 0 ? "pb-44" : "pb-24")}>
                 {/* PAGE HEADER */}
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-2.5 flex items-center justify-between gap-2">
                     <h1 className="text-xl sm:text-2xl font-black text-black dark:text-white tracking-tight">
@@ -386,13 +413,13 @@ export default function SalesList({
                                                 {item.customer.name || 'Walk-in Customer'}
                                             </span>
 
-                                            {item.customer.address && (
+                                            {item.customer.delivery_address && (
                                                 <span
-                                                    title={item.customer.address}
+                                                    title={item.customer.delivery_address ?? undefined}
                                                     className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate flex items-center gap-1 leading-tight -mt-0.5"
                                                 >
                                                     <MapPin className="w-3 h-3 shrink-0 text-zinc-400 dark:text-zinc-500" />
-                                                    <span className="truncate">{item.customer.address}</span>
+                                                    <span className="truncate">{item.customer.delivery_address}</span>
                                                 </span>
                                             )}
 
@@ -431,7 +458,7 @@ export default function SalesList({
                                     key={item.id}
                                     onClick={() => {
                                         if (isSelectMode && isCodActive) {
-                                            toggleOrderSelection(item.id);
+                                            toggleOrderSelection(item);
                                         }
                                     }}
                                     className={`py-3 sm:py-3.5 border-b border-zinc-100 dark:border-zinc-800/80 flex items-center transition-colors -mx-2 px-2 sm:-mx-3 sm:px-3 rounded-xl group ${isSelected
@@ -574,7 +601,7 @@ export default function SalesList({
                         <button
                             type="button"
                             onClick={() => {
-                                setSelectedOrderIds([]);
+                                setSelectedOrdersMap({});
                                 setIsSelectMode(false);
                             }}
                             className="h-8 px-3 rounded-lg bg-black text-white dark:bg-white dark:text-black hover:bg-zinc-800 dark:hover:bg-zinc-200 font-bold text-[11px] uppercase tracking-wider flex items-center gap-1 shrink-0 transition-colors shadow-sm ml-auto"
@@ -589,7 +616,7 @@ export default function SalesList({
             {/* FLOATING ACTION BAR FOR SELECTED COD ORDERS */}
             <BulkActionBar
                 selectedOrders={selectedOrders}
-                onClearSelection={() => setSelectedOrderIds([])}
+                onClearSelection={() => setSelectedOrdersMap({})}
                 onOpenFulfill={() => setIsFulfillModalOpen(true)}
                 onOpenDeliver={() => setIsDeliverDialogOpen(true)}
                 onOpenSettle={() => setIsSettleModalOpen(true)}

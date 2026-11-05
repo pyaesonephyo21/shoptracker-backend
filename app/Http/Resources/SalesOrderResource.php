@@ -18,7 +18,7 @@ class SalesOrderResource extends JsonResource
             'customer' => [
                 'name' => $this->customer_name ?? 'Guest',
                 'phone' => $this->customer_phone,
-                'address' => $this->delivery_address,
+                'delivery_address' => $this->delivery_address,
             ],
 
             'status' => ucfirst($this->status), // "Completed", "Pending"

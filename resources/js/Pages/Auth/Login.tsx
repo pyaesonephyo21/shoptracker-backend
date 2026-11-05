@@ -1,5 +1,5 @@
-import React from 'react';
-import { Head, useForm } from '@inertiajs/react';
+import React, { useEffect } from 'react';
+import { Head, useForm, router } from '@inertiajs/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -9,6 +9,28 @@ export default function Login() {
         email: '',
         password: '',
     });
+
+    useEffect(() => {
+        const handleWakeup = () => {
+            if (document.visibilityState === 'visible') {
+                router.reload({ only: ['auth', 'errors'] });
+            }
+        };
+
+        const handlePageShow = (event: PageTransitionEvent) => {
+            if (event.persisted) {
+                router.reload({ only: ['auth', 'errors'] });
+            }
+        };
+
+        document.addEventListener('visibilitychange', handleWakeup);
+        window.addEventListener('pageshow', handlePageShow);
+
+        return () => {
+            document.removeEventListener('visibilitychange', handleWakeup);
+            window.removeEventListener('pageshow', handlePageShow);
+        };
+    }, []);
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();

@@ -338,9 +338,6 @@ export default function SmartAddressPaste({ onApply, className = '' }: SmartAddr
                             <span className="text-xs font-semibold text-indigo-950 dark:text-indigo-200">
                                 Smart Address Auto-Fill
                             </span>
-                            <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/70">
-                                Paste chat text or upload photo / waybill slip to auto-fill customer info
-                            </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -459,60 +456,63 @@ export default function SmartAddressPaste({ onApply, className = '' }: SmartAddr
                         )}
 
                         {/* AI Enhance & Actions Bar */}
-                        <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2">
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    disabled={(!rawText.trim() && !selectedImage) || isAiLoading}
-                                    onClick={handleAiParse}
-                                    className="h-8 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
-                                >
-                                    {isAiLoading ? (
-                                        <>
-                                            <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
-                                            Parsing with AI...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Sparkles className="w-3 h-3 mr-1.5" />
-                                            {selectedImage ? 'Extract from Photo & Text' : 'AI Enhance'}
-                                        </>
-                                    )}
-                                </Button>
+                            <div className="flex flex-col gap-2">
+                                <div className="flex items-center justify-between flex-wrap gap-2">
+                                    <div className="flex items-center flex-wrap gap-2">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            disabled={(!rawText.trim() && !selectedImage) || isAiLoading}
+                                            onClick={handleAiParse}
+                                            className="h-8 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs"
+                                        >
+                                            {isAiLoading ? (
+                                                <>
+                                                    <Loader2 className="w-3 h-3 mr-1.5 animate-spin" />
+                                                    Parsing with AI...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Sparkles className="w-3 h-3 mr-1.5" />
+                                                    {selectedImage ? 'Extract from Photo & Text' : 'AI Enhance'}
+                                                </>
+                                            )}
+                                        </Button>
 
-                                <Button
-                                    type="button"
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => fileInputRef.current?.click()}
-                                    className="h-8 text-xs border-zinc-200 text-zinc-700 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
-                                >
-                                    <Camera className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400" />
-                                    {selectedImage ? 'Change Photo' : 'Upload Photo / Slip'}
-                                </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant="outline"
+                                            onClick={() => fileInputRef.current?.click()}
+                                            className="h-8 text-xs border-zinc-200 text-zinc-700 bg-white hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                                        >
+                                            <Camera className="w-3.5 h-3.5 mr-1.5 text-indigo-600 dark:text-indigo-400" />
+                                            {selectedImage ? 'Change Photo' : 'Upload Photo / Slip'}
+                                        </Button>
+                                    </div>
+
+                                    {(rawText || selectedImage) && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setRawText('');
+                                                setSelectedImage(null);
+                                                setAiSource(null);
+                                                setAiMessage(null);
+                                                setParsedData({ customer_name: '', customer_phone: '', address: '', confidence: 'low' });
+                                            }}
+                                            className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
+                                        >
+                                            Clear all
+                                        </button>
+                                    )}
+                                </div>
 
                                 {aiMessage && (
-                                    <span className="text-[11px] text-zinc-500 dark:text-zinc-400 italic">
-                                        {aiMessage}
-                                    </span>
-                                )}
-                            </div>
-
-                            {(rawText || selectedImage) && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setRawText('');
-                                        setSelectedImage(null);
-                                        setAiSource(null);
-                                        setAiMessage(null);
-                                        setParsedData({ customer_name: '', customer_phone: '', address: '', confidence: 'low' });
-                                    }}
-                                    className="text-[11px] text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200"
-                                >
-                                    Clear all
-                                </button>
+                                    <div className="flex items-center gap-1.5 text-xs text-indigo-700 bg-indigo-50/70 dark:bg-indigo-950/30 dark:text-indigo-300 px-2.5 py-1.5 rounded-md border border-indigo-100 dark:border-indigo-900/40 animate-in fade-in">
+                                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                        <span className="leading-tight">{aiMessage}</span>
+                                    </div>
                             )}
                         </div>
                     </div>

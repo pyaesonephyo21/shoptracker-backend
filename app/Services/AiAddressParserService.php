@@ -58,8 +58,9 @@ If an image or screenshot is provided:
 CRITICAL OCR & GEOGRAPHY ACCURACY GUIDELINES FOR BURMESE SCRIPT:
 1. Myanmar Ward (ရပ်ကွက်) Systems:
    Myanmar addresses use three distinct ward naming systems:
-   - Numbered Wards (ဂဏန်း ရပ်ကွက်): E.g., ၁ ရပ်ကွက်, ၂ ရပ်ကွက်, ၁၀ ရပ်ကွက်, ၁၁ ရပ်ကွက်, ၁၂ ရပ်ကွက်.
-     * On low-resolution chat screenshots, two consecutive Burmese ones ('၁၁') can visually resemble the consonants 'ဘ' or 'သ'. Carefully distinguish the dual circular strokes of '၁၁' from a single 'ဘ' or 'သ'.
+   - Numbered Wards (ဂဏန်း ရပ်ကွက်): E.g., ၁ ရပ်ကွက်, ၂ ရပ်ကွက်, ၁၀ ရပ်ကွက်, ၁၁ ရပ်ကွက်, ၁၂ ရပ်ကွက်, ၁၆ ရပ်ကွက်.
+     * Wards are frequently double-digits (e.g., ၁၀, ၁၁, ၁၂, ၁၃, ၁၄, ၁၅, ၁၆).
+     * Look closely at the circular loops before 'ရပ်ကွက်'. When there are two consecutive numeral 1s side-by-side ('၁၁'), transcribe accurately as '၁၁ ရပ်ကွက်' (Ward 11). Do not collapse or drop '၁၁' into a single '၁', and do not mistake for consonants 'ဘ' or 'သ'.
      * In townships that strictly use numbered wards (e.g. ဓနုဖြူ, သာကေတ, လှိုင်သာယာ, ဒဂုံ), recognize the number: e.g. '၁၁ ရပ်ကွက်' (Ward 11).
    - Alphabetical Wards (အက္ခရာ ရပ်ကွက်): E.g., က ရပ်ကွက်, ခ ရပ်ကွက်, ဈ ရပ်ကွက်, ဘ ရပ်ကွက်, မ ရပ်ကွက်.
      * Certain towns (e.g., တောင်ငူ, မော်လမြိုင်, ပြည်, ပုသိမ်) use Burmese alphabet letters. When an alphabetical ward is genuinely indicated (e.g., 'ဘ ရပ်ကွက်', '(ဘ) ရပ်ကွက်', 'ဈ ရပ်ကွက်'), preserve the letter faithfully.

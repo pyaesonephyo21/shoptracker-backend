@@ -176,34 +176,45 @@ export default function SmartAddressPaste({ onApply, className = '' }: SmartAddr
         }
     };
 
-    // Handle 1-tap clipboard paste (text or image)
+    // Handle 1-tap clipboard paste (prioritizes text, with graceful fallback for image)
     const handlePasteClipboard = async () => {
         try {
-            if (navigator.clipboard && navigator.clipboard.read) {
-                const items = await navigator.clipboard.read();
-                for (const item of items) {
-                    const imageType = item.types.find(t => t.startsWith('image/'));
-                    if (imageType) {
-                        const blob = await item.getType(imageType);
-                        const file = new File([blob], 'clipboard-image.png', { type: imageType });
-                        processImageFile(file);
+            // 1. Try reading text first (standard clipboard text API, widely supported across iOS/Android/Desktop)
+            if (navigator.clipboard?.readText) {
+                try {
+                    const text = await navigator.clipboard.readText();
+                    if (text && text.trim()) {
+                        setRawText(text);
+                        setAiSource(null);
+                        setAiMessage(null);
                         return;
                     }
+                } catch (textErr) {
+                    console.warn('readText failed, trying read():', textErr);
                 }
             }
 
-            if (navigator.clipboard && navigator.clipboard.readText) {
-                const text = await navigator.clipboard.readText();
-                if (text && text.trim()) {
-                    setRawText(text);
-                    setAiSource(null);
-                    setAiMessage(null);
+            // 2. If no text was found or text failed, check if an image is in clipboard
+            if (navigator.clipboard?.read) {
+                try {
+                    const items = await navigator.clipboard.read();
+                    for (const item of items) {
+                        const imageType = item.types.find(t => t.startsWith('image/'));
+                        if (imageType) {
+                            const blob = await item.getType(imageType);
+                            const file = new File([blob], 'clipboard-image.png', { type: imageType });
+                            processImageFile(file);
+                            return;
+                        }
+                    }
+                } catch (imageErr) {
+                    console.warn('Clipboard read() failed:', imageErr);
                 }
-            } else {
-                setAiMessage('Clipboard permission not supported. Please paste directly into the box.');
             }
+
+            setAiMessage('Clipboard is empty. Please copy a message or photo first.');
         } catch (err: unknown) {
-            console.warn('Clipboard read failed:', err);
+            console.warn('Clipboard paste failed:', err);
             setAiMessage('Please paste manually using Ctrl+V or long-press paste.');
         }
     };
@@ -350,7 +361,10 @@ export default function SmartAddressPaste({ onApply, className = '' }: SmartAddr
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={() => setIsOpen(true)}
+                            onClick={() => {
+                                setIsOpen(true);
+                                handlePasteClipboard();
+                            }}
                             className="h-8 text-xs font-medium border-indigo-200 bg-white text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-zinc-900 dark:text-indigo-300"
                         >
                             <Clipboard className="w-3.5 h-3.5 mr-1" />

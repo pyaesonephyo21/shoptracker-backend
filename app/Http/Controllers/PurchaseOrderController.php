@@ -3,12 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Exports\PurchaseOrderExport;
+use App\Http\Requests\MarkPurchaseOrderArrivedRequest;
+use App\Http\Requests\StorePurchaseOrderRequest;
+use App\Http\Requests\UpdatePurchaseOrderRequest;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\Supplier;
 use App\Services\PurchaseOrderService;
+use Exception;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Maatwebsite\Excel\Facades\Excel;
@@ -60,40 +65,9 @@ class PurchaseOrderController extends Controller
         ]);
     }
 
-    public function store(Request $request, PurchaseOrderService $service)
+    public function store(StorePurchaseOrderRequest $request, PurchaseOrderService $service): RedirectResponse
     {
-        $validated = $request->validate([
-            'order_type' => 'required|in:local,global',
-            'batch_name' => 'nullable|string',
-            'supplier_id' => 'required_if:order_type,global|nullable|exists:suppliers,id',
-            'shop_name' => 'nullable|string',
-            'exchange_rate' => 'required_if:order_type,global|nullable|numeric|min:0',
-            'items' => 'required|array|min:1',
-            'items.*.product_variant_id' => 'required|exists:product_variants,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_cost' => 'required|numeric|min:0',
-            'items.*.retail_price' => 'nullable|numeric|min:0',
-            'foreign_deli_fee' => 'nullable|numeric|min:0',
-            'total_discount' => 'nullable|numeric|min:0',
-            'supplier_fee_percentage' => 'nullable|numeric|min:0',
-            'paid_amount' => 'nullable|numeric|min:0',
-            'note' => 'nullable|string',
-        ]);
-
-        if (empty($validated['batch_name'])) {
-            $monthPrefix = strtoupper(date('M'));
-            $latestBatch = PurchaseOrder::where('batch_name', 'like', $monthPrefix.'-%')
-                ->latest('id')
-                ->first();
-
-            $sequence = 1;
-            if ($latestBatch && preg_match('/-(\d+)$/', $latestBatch->batch_name, $matches)) {
-                $sequence = intval($matches[1]) + 1;
-            }
-            $validated['batch_name'] = $monthPrefix.'-'.str_pad($sequence, 3, '0', STR_PAD_LEFT);
-        }
-
-        $po = $service->createOrder($validated);
+        $service->createOrder($request->preparedData());
 
         return redirect('/inventory/purchase-orders')->with('success', 'Purchase order created successfully.');
     }
@@ -167,76 +141,31 @@ class PurchaseOrderController extends Controller
         ]);
     }
 
-    public function update(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderService $service)
+    public function update(UpdatePurchaseOrderRequest $request, PurchaseOrder $purchaseOrder, PurchaseOrderService $service): RedirectResponse
     {
-        $validated = $request->validate([
-            'order_type' => 'required|in:local,global',
-            'batch_name' => 'nullable|string',
-            'supplier_id' => 'required_if:order_type,global|nullable|exists:suppliers,id',
-            'shop_name' => 'nullable|string',
-            'exchange_rate' => 'required_if:order_type,global|nullable|numeric|min:1',
-            'items' => 'required|array|min:1',
-            'items.*.product_variant_id' => 'required|exists:product_variants,id',
-            'items.*.quantity' => 'required|integer|min:1',
-            'items.*.unit_cost' => 'required|numeric|min:0',
-            'items.*.retail_price' => 'nullable|numeric|min:0',
-            'foreign_deli_fee' => 'nullable|numeric|min:0',
-            'total_discount' => 'nullable|numeric|min:0',
-            'supplier_fee_percentage' => 'nullable|numeric|min:0',
-            'paid_amount' => 'nullable|numeric|min:0',
-            'note' => 'nullable|string',
-        ]);
-
-        if (empty($validated['batch_name'])) {
-            $monthPrefix = strtoupper(date('M'));
-            $latestBatch = PurchaseOrder::where('batch_name', 'like', $monthPrefix.'-%')
-                ->latest('id')
-                ->first();
-
-            $sequence = 1;
-            if ($latestBatch && preg_match('/-(\d+)$/', $latestBatch->batch_name, $matches)) {
-                $sequence = intval($matches[1]) + 1;
-            }
-            $validated['batch_name'] = $monthPrefix.'-'.str_pad($sequence, 3, '0', STR_PAD_LEFT);
-        }
-
         try {
-            $service->updateOrder($purchaseOrder->id, $validated);
+            $service->updateOrder($purchaseOrder->id, $request->preparedData());
 
             return redirect("/inventory/purchase-orders/{$purchaseOrder->id}")->with('success', 'Purchase order updated successfully.');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
     }
 
     // Assuming we need a method for arriving the PO.
     // Wait, the frontend PurchaseOrderDetail might not have an "Arrive" button yet, or it's a POST to `/inventory/purchase-orders/{id}/arrive`
-    public function markAsArrived(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderService $service)
+    public function markAsArrived(MarkPurchaseOrderArrivedRequest $request, PurchaseOrder $purchaseOrder, PurchaseOrderService $service): RedirectResponse
     {
-
-        $validated = $request->validate([
-            'cargo_fee' => 'nullable|numeric|min:0',
-            'local_deli_fee' => 'nullable|numeric|min:0',
-            'adjustment_amount' => 'nullable|numeric',
-            'adjustment_reason' => 'nullable|string|required_with:adjustment_amount',
-            'received_items' => 'required|array',
-            'received_items.*.id' => 'required|exists:purchase_order_items,id',
-            'received_items.*.received_quantity' => 'nullable|integer|min:0',
-            'received_items.*.retail_price' => 'nullable|numeric|min:0',
-            'received_items.*.allocated_cargo_fee' => 'nullable|numeric',
-            'received_items.*.allocated_adjustment_amount' => 'nullable|numeric',
-        ]);
-
         try {
-            $service->markAsArrived($purchaseOrder, $validated);
+            $service->markAsArrived($purchaseOrder, $request->validated());
 
             return back()->with('success', 'Shipment arrival processed successfully.');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
     }
 
-    public function cancel(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderService $service)
+    public function cancel(Request $request, PurchaseOrder $purchaseOrder, PurchaseOrderService $service): RedirectResponse
     {
         $validated = $request->validate([
             'cancel_reason' => 'nullable|string',
@@ -247,7 +176,7 @@ class PurchaseOrderController extends Controller
             $service->cancelOrder($purchaseOrder, $validated['cancel_reason'] ?? 'Manual Cancellation', $validated['refund_amount'] ?? null);
 
             return back()->with('success', 'Purchase order cancelled successfully.');
-        } catch (\Exception $e) {
+        } catch (Exception $e) {
             return back()->withErrors(['error' => $e->getMessage()]);
         }
     }

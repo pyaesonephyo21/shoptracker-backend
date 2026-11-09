@@ -180,6 +180,10 @@ export default function EditProduct({ product, categories = [] }: { product: Pro
                             setOptions={opts => setData('variant_options', opts)}
                             variants={data.variants}
                             setVariants={vars => setData('variants', vars)}
+                            productName={data.name}
+                            categoryId={data.category_id}
+                            categoryName={categoryOptions.find(o => o.value === data.category_id)?.label}
+                            isEditing={true}
                         />
                         {errors.variants && <span className="text-red-500 text-xs">{errors.variants}</span>}
                     </section>

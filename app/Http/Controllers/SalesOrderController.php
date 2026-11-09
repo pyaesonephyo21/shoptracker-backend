@@ -3,15 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Exports\SalesOrderExport;
-use Exception;
 use App\Http\Requests\BulkDeliverCodRequest;
 use App\Http\Requests\BulkFulfillCodRequest;
 use App\Http\Requests\BulkSettleCodRequest;
+use App\Http\Requests\FulfillSalesOrderRequest;
+use App\Http\Requests\StoreSalesOrderRequest;
+use App\Http\Requests\UpdateSalesOrderRequest;
 use App\Models\Courier;
 use App\Models\PaymentMethod;
-use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Services\SalesOrderService;
+use Exception;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -103,58 +105,12 @@ class SalesOrderController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreSalesOrderRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'customer_name' => 'nullable|string',
-            'customer_phone' => 'nullable|string',
-            'delivery_address' => 'nullable|string',
-            'cart' => 'required|array|min:1',
-            'cart.*.product_variant_id' => 'required|exists:product_variants,id',
-            'cart.*.quantity' => 'required|integer|min:1',
-            'cart.*.discount_type' => 'nullable|in:none,fixed,percent',
-            'cart.*.discount_value' => 'nullable|numeric|min:0',
-            'cart.*.discount_reason' => 'nullable|string',
-            'discount_type' => 'nullable|in:none,fixed,percent',
-            'discount_value' => 'nullable|numeric|min:0',
-            'discount_reason' => 'nullable|string',
-            'note' => 'nullable|string',
-            'paid_amount' => 'nullable|numeric|min:0',
-            'payment_method' => 'nullable|string|max:50',
-            'extra_fee' => 'nullable|numeric|min:0',
-            'courier_id' => 'nullable|exists:couriers,id',
-            'tracking_number' => 'nullable|string|max:100',
-            'delivery_fee' => 'nullable|numeric|min:0',
-            'courier_service_fee' => 'nullable|numeric|min:0',
-            'overcharge' => 'nullable|numeric|min:0',
-            'delivery_note' => 'nullable|string',
-            'money_collected_by' => 'nullable|in:seller,courier',
-            'is_deli_prepaid' => 'nullable|boolean',
-        ]);
-
-        // Map frontend structure to what the service expects
-        $orderData = [
-            'customer_name' => $validated['customer_name'] ?? 'Walk-in',
-            'customer_phone' => $validated['customer_phone'] ?? '',
-            'delivery_address' => $validated['delivery_address'] ?? '',
-            'discount_type' => $validated['discount_type'] ?? 'none',
-            'discount_value' => $validated['discount_value'] ?? 0,
-            'discount_reason' => $validated['discount_reason'] ?? '',
-            'extra_fee' => $validated['extra_fee'] ?? 0,
-            'note' => $validated['note'] ?? '',
-            'delivery_note' => $validated['delivery_note'] ?? '',
-            'paid_amount' => $validated['paid_amount'] ?? 0,
-            'payment_method' => $validated['payment_method'] ?? 'cash',
-            'courier_id' => $validated['courier_id'] ?? null,
-            'tracking_number' => $validated['tracking_number'] ?? null,
-            'delivery_fee' => $validated['delivery_fee'] ?? 0,
-            'courier_service_fee' => $validated['courier_service_fee'] ?? 0,
-            'overcharge' => $validated['overcharge'] ?? 0,
-            'money_collected_by' => $validated['money_collected_by'] ?? 'courier',
-            'is_deli_prepaid' => (bool) ($validated['is_deli_prepaid'] ?? false),
-        ];
-
-        $this->service->createOrder($orderData, $validated['cart']);
+        $this->service->createOrder(
+            $request->toOrderData(),
+            $request->cartItems()
+        );
 
         return redirect('/sales')->with('success', 'Sale recorded successfully.');
     }
@@ -249,29 +205,9 @@ class SalesOrderController extends Controller
         ]);
     }
 
-    public function update(Request $request, SalesOrder $salesOrder)
+    public function update(UpdateSalesOrderRequest $request, SalesOrder $salesOrder): RedirectResponse
     {
-        $validated = $request->validate([
-            'customer_name' => 'nullable|string',
-            'customer_phone' => 'nullable|string',
-            'delivery_address' => 'nullable|string',
-            'discount_type' => 'nullable|in:none,fixed,percent',
-            'discount_value' => 'nullable|numeric|min:0',
-            'discount_reason' => 'nullable|string',
-            'note' => 'nullable|string',
-            'delivery_note' => 'nullable|string',
-            'paid_amount' => 'nullable|numeric|min:0',
-            'extra_fee' => 'nullable|numeric|min:0',
-            'courier_id' => 'nullable|exists:couriers,id',
-            'tracking_number' => 'nullable|string',
-            'delivery_fee' => 'nullable|numeric|min:0',
-            'courier_service_fee' => 'nullable|numeric|min:0',
-            'overcharge' => 'nullable|numeric|min:0',
-            'money_collected_by' => 'nullable|in:seller,courier',
-            'is_deli_prepaid' => 'nullable|boolean',
-        ]);
-
-        $this->service->updateOrder($salesOrder->id, $validated);
+        $this->service->updateOrder($salesOrder->id, $request->validated());
 
         return redirect("/sales/{$salesOrder->id}")->with('success', 'Order updated successfully.');
     }
@@ -302,20 +238,9 @@ class SalesOrderController extends Controller
         ]);
     }
 
-    public function fulfillStore(Request $request, SalesOrder $salesOrder)
+    public function fulfillStore(FulfillSalesOrderRequest $request, SalesOrder $salesOrder): RedirectResponse
     {
-        $validated = $request->validate([
-            'courier_id' => 'required|exists:couriers,id',
-            'tracking_number' => 'nullable|string',
-            'delivery_fee' => 'nullable|numeric|min:0',
-            'courier_service_fee' => 'nullable|numeric|min:0',
-            'overcharge' => 'nullable|numeric|min:0',
-            'delivery_note' => 'nullable|string',
-            'money_collected_by' => 'required|in:seller,courier',
-            'is_deli_prepaid' => 'boolean',
-        ]);
-
-        $this->service->fulfillOrder($salesOrder->id, $validated);
+        $this->service->fulfillOrder($salesOrder->id, $request->validated());
 
         return redirect("/sales/{$salesOrder->id}")->with('success', 'Order fulfillment arranged.');
     }

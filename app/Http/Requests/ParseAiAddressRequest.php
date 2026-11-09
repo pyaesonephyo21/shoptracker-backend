@@ -26,4 +26,3 @@ class ParseAiAddressRequest extends FormRequest
         ];
     }
 }
-

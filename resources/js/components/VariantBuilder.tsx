@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Trash, Plus, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { generateAcronym, formatAttributeValue } from '@/lib/skuGenerator';
 
 export interface VariantOption {
     name: string;
@@ -22,19 +23,72 @@ interface Props {
     setOptions: (options: VariantOption[]) => void;
     variants: Variant[];
     setVariants: (variants: Variant[]) => void;
+    productName?: string;
+    categoryId?: string;
+    categoryName?: string;
     baseSku?: string;
+    isEditing?: boolean;
 }
 
-export default function VariantBuilder({ options, setOptions, variants, setVariants, baseSku }: Props) {
+export default function VariantBuilder({
+    options,
+    setOptions,
+    variants,
+    setVariants,
+    productName,
+    categoryId,
+    categoryName,
+    baseSku,
+    isEditing = false,
+}: Props) {
     const [newOptionName, setNewOptionName] = useState('');
-    const [randomPrefix] = useState(() => {
-        const existing = variants.find(v => v.sku && v.sku.includes('-'));
-        if (existing) {
-            return existing.sku.split('-')[0];
-        }
-        return Math.random().toString(36).substring(2, 6).toUpperCase();
+
+    const isEditMode = isEditing || variants.some(v => typeof v.id === 'number');
+    const existingPrefix = isEditMode
+        ? variants.find(v => v.sku && v.sku.includes('-'))?.sku?.split('-')[0]
+        : null;
+
+    const [activeBaseCode, setActiveBaseCode] = useState<string>(() => {
+        if (baseSku) return baseSku;
+        if (existingPrefix) return existingPrefix;
+        return `${generateAcronym(productName || '', categoryName)}01`;
     });
-    const prevBaseSkuRef = useRef(baseSku);
+
+    const prevBaseCodeRef = useRef(activeBaseCode);
+
+    useEffect(() => {
+        if (isEditMode || baseSku) return;
+
+        const localAcronym = generateAcronym(productName || '', categoryName);
+        const localCode = `${localAcronym}01`;
+
+        if (!productName?.trim()) {
+            setActiveBaseCode(localCode);
+            return;
+        }
+
+        const timer = setTimeout(async () => {
+            try {
+                const params = new URLSearchParams();
+                if (productName) params.set('name', productName.trim());
+                if (categoryId) params.set('category_id', categoryId);
+
+                const res = await fetch(`/inventory/suggest-sku?${params.toString()}`);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (data?.base_code) {
+                        setActiveBaseCode(data.base_code);
+                        return;
+                    }
+                }
+            } catch {
+                // Fallback to local acronym
+            }
+            setActiveBaseCode(localCode);
+        }, 250);
+
+        return () => clearTimeout(timer);
+    }, [productName, categoryId, categoryName, isEditMode, baseSku]);
 
     const addOption = () => {
         if (!newOptionName.trim()) return;
@@ -67,13 +121,19 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
 
     // Auto-generate variants when options change
     useEffect(() => {
+        const prefix = baseSku || existingPrefix || activeBaseCode;
+        const prevPrefix = prevBaseCodeRef.current;
+        prevBaseCodeRef.current = prefix;
+
         if (options.length === 0 || options.every(o => o.values.length === 0)) {
             // If no options, we just have one default variant
             if (variants.length !== 1 || Object.keys(variants[0].attributes || {}).length !== 0) {
-                const defaultSku = baseSku ? `${baseSku}-DEF` : `${randomPrefix}-DEF`;
-                setVariants([{ sku: defaultSku, attributes: {} }]);
-            } else if (baseSku && variants[0].sku.startsWith(randomPrefix)) {
-                setVariants([{ ...variants[0], sku: variants[0].sku.replace(randomPrefix, baseSku) }]);
+                setVariants([{ sku: `${prefix}-DEF`, attributes: {} }]);
+            } else if (prevPrefix && variants[0]?.sku && prevPrefix !== prefix) {
+                const currentSku = variants[0].sku;
+                if (currentSku.startsWith(`${prevPrefix}-`) || currentSku.startsWith('PRD01-')) {
+                    setVariants([{ ...variants[0], sku: `${prefix}-DEF` }]);
+                }
             }
             return;
         }
@@ -93,7 +153,7 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
             combinations.splice(0, combinations.length, ...newCombinations);
         }
 
-        const newVariants: Variant[] = combinations.map((combo, idx) => {
+        const newVariants: Variant[] = combinations.map((combo) => {
             // Find if we already have this combination
             const existing = variants.find(v => {
                 const keys = Object.keys(combo);
@@ -102,21 +162,28 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
             });
 
             if (existing) {
-                // Keep existing but update SKU if baseSku changed and it had the old default random prefix
-                if (baseSku && existing.sku.startsWith(randomPrefix)) {
-                    return {
-                        ...existing,
-                        sku: existing.sku.replace(randomPrefix, baseSku)
-                    };
+                // Keep existing but update SKU if prefix changed
+                if (prevPrefix && prevPrefix !== prefix) {
+                    if (existing.sku.startsWith(`${prevPrefix}-`)) {
+                        return {
+                            ...existing,
+                            sku: existing.sku.replace(`${prevPrefix}-`, `${prefix}-`),
+                        };
+                    }
+                    if (existing.sku.startsWith('PRD01-')) {
+                        return {
+                            ...existing,
+                            sku: existing.sku.replace('PRD01-', `${prefix}-`),
+                        };
+                    }
                 }
                 return existing;
             }
 
-            // Generate SKU part
-            const suffix = Object.values(combo).map(v => String(v).substring(0, 3).toUpperCase()).join('-');
-            const prefix = baseSku || randomPrefix;
+            // Generate clean dynamic SKU part using actual input data
+            const suffix = Object.values(combo).map(v => formatAttributeValue(v)).join('-');
             return {
-                sku: `${prefix}-${suffix}`,
+                sku: suffix ? `${prefix}-${suffix}` : `${prefix}-DEF`,
                 attributes: combo,
             };
         });
@@ -124,6 +191,7 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
         // Check if newVariants is actually different from variants
         const isDifferent = newVariants.length !== variants.length || newVariants.some((nv, i) => {
             const old = variants[i];
+            if (!old) return true;
             if (nv.sku !== old.sku) return true;
             if (nv.retail_price !== old.retail_price) return true;
             if (JSON.stringify(nv.attributes) !== JSON.stringify(old.attributes)) return true;
@@ -133,7 +201,7 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
         if (isDifferent) {
             setVariants(newVariants);
         }
-    }, [options, baseSku]);
+    }, [options, activeBaseCode, baseSku, existingPrefix]);
 
     return (
         <div className="flex flex-col gap-6">
@@ -196,7 +264,12 @@ export default function VariantBuilder({ options, setOptions, variants, setVaria
 
             {variants.length > 0 && (
                 <div className="flex flex-col gap-4">
-                    <h3 className="font-bold text-sm tracking-tight">Generated Variants ({variants.length})</h3>
+                    <div className="flex items-center justify-between">
+                        <h3 className="font-bold text-sm tracking-tight">Generated Variants ({variants.length})</h3>
+                        <span className="text-xs font-mono bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300 px-2.5 py-1 rounded border border-zinc-200 dark:border-zinc-700">
+                            Base SKU: <strong className="text-zinc-900 dark:text-zinc-100">{baseSku || existingPrefix || activeBaseCode}</strong>
+                        </span>
+                    </div>
                     <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-x-auto">
                         <table className="w-full text-sm text-left">
                             <thead className="bg-zinc-50 dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 text-xs uppercase text-zinc-500 font-bold">

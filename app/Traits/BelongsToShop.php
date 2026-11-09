@@ -19,22 +19,17 @@ trait BelongsToShop
      */
     protected static function bootBelongsToShop()
     {
-        // Only apply if we have an authenticated user with a shop_id
-        if (Auth::check() && Auth::user()->shop_id) {
-
-            // 1. Automatically filter queries by shop_id
-            static::addGlobalScope('shop', function ($builder) {
-                // Use getTable() to prevent ambiguous column errors in joins
+        static::addGlobalScope('shop', function ($builder) {
+            if (Auth::check() && Auth::user()->shop_id) {
                 $builder->where(app(static::class)->getTable().'.shop_id', Auth::user()->shop_id);
-            });
+            }
+        });
 
-            // 2. Automatically set shop_id when creating a new record
-            static::creating(function ($model) {
-                if (empty($model->shop_id)) {
-                    $model->shop_id = Auth::user()->shop_id;
-                }
-            });
-        }
+        static::creating(function ($model) {
+            if (empty($model->shop_id) && Auth::check() && Auth::user()->shop_id) {
+                $model->shop_id = Auth::user()->shop_id;
+            }
+        });
     }
 
     /**

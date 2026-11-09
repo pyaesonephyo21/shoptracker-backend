@@ -40,6 +40,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/inventory', [InventoryController::class, 'index'])->name('inventory.index');
     Route::get('/inventory/adjustments', [StockAdjustmentController::class, 'index'])->name('inventory.adjustments.index');
     Route::get('/inventory/create', [InventoryController::class, 'create'])->name('inventory.create');
+    Route::get('/inventory/suggest-sku', [InventoryController::class, 'suggestSku'])->name('inventory.suggest-sku');
     Route::post('/inventory', [InventoryController::class, 'store'])->name('inventory.store');
 
     // Purchase Orders (Specific static routes defined before {id} parameter wildcard)

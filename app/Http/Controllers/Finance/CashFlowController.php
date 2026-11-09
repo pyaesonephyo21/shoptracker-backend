@@ -52,16 +52,18 @@ class CashFlowController extends Controller
             'description' => 'required|string|max:255',
         ]);
 
+        $shopId = $request->user()->shop_id;
+
         if ($validated['type'] === 'manual_in') {
             $cashFlowService->recordInflow(
-                null, // shop_id is automatically assigned via BelongsToShop trait when created, wait, CashFlowService needs shop_id
+                $shopId,
                 $validated['amount'],
                 'manual_in',
                 $validated['description']
             );
         } else {
             $cashFlowService->recordOutflow(
-                null,
+                $shopId,
                 $validated['amount'],
                 'manual_out',
                 $validated['description']

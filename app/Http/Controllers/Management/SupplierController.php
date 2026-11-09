@@ -3,9 +3,10 @@
 namespace App\Http\Controllers\Management;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\StoreSupplierRequest;
 use App\Models\PurchaseOrder;
 use App\Models\Supplier;
-use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
 use Inertia\Inertia;
 
 class SupplierController extends Controller
@@ -20,42 +21,16 @@ class SupplierController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreSupplierRequest $request): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'type' => 'required|in:local,foreign',
-            'currency' => 'required|string',
-            'contact' => 'nullable|string|max:255',
-        ]);
-
-        // Map contact to contact_info as per DB schema
-        $validated['contact_info'] = $validated['contact'];
-        unset($validated['contact']);
-
-        Supplier::create($validated);
+        Supplier::create($request->supplierData());
 
         return redirect()->back()->with('success', 'Supplier created successfully.');
     }
 
-    public function update(Request $request, Supplier $supplier)
+    public function update(StoreSupplierRequest $request, Supplier $supplier): RedirectResponse
     {
-
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'type' => 'required|in:local,foreign',
-            'currency' => 'required|string',
-            'contact' => 'nullable|string|max:255',
-        ]);
-
-        $updateData = [
-            'name' => $validated['name'],
-            'type' => $validated['type'],
-            'currency' => $validated['currency'],
-            'contact_info' => $validated['contact'] ?? null,
-        ];
-
-        $supplier->update($updateData);
+        $supplier->update($request->supplierData());
 
         return redirect()->back()->with('success', 'Supplier updated successfully.');
     }

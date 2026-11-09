@@ -52,9 +52,9 @@ class PurchaseOrderService
 
             // Create the main PO
             $po = PurchaseOrder::create([
-                'batch_name' => $data['batch_name'],
-                'supplier_id' => $data['supplier_id'] ?: null,
-                'local_shop_name' => $data['shop_name'] ?: null,
+                'batch_name' => $data['batch_name'] ?? 'PO-'.strtoupper(date('M')).'-001',
+                'supplier_id' => ! empty($data['supplier_id']) ? $data['supplier_id'] : null,
+                'local_shop_name' => $data['shop_name'] ?? null,
                 'order_type' => $orderType,
                 'status' => 'pending',
                 'exchange_rate' => $exchangeRate,
@@ -211,9 +211,9 @@ class PurchaseOrderService
 
             // Update PO
             $po->fill([
-                'batch_name' => $data['batch_name'],
-                'supplier_id' => $data['supplier_id'] ?: null,
-                'local_shop_name' => $data['shop_name'] ?: null,
+                'batch_name' => $data['batch_name'] ?? 'PO-'.strtoupper(date('M')).'-001',
+                'supplier_id' => ! empty($data['supplier_id']) ? $data['supplier_id'] : null,
+                'local_shop_name' => $data['shop_name'] ?? null,
                 'order_type' => $orderType,
                 'exchange_rate' => $exchangeRate,
                 'total_goods_cost' => $totalGoodsCost,

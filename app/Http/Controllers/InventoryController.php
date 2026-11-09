@@ -2,12 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreProductRequest;
+use App\Http\Requests\UpdateProductRequest;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\ProductBatch;
 use App\Models\ProductVariant;
 use App\Models\PurchaseOrderItem;
 use App\Models\SalesOrderItem;
+use App\Services\SkuGeneratorService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
@@ -86,22 +91,11 @@ class InventoryController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(StoreProductRequest $request, SkuGeneratorService $skuService): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'category_id' => 'nullable|exists:categories,id',
-            'type' => 'required|in:local,global',
-            'base_cost' => 'nullable|numeric|min:0',
-            'retail_price' => 'nullable|numeric|min:0',
-            'variant_options' => 'nullable|array',
-            'variants' => 'required|array|min:1',
-            'variants.*.sku' => 'nullable|string|max:255|unique:product_variants,sku',
-            'variants.*.attributes' => 'nullable|array',
-            'variants.*.retail_price' => 'nullable|numeric|min:0',
-        ]);
+        $validated = $request->validated();
 
-        DB::transaction(function () use ($validated) {
+        DB::transaction(function () use ($validated, $skuService, $request) {
             $product = Product::create([
                 'name' => $validated['name'],
                 'category_id' => $validated['category_id'] ?? null,
@@ -111,9 +105,14 @@ class InventoryController extends Controller
                 'variant_options' => $validated['variant_options'] ?? null,
             ]);
 
+            $categoryName = ! empty($validated['category_id']) ? Category::find($validated['category_id'])?->name : null;
+            $baseCode = $skuService->generateBaseCode($validated['name'], $request->user()->shop_id, $categoryName);
+
             foreach ($validated['variants'] as $v) {
+                $sku = ! empty($v['sku']) ? $v['sku'] : $skuService->generateVariantSku($baseCode, $v['attributes'] ?? []);
+
                 $product->variants()->create([
-                    'sku' => $v['sku'] ?? null,
+                    'sku' => $sku,
                     'attributes' => $v['attributes'] ?? null,
                     'retail_price' => $v['retail_price'] ?? null,
                 ]);
@@ -121,6 +120,17 @@ class InventoryController extends Controller
         });
 
         return redirect('/inventory')->with('success', 'Product created successfully.');
+    }
+
+    public function suggestSku(Request $request, SkuGeneratorService $skuService): JsonResponse
+    {
+        $name = (string) $request->input('name', '');
+        $categoryName = $request->input('category_id') ? Category::find($request->category_id)?->name : null;
+        $baseCode = $skuService->generateBaseCode($name, $request->user()->shop_id, $categoryName);
+
+        return response()->json([
+            'base_code' => $baseCode,
+        ]);
     }
 
     public function edit(Product $product)
@@ -134,21 +144,9 @@ class InventoryController extends Controller
         ]);
     }
 
-    public function update(Request $request, Product $product)
+    public function update(UpdateProductRequest $request, Product $product): RedirectResponse
     {
-        $validated = $request->validate([
-            'name' => 'required|string|max:255',
-            'category_id' => 'nullable|exists:categories,id',
-            'type' => 'required|in:local,global',
-            'base_cost' => 'nullable|numeric|min:0',
-            'retail_price' => 'nullable|numeric|min:0',
-            'variant_options' => 'nullable|array',
-            'variants' => 'required|array|min:1',
-            'variants.*.id' => 'nullable|exists:product_variants,id',
-            'variants.*.sku' => 'nullable|string|max:255',
-            'variants.*.attributes' => 'nullable|array',
-            'variants.*.retail_price' => 'nullable|numeric|min:0',
-        ]);
+        $validated = $request->validated();
 
         DB::transaction(function () use ($validated, $product) {
             $product->update([
@@ -218,7 +216,10 @@ class InventoryController extends Controller
 
     public function restoreVariant($id)
     {
-        $variant = ProductVariant::withTrashed()->findOrFail($id);
+        $variant = ProductVariant::withTrashed()
+            ->whereHas('product')
+            ->findOrFail($id);
+
         $variant->restore();
 
         return back()->with('success', 'Variant restored successfully.');
@@ -226,6 +227,8 @@ class InventoryController extends Controller
 
     public function updateRetailPrice(Request $request, ProductVariant $variant)
     {
+        abort_unless($variant->product && (int) $variant->product->shop_id === (int) auth()->user()->shop_id, 403);
+
         $validated = $request->validate([
             'retail_price' => 'required|numeric|min:0',
         ]);

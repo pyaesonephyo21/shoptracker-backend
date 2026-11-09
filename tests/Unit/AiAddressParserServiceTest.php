@@ -17,7 +17,7 @@ class AiAddressParserServiceTest extends TestCase
         Config::set('services.gemini.api_key', null);
         Config::set('services.openrouter.api_key', null);
 
-        $service = new AiAddressParserService();
+        $service = new AiAddressParserService;
         $result = $service->parse('မအိမ့်မှူးခင် 09772775937 ရန်ကုန်');
 
         $this->assertFalse($result['success']);
@@ -28,7 +28,7 @@ class AiAddressParserServiceTest extends TestCase
     {
         Config::set('services.gemini.api_key', 'test-key');
 
-        $service = new AiAddressParserService();
+        $service = new AiAddressParserService;
         $result = $service->parse('   ', null);
 
         $this->assertFalse($result['success']);
@@ -58,7 +58,7 @@ class AiAddressParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new AiAddressParserService();
+        $service = new AiAddressParserService;
         $fakeBase64 = base64_encode('fake-image-bytes');
         $result = $service->parse('', $fakeBase64, 'image/png');
 
@@ -70,6 +70,7 @@ class AiAddressParserServiceTest extends TestCase
 
         Http::assertSent(function ($request) {
             $parts = $request->data()['contents'][0]['parts'];
+
             return isset($parts[0]['inlineData'])
                 && $parts[0]['inlineData']['mimeType'] === 'image/png';
         });
@@ -101,7 +102,7 @@ class AiAddressParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new AiAddressParserService();
+        $service = new AiAddressParserService;
         $result = $service->parse('ကိုမောင်မောင် 09123456789 မန္တလေး');
 
         $this->assertTrue($result['success']);
@@ -135,7 +136,7 @@ class AiAddressParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new AiAddressParserService();
+        $service = new AiAddressParserService;
         $result = $service->parse('ဒေါ်အေးအေး 09987654321 နေပြည်တော်');
 
         $this->assertTrue($result['success']);
@@ -145,4 +146,3 @@ class AiAddressParserServiceTest extends TestCase
         $this->assertSame('ဂိတ်ချိန်းပါ', $result['data']['delivery_notes']);
     }
 }
-

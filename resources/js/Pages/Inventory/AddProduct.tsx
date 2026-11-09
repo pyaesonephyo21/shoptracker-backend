@@ -169,6 +169,10 @@ export default function AddProduct({ categories = [] }: { categories: Category[]
                             setOptions={opts => setData('variant_options', opts)}
                             variants={data.variants}
                             setVariants={vars => setData('variants', vars)}
+                            productName={data.name}
+                            categoryId={data.category_id}
+                            categoryName={categoryOptions.find(o => o.value === data.category_id)?.label}
+                            isEditing={false}
                         />
                         {errors.variants && <span className="text-red-500 text-xs">{errors.variants}</span>}
                     </section>

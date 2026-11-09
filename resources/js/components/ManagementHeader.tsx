@@ -14,6 +14,7 @@ const MANAGEMENT_TABS: ManagementTab[] = [
     { name: 'Couriers', href: '/management/couriers' },
     { name: 'Categories', href: '/management/categories' },
     { name: 'Payment Methods', href: '/management/payment-methods' },
+    { name: 'Telegram Bot', href: '/management/telegram' },
 ];
 
 interface ManagementHeaderProps {

@@ -12,6 +12,7 @@ use App\Http\Controllers\Management\ExpenseController;
 use App\Http\Controllers\Management\NoteController;
 use App\Http\Controllers\Management\PaymentMethodController;
 use App\Http\Controllers\Management\SupplierController;
+use App\Http\Controllers\Management\TelegramSettingsController;
 use App\Http\Controllers\PurchaseOrderController;
 use App\Http\Controllers\SalesOrderController;
 use App\Http\Controllers\StockAdjustmentController;
@@ -99,6 +100,12 @@ Route::middleware('auth')->group(function () {
         Route::resource('expenses', ExpenseController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::post('notes/{note}/toggle-pin', [NoteController::class, 'togglePin'])->name('notes.toggle-pin');
         Route::resource('notes', NoteController::class)->only(['index', 'store', 'update', 'destroy']);
+
+        // Telegram Settings
+        Route::get('telegram', [TelegramSettingsController::class, 'index'])->name('telegram.index');
+        Route::put('telegram', [TelegramSettingsController::class, 'update'])->name('telegram.update');
+        Route::post('telegram/register-webhook', [TelegramSettingsController::class, 'registerWebhook'])->name('telegram.register-webhook');
+        Route::post('telegram/test-connection', [TelegramSettingsController::class, 'testConnection'])->name('telegram.test-connection');
     });
 
     // Finance & Cash Flow

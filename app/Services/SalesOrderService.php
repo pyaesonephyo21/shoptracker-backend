@@ -10,6 +10,7 @@ use App\Models\PurchaseOrderItem;
 use App\Models\SalesOrder;
 use App\Models\SalesOrderItem;
 use Exception;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 class SalesOrderService
@@ -20,6 +21,7 @@ class SalesOrderService
         return DB::transaction(function () use ($data, $items) {
             $hasCourier = ! empty($data['courier_id']);
             $order = SalesOrder::create([
+                'shop_id' => Auth::check() ? (Auth::user()?->shop_id ?? $data['shop_id'] ?? null) : ($data['shop_id'] ?? null),
                 'customer_name' => (string) ($data['customer_name'] ?? 'Guest'),
                 'customer_phone' => (string) ($data['customer_phone'] ?? ''),
                 'delivery_address' => (string) ($data['delivery_address'] ?? ''),

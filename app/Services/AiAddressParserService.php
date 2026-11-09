@@ -11,12 +11,161 @@ use Throwable;
 class AiAddressParserService
 {
     /**
-     * Parse raw Myanmar chat message text or image using AI.
+     * Parse raw Myanmar chat message text or image for Address Paste (Web UI).
      *
      * @return array<string, mixed>
      */
     public function parse(string $rawText = '', ?string $imageBase64 = null, ?string $imageMimeType = null): array
     {
+        return $this->parseAddress($rawText, $imageBase64, $imageMimeType);
+    }
+
+    /**
+     * Parse customer recipient details from text or image.
+     *
+     * @return array<string, mixed>
+     */
+    public function parseAddress(string $rawText = '', ?string $imageBase64 = null, ?string $imageMimeType = null): array
+    {
+        if (empty(trim($rawText)) && empty($imageBase64)) {
+            return [
+                'success' => false,
+                'reason' => 'empty_input',
+                'message' => 'Please provide message text or an image to parse.',
+            ];
+        }
+
+        $systemPrompt = $this->buildAddressSystemPrompt();
+        $promptText = trim($rawText);
+        if (empty($promptText) && ! empty($imageBase64)) {
+            $promptText = 'Extract customer name, phone number, delivery address, and delivery notes from this photo or screenshot into the structured JSON schema.';
+        }
+
+        $result = $this->executeAi($systemPrompt, $promptText, $imageBase64, $imageMimeType);
+        if (! ($result['success'] ?? false)) {
+            return $result;
+        }
+
+        $parsed = $result['data'] ?? [];
+        $address = (string) ($parsed['address'] ?? $parsed['delivery_address'] ?? '');
+
+        return [
+            'success' => true,
+            'source' => $result['source'] ?? 'ai',
+            'data' => [
+                'customer_name' => (string) ($parsed['customer_name'] ?? ''),
+                'customer_phone' => $this->normalizeDigits((string) ($parsed['customer_phone'] ?? '')),
+                'address' => $address,
+                'delivery_address' => $address,
+                'delivery_notes' => $this->cleanDeliveryNotes((string) ($parsed['delivery_notes'] ?? '')),
+            ],
+        ];
+    }
+
+    /**
+     * Parse order screenshot and caption, matching against active candidate product variants (Telegram / Full Orders).
+     *
+     * @param  array<int, array<string, mixed>>  $candidateVariants
+     * @return array<string, mixed>
+     */
+    public function parseOrder(
+        string $caption,
+        ?string $imageBase64 = null,
+        ?string $imageMimeType = null,
+        array $candidateVariants = []
+    ): array {
+        if (empty(trim($caption)) && empty($imageBase64)) {
+            return [
+                'success' => false,
+                'reason' => 'empty_input',
+                'message' => 'Please provide an order caption or screenshot.',
+            ];
+        }
+
+        $systemPrompt = $this->buildOrderSystemPrompt($candidateVariants);
+        $promptText = trim($caption);
+        if (empty($promptText)) {
+            $promptText = 'Extract customer details from the screenshot and match ordered products from the candidates list.';
+        } else {
+            $promptText = "Order caption: {$promptText}\n\nExtract customer recipient details from the screenshot, and match the ordered products from the caption against the candidates list.";
+        }
+
+        $result = $this->executeAi($systemPrompt, $promptText, $imageBase64, $imageMimeType);
+        if (! ($result['success'] ?? false)) {
+            return $result;
+        }
+
+        $parsed = $result['data'] ?? [];
+        $items = $parsed['items'] ?? [];
+        $normalizedItems = [];
+
+        if (is_array($items)) {
+            foreach ($items as $item) {
+                if (isset($item['product_variant_id'])) {
+                    $rawVid = $item['product_variant_id'];
+                    $normVid = is_string($rawVid) ? $this->normalizeDigits((string) $rawVid) : $rawVid;
+
+                    $rawQty = $item['quantity'] ?? 1;
+                    $normalizedQty = is_string($rawQty) ? $this->normalizeDigits((string) $rawQty) : $rawQty;
+
+                    $normalizedItems[] = [
+                        'product_variant_id' => (int) $normVid,
+                        'quantity' => max(1, (int) $normalizedQty),
+                    ];
+                }
+            }
+        }
+
+        $paidAmount = 0.0;
+        if (isset($parsed['paid_amount'])) {
+            $rawPaid = $parsed['paid_amount'];
+            if (is_numeric($rawPaid)) {
+                $paidAmount = max(0.0, (float) $rawPaid);
+            } elseif (is_string($rawPaid)) {
+                $normPaid = $this->normalizeDigits(trim($rawPaid));
+                if (preg_match('/^(\d+(?:\.\d+)?)\s*k$/i', $normPaid, $kMatch)) {
+                    $paidAmount = ((float) $kMatch[1]) * 1000;
+                } else {
+                    $cleanDigits = preg_replace('/[^\d.]/', '', $normPaid);
+                    $paidAmount = is_numeric($cleanDigits) ? max(0.0, (float) $cleanDigits) : 0.0;
+                }
+            }
+        }
+
+        if ($paidAmount <= 0.0 && ! empty($caption)) {
+            $fallbackPaid = $this->extractPrepaidAmount($caption);
+            if ($fallbackPaid > 0.0) {
+                $paidAmount = $fallbackPaid;
+            }
+        }
+
+        $address = (string) ($parsed['delivery_address'] ?? $parsed['address'] ?? '');
+
+        return [
+            'success' => true,
+            'source' => $result['source'] ?? 'ai',
+            'data' => [
+                'customer_name' => (string) ($parsed['customer_name'] ?? ''),
+                'customer_phone' => $this->normalizeDigits((string) ($parsed['customer_phone'] ?? '')),
+                'delivery_address' => $address,
+                'delivery_notes' => $this->cleanDeliveryNotes((string) ($parsed['delivery_notes'] ?? '')),
+                'paid_amount' => $paidAmount,
+                'items' => $normalizedItems,
+            ],
+        ];
+    }
+
+    /**
+     * Shared AI execution pipeline across Gemini models and OpenRouter fallback.
+     *
+     * @return array<string, mixed>
+     */
+    private function executeAi(
+        string $systemPrompt,
+        string $promptText,
+        ?string $imageBase64,
+        ?string $imageMimeType
+    ): array {
         $geminiKey = config('services.gemini.api_key');
         $geminiProxy = config('services.gemini.proxy');
         $geminiBaseUrl = rtrim((string) config('services.gemini.base_url', 'https://generativelanguage.googleapis.com'), '/');
@@ -30,14 +179,6 @@ class AiAddressParserService
             ];
         }
 
-        if (empty(trim($rawText)) && empty($imageBase64)) {
-            return [
-                'success' => false,
-                'reason' => 'empty_input',
-                'message' => 'Please provide message text or an image to parse.',
-            ];
-        }
-
         if (! empty($imageBase64)) {
             if (preg_match('/^data:([^;]+);base64,(.+)$/', $imageBase64, $matches)) {
                 $imageMimeType = $matches[1];
@@ -47,7 +188,190 @@ class AiAddressParserService
             $imageMimeType = $imageMimeType ?: 'image/jpeg';
         }
 
-        $systemPrompt = <<<'PROMPT'
+        $content = '';
+        $source = '';
+
+        // 1. Try Google Gemini Models
+        if (! empty($geminiKey)) {
+            $geminiModels = [
+                'gemini-3.5-flash-lite',
+                'gemini-3.8-flash',
+                'gemini-3.1-flash-lite',
+            ];
+
+            $userParts = [];
+            if (! empty($imageBase64)) {
+                $userParts[] = [
+                    'inlineData' => [
+                        'mimeType' => $imageMimeType,
+                        'data' => $imageBase64,
+                    ],
+                ];
+            }
+            if (! empty($promptText)) {
+                $userParts[] = ['text' => $promptText];
+            }
+
+            foreach ($geminiModels as $gModel) {
+                try {
+                    $http = Http::connectTimeout(10)->timeout(45)
+                        ->withOptions([
+                            'curl' => [
+                                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                            ],
+                        ])
+                        ->withHeaders([
+                            'Content-Type' => 'application/json',
+                        ]);
+
+                    if (! empty($geminiProxy)) {
+                        $http->withOptions(['proxy' => $geminiProxy]);
+                    }
+
+                    $geminiResponse = $http->post("{$geminiBaseUrl}/v1beta/models/{$gModel}:generateContent?key={$geminiKey}", [
+                        'system_instruction' => [
+                            'parts' => ['text' => $systemPrompt],
+                        ],
+                        'contents' => [
+                            [
+                                'role' => 'user',
+                                'parts' => $userParts,
+                            ],
+                        ],
+                        'safetySettings' => [
+                            ['category' => 'HARM_CATEGORY_DANGEROUS_CONTENT', 'threshold' => 'BLOCK_NONE'],
+                            ['category' => 'HARM_CATEGORY_HARASSMENT', 'threshold' => 'BLOCK_NONE'],
+                            ['category' => 'HARM_CATEGORY_HATE_SPEECH', 'threshold' => 'BLOCK_NONE'],
+                            ['category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'threshold' => 'BLOCK_NONE'],
+                        ],
+                        'generationConfig' => [
+                            'temperature' => 0.0,
+                            'responseMimeType' => 'application/json',
+                        ],
+                    ]);
+
+                    if ($geminiResponse->successful()) {
+                        $geminiData = $geminiResponse->json();
+                        $content = (string) ($geminiData['candidates'][0]['content']['parts'][0]['text'] ?? '');
+                        if (! empty($content)) {
+                            $source = "gemini:{$gModel}";
+                            break;
+                        }
+                    }
+
+                    Log::warning("Gemini model {$gModel} failed in AiAddressParser (status: {$geminiResponse->status()})");
+                } catch (Throwable $e) {
+                    Log::warning("Gemini connection error on {$gModel} in AiAddressParser: ".$e->getMessage());
+
+                    $msg = strtolower($e->getMessage());
+                    if (str_contains($msg, 'could not resolve host') || str_contains($msg, 'curl error 6')) {
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 2. Try OpenRouter Fallback Chain
+        if (empty($content) && ! empty($openRouterKey)) {
+            $primaryModel = (string) config('services.openrouter.model', 'nvidia/nemotron-3.5-super-vl:free');
+            $modelChain = array_unique([
+                $primaryModel,
+                'nvidia/nemotron-3.5-super-vl:free',
+                'google/gemma-4-26b-a4b-it:free',
+                'google/gemma-4-31b-it:free',
+            ]);
+
+            $userContent = [];
+            if (! empty($imageBase64)) {
+                if (! empty($promptText)) {
+                    $userContent[] = ['type' => 'text', 'text' => $promptText];
+                }
+                $userContent[] = [
+                    'type' => 'image_url',
+                    'image_url' => [
+                        'url' => "data:{$imageMimeType};base64,{$imageBase64}",
+                    ],
+                ];
+            } else {
+                $userContent = $promptText;
+            }
+
+            foreach ($modelChain as $currentModel) {
+                try {
+                    $orResponse = Http::connectTimeout(10)->timeout(45)
+                        ->withOptions([
+                            'curl' => [
+                                CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
+                            ],
+                        ])
+                        ->withHeaders([
+                            'Authorization' => "Bearer {$openRouterKey}",
+                            'HTTP-Referer' => config('app.url', 'http://localhost:8088'),
+                            'X-Title' => 'ShopTracker',
+                            'Content-Type' => 'application/json',
+                        ])
+                        ->post('https://openrouter.ai/api/v1/chat/completions', [
+                            'model' => $currentModel,
+                            'messages' => [
+                                ['role' => 'system', 'content' => $systemPrompt],
+                                ['role' => 'user', 'content' => $userContent],
+                            ],
+                            'temperature' => 0.0,
+                        ]);
+
+                    if ($orResponse->successful()) {
+                        $responseData = $orResponse->json();
+                        $content = (string) ($responseData['choices'][0]['message']['content'] ?? '');
+                        if (! empty($content)) {
+                            $source = "openrouter:{$currentModel}";
+                            break;
+                        }
+                    }
+
+                    Log::warning("OpenRouter model {$currentModel} failed (status: {$orResponse->status()})");
+                } catch (Throwable $e) {
+                    Log::warning("OpenRouter connection error on {$currentModel}: ".$e->getMessage());
+                }
+            }
+        }
+
+        if (empty($content)) {
+            return [
+                'success' => false,
+                'reason' => 'ai_service_unavailable',
+                'message' => 'AI parsing service timed out or was temporarily unavailable. Please try again.',
+            ];
+        }
+
+        $jsonStr = trim($content);
+        if (preg_match('/\{[\s\S]*\}/', $jsonStr, $matches)) {
+            $jsonStr = $matches[0];
+        }
+
+        $decoded = json_decode($jsonStr, true);
+        if (! is_array($decoded)) {
+            Log::error('AI parser returned invalid JSON', ['raw' => $content]);
+
+            return [
+                'success' => false,
+                'reason' => 'invalid_json',
+                'message' => 'AI failed to produce structured JSON data.',
+            ];
+        }
+
+        return [
+            'success' => true,
+            'source' => $source,
+            'data' => $decoded,
+        ];
+    }
+
+    /**
+     * Common Myanmar address OCR system prompt rules.
+     */
+    private function buildBaseOcrInstructions(): string
+    {
+        return <<<'PROMPT'
 You are an expert AI assistant specialized in parsing Myanmar e-commerce customer information from chat messages, text, screenshots of chat conversations (e.g. Facebook Messenger, Viber, Telegram), delivery slips, waybills, and handwritten delivery notes into clean, structured customer and delivery details.
 
 If an image or screenshot is provided:
@@ -97,11 +421,15 @@ Your extraction goals:
    - If message components are delimited by slashes (/), commas, or newlines, extract all address components cleanly.
    - Format with neat Burmese commas (၊) or spaces between components for readability.
    - Example: "၁၁ရပ်ကွက် ဓနုဖြူမြို့" -> "၁၁ ရပ်ကွက်၊ ဓနုဖြူမြို့".
+PROMPT;
+    }
 
-4. Delivery Remarks / Notes:
-   - ONLY include specific logistics constraints or customer delivery requests (e.g., "ကျောင်းဖွင့်ရက်မှပို့ပါ", "မနက်ပိုင်းပဲဆက်ပါ", "ရုံးချိန်ပို့ပေးပါ", "မပို့ခင်ဖုန်းဆက်ပါ", "ကားဂိတ်ချိန်းပါ").
-   - CRITICAL: NEVER extract payment methods (e.g., "COD", "Cod ရယူမည်", "Cod ရလား", "ငွေလွှဲ"), order intent (e.g., "တစုံယူမယ်နော်", "မှာမယ်နော်"), or conversational greetings into delivery notes.
-   - If no specific logistics constraints are present, leave delivery_notes as empty string ("").
+    private function buildAddressSystemPrompt(): string
+    {
+        $base = $this->buildBaseOcrInstructions();
+
+        return <<<PROMPT
+{$base}
 
 Return ONLY a valid JSON object without markdown code blocks (no ```json fences) in this exact schema:
 {
@@ -111,261 +439,131 @@ Return ONLY a valid JSON object without markdown code blocks (no ```json fences)
   "delivery_notes": ""
 }
 PROMPT;
+    }
 
-        $promptText = trim($rawText);
-        if (empty($promptText) && ! empty($imageBase64)) {
-            $promptText = 'Extract customer name, phone number, delivery address, and delivery notes from this photo or screenshot into the structured JSON schema.';
+    /**
+     * @param  array<int, array<string, mixed>>  $candidateVariants
+     */
+    private function buildOrderSystemPrompt(array $candidateVariants): string
+    {
+        $base = $this->buildBaseOcrInstructions();
+        $variantsJson = json_encode($candidateVariants, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+
+        return <<<PROMPT
+{$base}
+
+You are also provided with:
+1. An order caption or text written by the sales team (e.g. "Infinity Silver 1 prepaid - 12000" or "Cotton T-shirt Red M 2").
+2. A JSON list of active product variants available in the shop:
+{$variantsJson}
+
+Additional Order Processing Goals:
+4. Match the ordered product(s) and variant(s):
+   - Read the sales team's caption and match against the provided candidate product variants list.
+   - Compare product name, variant SKU, and variant attributes (e.g. color, size).
+   - Extract the exact candidate "id" as "product_variant_id", and the ordered "quantity" (integer >= 1, defaults to 1).
+   - If multiple products are mentioned, include each matched product in the "items" list.
+   - If a product cannot be confidently matched to the candidates list, omit it from the items list.
+
+5. Payment / Prepaid Extraction:
+   - Look for any prepaid, deposit, advance, or paid amounts indicated in the sales caption or screenshot.
+   - Keywords include: "prepaid", "prepaid -", "paid", "advance", "deposit", "စရန်", "စရန်ငွေ", "ငွေကြိုလွှဲ", "ကြိုရှင်း", "ရှင်းပြီး".
+   - Notice both keyword orders: e.g. "prepaid - 12000", "prepaid 12000", "12000 prepaid", "12k prepaid", "စရန်ငွေ 12000", "၁၂၀၀၀ စရန်".
+   - Convert shorthand notation: "12k" -> 12000, "15.5k" -> 15500.
+   - Extract this numerical value as "paid_amount" (number, default 0 if not paid/prepaid).
+   - Do NOT confuse product quantities (e.g. "1 ထည်", "2 pcs") with prepaid amounts (e.g. "12000 ks", "12000").
+
+Return ONLY a valid JSON object without markdown fences (no ```json):
+{
+  "customer_name": "...",
+  "customer_phone": "...",
+  "delivery_address": "...",
+  "delivery_notes": "",
+  "paid_amount": 0,
+  "items": [
+    {
+      "product_variant_id": 1,
+      "quantity": 1
+    }
+  ]
+}
+PROMPT;
+    }
+
+    /**
+     * Normalize Burmese digits to English digits.
+     */
+    public function normalizeDigits(string $str): string
+    {
+        $burmeseDigits = ['၀', '၁', '၂', '၃', '၄', '၅', '၆', '၇', '၈', '၉'];
+        $englishDigits = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+
+        return str_replace($burmeseDigits, $englishDigits, $str);
+    }
+
+    /**
+     * Fallback regex to extract prepaid amounts from order captions.
+     */
+    public function extractPrepaidAmount(string $caption): float
+    {
+        $normalized = $this->normalizeDigits($caption);
+
+        $keywords = 'prepaid|paid|advance|deposit|စရန်ငွေ|စရန်|ငွေကြိုလွှဲ|ကြိုလွှဲ|ငွေလွှဲ|ကြိုရှင်း|ရှင်းပြီး';
+
+        // 1. Keyword first: "prepaid - 12000", "prepaid 12k", "စရန် 12000"
+        if (preg_match('/(?:'.$keywords.')\s*[-:=]?\s*(\d+(?:[,\.]\d+)*)\s*(ks|kyats?|ကျပ်|k)?(?!\d)/iu', $normalized, $matches)) {
+            $val = (float) str_replace(',', '', $matches[1]);
+            if (! empty($matches[2]) && strtolower($matches[2]) === 'k') {
+                $val *= 1000;
+            }
+
+            return max(0.0, $val);
         }
 
-        try {
-            $content = '';
-            $source = '';
-
-            // 1. Try Native Google Gemini Models First (Rotates on 429/quota, 503, or failure)
-            if (! empty($geminiKey)) {
-                $geminiModels = [
-                    'gemini-3.5-flash-lite',
-                    'gemini-3.1-flash-lite',
-                    'gemini-3.8-flash',
-                ];
-
-                $userParts = [];
-                if (! empty($imageBase64)) {
-                    $userParts[] = [
-                        'inlineData' => [
-                            'mimeType' => $imageMimeType,
-                            'data' => $imageBase64,
-                        ],
-                    ];
-                }
-                if (! empty($promptText)) {
-                    $userParts[] = ['text' => $promptText];
-                }
-
-                foreach ($geminiModels as $gModel) {
-                    try {
-                        $http = Http::connectTimeout(3)->timeout(12)
-                            ->withOptions([
-                                'curl' => [
-                                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                                ],
-                            ])
-                            ->withHeaders([
-                                'Content-Type' => 'application/json',
-                            ]);
-
-                        if (! empty($geminiProxy)) {
-                            $http->withOptions(['proxy' => $geminiProxy]);
-                        }
-
-                        $geminiResponse = $http->post("{$geminiBaseUrl}/v1beta/models/{$gModel}:generateContent?key={$geminiKey}", [
-                            'system_instruction' => [
-                                'parts' => ['text' => $systemPrompt],
-                            ],
-                            'contents' => [
-                                [
-                                    'role' => 'user',
-                                    'parts' => $userParts,
-                                ],
-                            ],
-                            'safetySettings' => [
-                                [
-                                    'category' => 'HARM_CATEGORY_DANGEROUS_CONTENT',
-                                    'threshold' => 'BLOCK_NONE',
-                                ],
-                                [
-                                    'category' => 'HARM_CATEGORY_HARASSMENT',
-                                    'threshold' => 'BLOCK_NONE',
-                                ],
-                                [
-                                    'category' => 'HARM_CATEGORY_HATE_SPEECH',
-                                    'threshold' => 'BLOCK_NONE',
-                                ],
-                                [
-                                    'category' => 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-                                    'threshold' => 'BLOCK_NONE',
-                                ],
-                            ],
-                            'generationConfig' => [
-                                'temperature' => 0.0,
-                                'responseMimeType' => 'application/json',
-                            ],
-                        ]);
-
-                        if ($geminiResponse->successful()) {
-                            $geminiData = $geminiResponse->json();
-                            $content = (string) ($geminiData['candidates'][0]['content']['parts'][0]['text'] ?? '');
-                            if (! empty($content)) {
-                                $source = "gemini:{$gModel}";
-                                break;
-                            }
-                        }
-
-                        Log::warning("Gemini model {$gModel} failed (status: {$geminiResponse->status()}). Trying next model...", [
-                            'body' => $geminiResponse->body(),
-                        ]);
-                    } catch (Throwable $e) {
-                        Log::warning("Gemini connection error on {$gModel}: ".$e->getMessage());
-
-                        $msg = strtolower($e->getMessage());
-                        if (str_contains($msg, 'could not resolve host') || str_contains($msg, 'curl error 6')) {
-                            break;
-                        }
-
-                        continue;
-                    }
-                }
+        // 2. Amount first: "12000 prepaid", "12k prepaid", "12000 စရန်"
+        if (preg_match('/(\d+(?:[,\.]\d+)*)\s*(ks|kyats?|ကျပ်|k)?\s*[-:=]?\s*(?:'.$keywords.')/iu', $normalized, $matches)) {
+            $val = (float) str_replace(',', '', $matches[1]);
+            if (! empty($matches[2]) && strtolower($matches[2]) === 'k') {
+                $val *= 1000;
             }
 
-            // 2. Try OpenRouter Fallback Chain (Works globally without VPN)
-            if (empty($content) && ! empty($openRouterKey)) {
-                $primaryModel = (string) config('services.openrouter.model', 'nvidia/nemotron-3.5-super-vl:free');
-                $modelChain = array_unique([
-                    $primaryModel,
-                    'nvidia/nemotron-3.5-super-vl:free',
-                    'google/gemma-4-26b-a4b-it:free',
-                    'google/gemma-4-31b-it:free',
-                ]);
-
-                if (! empty($imageBase64)) {
-                    $userContent = [];
-                    if (! empty($promptText)) {
-                        $userContent[] = ['type' => 'text', 'text' => $promptText];
-                    }
-                    $userContent[] = [
-                        'type' => 'image_url',
-                        'image_url' => [
-                            'url' => "data:{$imageMimeType};base64,{$imageBase64}",
-                        ],
-                    ];
-                } else {
-                    $userContent = $promptText;
-                }
-
-                foreach ($modelChain as $currentModel) {
-                    try {
-                        $orResponse = Http::connectTimeout(3)->timeout(12)
-                            ->withOptions([
-                                'curl' => [
-                                    CURLOPT_IPRESOLVE => CURL_IPRESOLVE_V4,
-                                ],
-                            ])
-                            ->withHeaders([
-                                'Authorization' => "Bearer {$openRouterKey}",
-                                'HTTP-Referer' => config('app.url', 'http://localhost:8088'),
-                                'X-Title' => 'ShopTracker',
-                                'Content-Type' => 'application/json',
-                            ])
-                            ->post('https://openrouter.ai/api/v1/chat/completions', [
-                                'model' => $currentModel,
-                                'messages' => [
-                                    ['role' => 'system', 'content' => $systemPrompt],
-                                    ['role' => 'user', 'content' => $userContent],
-                                ],
-                                'temperature' => 0.0,
-                            ]);
-
-                        if ($orResponse->successful()) {
-                            $responseData = $orResponse->json();
-                            $content = (string) ($responseData['choices'][0]['message']['content'] ?? '');
-                            if (! empty($content)) {
-                                $source = "openrouter:{$currentModel}";
-                                break;
-                            }
-                        }
-
-                        Log::warning("OpenRouter model {$currentModel} failed (status: {$orResponse->status()}). Trying next...");
-                    } catch (Throwable $e) {
-                        Log::warning("OpenRouter error on {$currentModel}: ".$e->getMessage());
-                    }
-                }
-            }
-
-            // 3. Final Check: Did ANY API succeed?
-            if (empty($content)) {
-                Log::error('All AI APIs in the fallback chain failed.');
-
-                return [
-                    'success' => false,
-                    'reason' => 'api_error',
-                    'message' => 'AI Service temporarily unavailable. Using smart local parser.',
-                ];
-            }
-
-            // 4. Process the successful response
-            $cleanJson = trim($content);
-            if (str_starts_with($cleanJson, '```')) {
-                $cleanJson = (string) preg_replace('/^```(?:json)?\s*/i', '', $cleanJson);
-                $cleanJson = (string) preg_replace('/\s*```$/', '', $cleanJson);
-                $cleanJson = trim($cleanJson);
-            }
-
-            $parsed = json_decode($cleanJson, true);
-
-            if (! is_array($parsed)) {
-                Log::warning('AI returned non-JSON content', ['source' => $source, 'content' => $content]);
-
-                return [
-                    'success' => false,
-                    'reason' => 'invalid_ai_response',
-                    'message' => 'Could not parse AI response.',
-                ];
-            }
-
-            // Normalize phone number digits if Burmese digits were returned
-            $phone = trim((string) ($parsed['customer_phone'] ?? ''));
-            $phone = strtr($phone, [
-                '၀' => '0', '၁' => '1', '၂' => '2', '၃' => '3', '၄' => '4',
-                '၅' => '5', '၆' => '6', '၇' => '7', '၈' => '8', '၉' => '9',
-            ]);
-
-            // Extract individual phone numbers, clean and standardize them
-            preg_match_all('/(?:\+?95\s*9|0\s*9)[\s\-\.]*(?:\d[\s\-\.]*){7,9}\b/', $phone, $phoneMatches);
-            if (! empty($phoneMatches[0])) {
-                $cleanedPhones = [];
-                foreach ($phoneMatches[0] as $rawPh) {
-                    $cleanPh = (string) preg_replace('/[\s\-\.\+]/', '', $rawPh);
-                    if (str_starts_with($cleanPh, '959')) {
-                        $cleanPh = '09'.substr($cleanPh, 3);
-                    } elseif (! str_starts_with($cleanPh, '09') && str_starts_with($cleanPh, '9')) {
-                        $cleanPh = '0'.$cleanPh;
-                    }
-                    if (! in_array($cleanPh, $cleanedPhones, true)) {
-                        $cleanedPhones[] = $cleanPh;
-                    }
-                }
-                $phone = implode(', ', $cleanedPhones);
-            } else {
-                $phone = (string) preg_replace('/[^\d+,\/\s-]/', '', $phone);
-            }
-
-            $addr = trim((string) ($parsed['address'] ?? ''));
-
-            $notes = trim((string) ($parsed['delivery_notes'] ?? ''));
-            if (preg_match('/^(?:cod|ငွေချေ|ငွေလွှဲ|တန်ဆာခ|ပစ္စည်းရောက်ငွေချေ)(?:\s*(?:ရယူမည်|ရလား|ယူမည်|ပါ|နော်|နှင့်|ဖြင့်|ရှင်းပြီး|ရှင်းပေးပါ))?$/iu', $notes) ||
-                preg_match('/^(?:တစုံယူမယ်နော်|တစ်စုံယူမယ်နော်|၁စုံယူမယ်နော်|မှာမယ်နော်)$/u', $notes)) {
-                $notes = '';
-            }
-
-            return [
-                'success' => true,
-                'data' => [
-                    'customer_name' => trim((string) ($parsed['customer_name'] ?? '')),
-                    'customer_phone' => $phone,
-                    'address' => $addr,
-                    'delivery_address' => $addr,
-                    'delivery_notes' => $notes,
-                ],
-            ];
-
-        } catch (Throwable $e) {
-            Log::error('AI address parsing exception: '.$e->getMessage());
-
-            return [
-                'success' => false,
-                'reason' => 'exception',
-                'message' => 'AI parsing error: '.$e->getMessage(),
-            ];
+            return max(0.0, $val);
         }
+
+        return 0.0;
+    }
+
+    /**
+     * Clean payment notes from delivery notes.
+     */
+    public function cleanDeliveryNotes(string $notes): string
+    {
+        $notes = trim($notes);
+        if (empty($notes)) {
+            return '';
+        }
+
+        $lines = preg_split('/\r\n|\r|\n/', $notes);
+        if (! is_array($lines)) {
+            return '';
+        }
+
+        $filtered = [];
+        $paymentKeywords = 'cod|ငွေလွှဲ|prepaid|paid|advance|deposit|စရန်|kpay|wave';
+
+        foreach ($lines as $line) {
+            $trimmed = trim($line);
+            if (empty($trimmed)) {
+                continue;
+            }
+
+            if (preg_match('/^\s*(?:'.$paymentKeywords.')\b/iu', $trimmed)) {
+                continue;
+            }
+
+            $filtered[] = $trimmed;
+        }
+
+        return implode("\n", $filtered);
     }
 }

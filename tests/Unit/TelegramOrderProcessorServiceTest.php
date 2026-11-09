@@ -9,8 +9,8 @@ use App\Models\ProductBatch;
 use App\Models\ProductVariant;
 use App\Models\SalesOrder;
 use App\Models\Shop;
+use App\Services\AiAddressParserService;
 use App\Services\SalesOrderService;
-use App\Services\TelegramOrderParserService;
 use App\Services\TelegramOrderProcessorService;
 use App\Services\TelegramService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -80,7 +80,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             ], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->willReturn([
@@ -174,7 +174,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             'https://api.telegram.org/bottest-bot-token/sendMessage' => Http::response(['ok' => true], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->never())->method('parseOrder');
 
         $processor = new TelegramOrderProcessorService(
@@ -246,7 +246,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             'stock_quantity' => 10,
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->willReturn([
@@ -323,7 +323,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             'https://api.telegram.org/bottest-bot-token/sendMessage' => Http::response(['ok' => true], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->willReturn([
@@ -406,7 +406,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             'https://api.telegram.org/bottest-bot-token/sendMessage' => Http::response(['ok' => true], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->willReturn([
@@ -479,7 +479,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             'https://api.telegram.org/bottest-bot-token/sendMessage' => Http::response(['ok' => true], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->with('Black Cap 1')
@@ -556,7 +556,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             'https://api.telegram.org/bottest-bot-token/sendMessage' => Http::response(['ok' => true], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once()) // Only called ONCE, not twice!
             ->method('parseOrder')
             ->willReturn([
@@ -647,7 +647,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             'https://api.telegram.org/bottest-bot-token/sendMessage' => Http::response(['ok' => true], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->willReturn([
@@ -697,7 +697,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
 
         $shop = Shop::create(['name' => 'Quiet Shop', 'telegram_chat_id' => '-100777']);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->never())->method('parseOrder');
 
         $processor = new TelegramOrderProcessorService(
@@ -767,7 +767,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             ], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->willReturn([
@@ -864,7 +864,7 @@ class TelegramOrderProcessorServiceTest extends TestCase
             ], 200),
         ]);
 
-        $mockParser = $this->createMock(TelegramOrderParserService::class);
+        $mockParser = $this->createMock(AiAddressParserService::class);
         $mockParser->expects($this->once())
             ->method('parseOrder')
             ->willReturn([

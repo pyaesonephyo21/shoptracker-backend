@@ -11,6 +11,7 @@ use App\Http\Requests\StoreSalesOrderRequest;
 use App\Http\Requests\UpdateSalesOrderRequest;
 use App\Models\Courier;
 use App\Models\PaymentMethod;
+use App\Models\Product;
 use App\Models\SalesOrder;
 use App\Services\SalesOrderService;
 use Exception;

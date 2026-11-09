@@ -15,7 +15,7 @@ class TelegramOrderProcessorService
 {
     public function __construct(
         private readonly TelegramService $telegramService,
-        private readonly TelegramOrderParserService $parserService,
+        private readonly AiAddressParserService $parserService,
         private readonly SalesOrderService $salesOrderService
     ) {}
 

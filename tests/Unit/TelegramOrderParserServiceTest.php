@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Unit;
 
-use App\Services\TelegramOrderParserService;
+use App\Services\AiAddressParserService;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
@@ -17,7 +17,7 @@ class TelegramOrderParserServiceTest extends TestCase
         Config::set('services.gemini.api_key', null);
         Config::set('services.openrouter.api_key', null);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Infinity Silver 1', 'fake-base64', 'image/jpeg', []);
 
         $this->assertFalse($result['success']);
@@ -72,7 +72,7 @@ class TelegramOrderParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Infinity Silver 1', base64_encode('image-bytes'), 'image/jpeg', $candidates);
 
         $this->assertTrue($result['success']);
@@ -122,7 +122,7 @@ class TelegramOrderParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Item 2', base64_encode('bytes'), 'image/png', []);
 
         $this->assertTrue($result['success']);
@@ -161,7 +161,7 @@ class TelegramOrderParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Variant 5', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -195,7 +195,7 @@ class TelegramOrderParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Product 10', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -231,7 +231,7 @@ class TelegramOrderParserServiceTest extends TestCase
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Necklace 2', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -276,7 +276,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Product 42', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -309,7 +309,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $service->parseOrder('Test', base64_encode('bytes'), 'image/jpeg', []);
 
         Http::assertSent(function ($request) {
@@ -347,7 +347,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Silver 1 prepaid - 12000', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -380,7 +380,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Silver 1', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -413,7 +413,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Silver 1 prepaid - 12000', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -446,7 +446,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Silver 1 prepaid - ၁၂၀၀၀', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -455,7 +455,7 @@ TEXT;
 
     public function test_extract_prepaid_amount_helper_formats(): void
     {
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
 
         $this->assertSame(12000.0, $service->extractPrepaidAmount('Silver 1 prepaid - 12000'));
         $this->assertSame(12000.0, $service->extractPrepaidAmount('Silver 1 prepaid: 12000'));
@@ -523,7 +523,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Silver 1 prepaid - 12000', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
@@ -557,7 +557,7 @@ TEXT;
             ], 200),
         ]);
 
-        $service = new TelegramOrderParserService;
+        $service = new AiAddressParserService;
         $result = $service->parseOrder('Silver 1', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);

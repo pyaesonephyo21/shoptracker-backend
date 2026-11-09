@@ -39,6 +39,29 @@ class FormRequestValidationTest extends TestCase
             ->assertJsonValidationErrors(['cart']);
     }
 
+    public function test_sales_create_page_can_be_rendered(): void
+    {
+        $shop = Shop::create(['name' => 'Test Shop']);
+        $user = User::factory()->create(['shop_id' => $shop->id]);
+
+        $product = Product::create([
+            'shop_id' => $shop->id,
+            'name' => 'Test Product',
+            'type' => 'local',
+            'is_active' => true,
+        ]);
+
+        ProductVariant::create([
+            'product_id' => $product->id,
+            'sku' => 'TP01-DEF',
+            'stock_quantity' => 10,
+        ]);
+
+        $response = $this->actingAs($user)->get('/sales/create');
+
+        $response->assertOk();
+    }
+
     public function test_store_product_validates_and_creates_product_with_variants(): void
     {
         $shop = Shop::create(['name' => 'Test Shop']);

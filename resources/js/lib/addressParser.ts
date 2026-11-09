@@ -38,7 +38,10 @@ const MYANMAR_TOWNSHIPS = [
     'နေပြည်တော်', 'ပုဗ္ဗသီရိ', 'ဥတ္တရသီရိ', 'ဇေယျာသီရိ', 'ဇမ္ဗူသီရိ', 'ဒက္ခိဏသီရိ', 'တပ်ကုန်း', 'ပျဉ်းမနား', 'လယ်ဝေး',
     // Major Regional Hubs
     'တောင်ကြီး', 'မော်လမြိုင်', 'ပဲခူး', 'ပုသိမ်', 'မုံရွာ', 'စစ်တွေ', 'မြစ်ကြီးနား', 'လားရှိုး',
-    'တောင်ငူ', 'ပြည်', 'မကွေး', 'ဘားအံ', 'ကော့သောင်း', 'ထားဝယ်', 'မြိတ်', 'ရွှေဘို', 'ဗန်းမော်', 'ကျိုင်းတုံ', 'တာချီလိတ်'
+    'တောင်ငူ', 'ပြည်', 'မကွေး', 'ဘားအံ', 'ကော့သောင်း', 'ထားဝယ်', 'မြိတ်', 'ရွှေဘို', 'ဗန်းမော်', 'ကျိုင်းတုံ', 'တာချီလိတ်',
+    'အောင်ပန်း', 'ကလော', 'မူဆယ်', 'မုဒုံ', 'သထုံ', 'ကျိုက်ထို', 'မြဝတီ', 'ညောင်လေးပင်', 'ဖြူး', 'ရေတာရှည်',
+    'ဟင်္သာတ', 'မြောင်းမြ', 'မအူပင်', 'ဖျာပုံ', 'ဓနုဖြူ', 'ပခုက္ကူ', 'ချောက်', 'ရေနံချောင်း', 'မင်းဘူး',
+    'စစ်ကိုင်း', 'ကလေး', 'ကသာ', 'မိုးညှင်း', 'ကျောက်ဖြူ', 'သံတွဲ', 'ငပလီ'
 ];
 
 // Address structural keywords and landmark indicators
@@ -47,6 +50,7 @@ const ADDRESS_KEYWORDS = [
     'တိုက်', 'အခန်း', 'လွှာ', 'ထပ်', 'ကွန်ဒို', 'တိုက်ခန်း', 'ဆောင်', 'အဆောင်', 'စက်မှုဇုန်', 'ဇုန်', 'ဈေး', 'ဘုရား',
     'ဂိတ်', 'ကားဂိတ်', 'အဝေးပြေးဂိတ်', 'မှတ်တိုင်', 'အနီး', 'ဘေး', 'ရှေ့', 'မျက်နှာချင်းဆိုင်', 'ထောင့်', 'လမ်းဆုံ', 'မြို့နယ်', 'မြို့',
     'အထက', 'အလက', 'အမက', 'ကျောင်း', 'ဆေးရုံ', 'ရုံး',
+    'ဘုမ္မာ', 'နန္ဒာ', 'သုဓမ္မာ', 'မေဓာဝီ', 'ခေမာသီ', 'ဝေဘာဂီ', 'သံသုမာ', 'ဗညားဒလ', 'ကျိုက္ကဆံ', 'ဦးလွန်း', 'အရိုးကုန်း',
     'center', 'centre', 'school', 'language', 'hotel', 'plaza', 'tower', 'condo', 'mall', 'mart', 'hospital'
 ];
 
@@ -287,6 +291,8 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
         }
     }
 
+    // 6. Auto-resolve Mandalay township for cross-street addresses
+    finalAddress = resolveMandalayTownship(finalAddress);
     finalAddress = finalAddress.replace(/\s+/g, ' ').trim();
 
     if (extractedName) {
@@ -306,4 +312,61 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
         paid_amount: paidAmount,
         confidence
     };
+}
+
+/**
+ * Automatically infer and insert Mandalay township for grid-based cross-street addresses (e.g. 55x24, 42x25, 78x30).
+ */
+export function resolveMandalayTownship(address: string): string {
+    const trimmed = address.trim();
+    if (!trimmed) return '';
+
+    const townships = ['အောင်မြေသာစံ', 'ချမ်းအေးသာစံ', 'မဟာအောင်မြေ', 'ချမ်းမြသာစည်', 'ပြည်ကြီးတံခွန်'];
+    for (const t of townships) {
+        if (trimmed.includes(t)) {
+            return trimmed;
+        }
+    }
+
+    const norm = normalizeMyanmarDigits(trimmed);
+    const match = norm.match(/(\d{1,3})\s*(?:[xX*×\/]|လမ်း?\s*(?:x|နှင့်|နဲ့)\s*လမ်း?|\s+နှင့်\s+|\s+နဲ့\s+|\s*ကြား\s*|\s*ထောင့်\s*)\s*(\d{1,3})/u);
+    if (!match) {
+        return trimmed;
+    }
+
+    const n1 = parseInt(match[1], 10);
+    const n2 = parseInt(match[2], 10);
+
+    let township: string | null = null;
+    if (n1 <= 26 || n2 <= 26) {
+        township = 'အောင်မြေသာစံ';
+    } else if ((n1 >= 27 && n1 <= 35) || (n2 >= 27 && n2 <= 35)) {
+        township = 'ချမ်းအေးသာစံ';
+    } else if ((n1 >= 36 && n1 <= 42) || (n2 >= 36 && n2 <= 42)) {
+        township = 'မဟာအောင်မြေ';
+    } else if (n1 >= 90 || n2 >= 90) {
+        township = 'ပြည်ကြီးတံခွန်';
+    } else if ((n1 >= 43 && n1 <= 73) || (n2 >= 43 && n2 <= 73)) {
+        township = 'ချမ်းမြသာစည်';
+    } else if (n1 >= 74 || n2 >= 74) {
+        township = 'ပြည်ကြီးတံခွန်';
+    }
+
+    if (!township) {
+        return trimmed;
+    }
+
+    const hasMandalay = /(?:မန္တလေး|Mandalay)/iu.test(trimmed);
+    if (hasMandalay) {
+        let clean = trimmed.replace(/^(?:မန္တလေး|Mandalay)[\s,၊]*/iu, '');
+        clean = clean.replace(/[,၊\s]*(?:မန္တလေး|Mandalay)[\s,၊]*/iu, '');
+        clean = clean.replace(/^[,၊\s]+/u, '');
+        return `မန္တလေး၊ ${township}၊ ${clean}`;
+    }
+
+    if (/(?:ရန်ကုန်|Yangon|နေပြည်တော်|Naypyitaw|တောင်ကြီး|Taunggyi|ပဲခူး|Bago)/iu.test(trimmed)) {
+        return trimmed;
+    }
+
+    return `မန္တလေး၊ ${township}၊ ${trimmed}`;
 }

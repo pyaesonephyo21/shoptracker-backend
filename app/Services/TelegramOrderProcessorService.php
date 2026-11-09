@@ -361,7 +361,8 @@ class TelegramOrderProcessorService
             }
         }
 
-        $message .= "\n🔗 <a href=\"{$safeUrl}\">View Order #{$order->id}</a>";
+        $orderNum = $order->order_number ?? $order->id;
+        $message .= "\n🔗 <a href=\"{$safeUrl}\">View Order #{$orderNum}</a>";
 
         return $message;
     }

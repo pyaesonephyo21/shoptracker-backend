@@ -3,6 +3,7 @@ export interface SalesOrder {
     payments: any;
     cancel_reason: boolean;
     id: number;
+    order_number?: number;
     date: string;
     customer: {
         name: string | null;

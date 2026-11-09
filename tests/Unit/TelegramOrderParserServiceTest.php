@@ -78,8 +78,8 @@ class TelegramOrderParserServiceTest extends TestCase
         $this->assertTrue($result['success']);
         $this->assertSame('ဒေါ်နွယ်နွယ်ဝင်း', $result['data']['customer_name']);
         $this->assertSame('09772775937', $result['data']['customer_phone']);
-        $this->assertSame('အမှတ် ၁၁ ရပ်ကွက်၊ သာကေတမြို့နယ်၊ ရန်ကုန်', $result['data']['delivery_address']);
-        $this->assertSame('ရုံးချိန်အတွင်းပို့ပါ', $result['data']['delivery_notes']);
+        $this->assertSame('အမှတ် ၁၁ ရပ်ကွက်၊ သာကေတမြို့နယ်၊ ရန်ကုန် (ရုံးချိန်အတွင်းပို့ပါ)', $result['data']['delivery_address']);
+        $this->assertSame('', $result['data']['delivery_notes']);
         $this->assertCount(1, $result['data']['items']);
         $this->assertSame(101, $result['data']['items'][0]['product_variant_id']);
         $this->assertSame(1, $result['data']['items'][0]['quantity']);
@@ -510,7 +510,7 @@ TEXT;
                                     'customer_name' => 'ဒေါ်နွယ်',
                                     'customer_phone' => '09123456789',
                                     'delivery_address' => 'ရန်ကုန်',
-                                    'delivery_notes' => "prepaid - 12000\nမနက်ပိုင်းပို့ပါ",
+                                    'delivery_notes' => "prepaid - 12000\nမနက်ပိုင်းပို့ပါ\nadd after 2 weeks",
                                     'paid_amount' => 12000,
                                     'items' => [
                                         ['product_variant_id' => 1, 'quantity' => 1],
@@ -527,7 +527,8 @@ TEXT;
         $result = $service->parseOrder('Silver 1 prepaid - 12000', base64_encode('bytes'), 'image/jpeg', []);
 
         $this->assertTrue($result['success']);
-        $this->assertSame('မနက်ပိုင်းပို့ပါ', $result['data']['delivery_notes']);
+        $this->assertSame('ရန်ကုန် (မနက်ပိုင်းပို့ပါ)', $result['data']['delivery_address']);
+        $this->assertSame('add after 2 weeks', $result['data']['delivery_notes']);
         $this->assertSame(12000.0, $result['data']['paid_amount']);
     }
 

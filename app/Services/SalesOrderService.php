@@ -20,8 +20,16 @@ class SalesOrderService
     {
         return DB::transaction(function () use ($data, $items) {
             $hasCourier = ! empty($data['courier_id']);
+            $shopId = Auth::check() ? (Auth::user()?->shop_id ?? $data['shop_id'] ?? null) : ($data['shop_id'] ?? null);
+
+            $nextOrderNumber = (SalesOrder::withoutGlobalScopes()
+                ->where('shop_id', $shopId)
+                ->lockForUpdate()
+                ->max('order_number') ?? 0) + 1;
+
             $order = SalesOrder::create([
-                'shop_id' => Auth::check() ? (Auth::user()?->shop_id ?? $data['shop_id'] ?? null) : ($data['shop_id'] ?? null),
+                'shop_id' => $shopId,
+                'order_number' => $nextOrderNumber,
                 'customer_name' => (string) ($data['customer_name'] ?? 'Guest'),
                 'customer_phone' => (string) ($data['customer_phone'] ?? ''),
                 'delivery_address' => (string) ($data['delivery_address'] ?? ''),

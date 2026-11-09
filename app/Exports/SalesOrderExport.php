@@ -45,7 +45,7 @@ class SalesOrderExport implements FromQuery, ShouldAutoSize, WithColumnFormattin
         $paymentMethod = $latestPayment ? $latestPayment->payment_method : '-';
 
         return [
-            $order->id,
+            $order->order_number ?? $order->id,
             $order->created_at->format('Y-m-d H:i:s'),
             $order->customer_name,
             $order->customer_phone,

@@ -39,6 +39,7 @@ class CourierSettlementController extends Controller
                 ->map(function ($order) {
                     return [
                         'id' => $order->id,
+                        'order_number' => $order->order_number ?? $order->id,
                         'date' => $order->created_at->format('M d, Y'),
                         'customer_name' => $order->customer_name,
                         'net_revenue' => (float) $order->net_revenue,

@@ -139,13 +139,13 @@ export default function EditSale({ order, couriers = [] }: { order: any, courier
     };
 
     return (
-        <AppLayout title={`Edit Order #${order.id}`} backUrl={`/sales/${order.id}`} hideBottomNav>
-            <Head title={`Edit Order #${order.id}`} />
+        <AppLayout title={`Edit Order #${order.order_number ?? order.id}`} backUrl={`/sales/${order.id}`} hideBottomNav>
+            <Head title={`Edit Order #${order.order_number ?? order.id}`} />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full px-4 sm:px-0">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
                     <h1 className="text-3xl font-black text-black dark:text-white tracking-tight">
-                        Edit Order #{order.id}
+                        Edit Order #{order.order_number ?? order.id}
                     </h1>
                     <button
                         type="button"

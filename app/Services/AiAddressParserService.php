@@ -47,17 +47,45 @@ class AiAddressParserService
         }
 
         $parsed = $result['data'] ?? [];
-        $address = (string) ($parsed['address'] ?? $parsed['delivery_address'] ?? '');
+        $rawAddress = (string) ($parsed['address'] ?? $parsed['delivery_address'] ?? '');
+        $rawPhone = (string) ($parsed['customer_phone'] ?? '');
+        $rawNotes = (string) ($parsed['delivery_notes'] ?? '');
+
+        $formatted = $this->formatAddressAndNotes($rawPhone, $rawAddress, $rawNotes);
+
+        $paidAmount = 0.0;
+        if (isset($parsed['paid_amount'])) {
+            $rawPaid = $parsed['paid_amount'];
+            if (is_numeric($rawPaid)) {
+                $paidAmount = max(0.0, (float) $rawPaid);
+            } elseif (is_string($rawPaid)) {
+                $normPaid = $this->normalizeDigits(trim($rawPaid));
+                if (preg_match('/^(\d+(?:\.\d+)?)\s*k$/i', $normPaid, $kMatch)) {
+                    $paidAmount = ((float) $kMatch[1]) * 1000;
+                } else {
+                    $cleanDigits = preg_replace('/[^\d.]/', '', $normPaid);
+                    $paidAmount = is_numeric($cleanDigits) ? max(0.0, (float) $cleanDigits) : 0.0;
+                }
+            }
+        }
+
+        if ($paidAmount <= 0.0 && ! empty($rawText)) {
+            $fallbackPaid = $this->extractPrepaidAmount($rawText);
+            if ($fallbackPaid > 0.0) {
+                $paidAmount = $fallbackPaid;
+            }
+        }
 
         return [
             'success' => true,
             'source' => $result['source'] ?? 'ai',
             'data' => [
                 'customer_name' => (string) ($parsed['customer_name'] ?? ''),
-                'customer_phone' => $this->normalizeDigits((string) ($parsed['customer_phone'] ?? '')),
-                'address' => $address,
-                'delivery_address' => $address,
-                'delivery_notes' => $this->cleanDeliveryNotes((string) ($parsed['delivery_notes'] ?? '')),
+                'customer_phone' => $formatted['customer_phone'],
+                'address' => $formatted['address'],
+                'delivery_address' => $formatted['address'],
+                'delivery_notes' => $formatted['delivery_notes'],
+                'paid_amount' => $paidAmount,
             ],
         ];
     }
@@ -139,16 +167,20 @@ class AiAddressParserService
             }
         }
 
-        $address = (string) ($parsed['delivery_address'] ?? $parsed['address'] ?? '');
+        $rawAddress = (string) ($parsed['delivery_address'] ?? $parsed['address'] ?? '');
+        $rawPhone = (string) ($parsed['customer_phone'] ?? '');
+        $rawNotes = (string) ($parsed['delivery_notes'] ?? '');
+
+        $formatted = $this->formatAddressAndNotes($rawPhone, $rawAddress, $rawNotes);
 
         return [
             'success' => true,
             'source' => $result['source'] ?? 'ai',
             'data' => [
                 'customer_name' => (string) ($parsed['customer_name'] ?? ''),
-                'customer_phone' => $this->normalizeDigits((string) ($parsed['customer_phone'] ?? '')),
-                'delivery_address' => $address,
-                'delivery_notes' => $this->cleanDeliveryNotes((string) ($parsed['delivery_notes'] ?? '')),
+                'customer_phone' => $formatted['customer_phone'],
+                'delivery_address' => $formatted['address'],
+                'delivery_notes' => $formatted['delivery_notes'],
                 'paid_amount' => $paidAmount,
                 'items' => $normalizedItems,
             ],
@@ -195,6 +227,7 @@ class AiAddressParserService
         if (! empty($geminiKey)) {
             $geminiModels = [
                 'gemini-3.5-flash-lite',
+                'gemini-3.5-flash',
                 'gemini-3.8-flash',
                 'gemini-3.1-flash-lite',
             ];
@@ -376,51 +409,53 @@ You are an expert AI assistant specialized in parsing Myanmar e-commerce custome
 
 If an image or screenshot is provided:
 - Carefully perform OCR to read all text, including Myanmar (Burmese) script and English.
-- Locate sender/recipient information. Distinguish between seller/shop information and buyer/recipient (customer) information. Extract the BUYER / RECIPIENT customer details.
-- Identify the dedicated customer info bubble (e.g., Name, Address, Phone block sent by customer).
+- Distinguish between seller/shop information (outgoing messages, right side, avatar) and buyer/recipient customer information (incoming messages, left side). Extract BUYER / RECIPIENT customer details ONLY.
+- CRITICAL: NEVER extract seller/admin conversational messages (e.g., "မင်မင် deli လေးအပ်ပေးလိုက်ပါမယ်နော်", "ဟုတ် နာမည် ဖုန်းနံပါတ်လေးပါပေးပါနော်", "ဟုတ်ပါတယ်ဗျ", "ဟုတ်ကဲ့ပါ") as customer notes or customer names!
 
 CRITICAL OCR & GEOGRAPHY ACCURACY GUIDELINES FOR BURMESE SCRIPT:
-1. Myanmar Ward (ရပ်ကွက်) Systems:
-   Myanmar addresses use three distinct ward naming systems:
-   - Numbered Wards (ဂဏန်း ရပ်ကွက်): E.g., ၁ ရပ်ကွက်, ၂ ရပ်ကွက်, ၁၀ ရပ်ကွက်, ၁၁ ရပ်ကွက်, ၁၂ ရပ်ကွက်, ၁၆ ရပ်ကွက်.
-     * Wards are frequently double-digits (e.g., ၁၀, ၁၁, ၁၂, ၁၃, ၁၄, ၁၅, ၁၆).
-     * Look closely at the circular loops before 'ရပ်ကွက်'. When there are two consecutive numeral 1s side-by-side ('၁၁'), transcribe accurately as '၁၁ ရပ်ကွက်' (Ward 11). Do not collapse or drop '၁၁' into a single '၁', and do not mistake for consonants 'ဘ' or 'သ'.
-     * In townships that strictly use numbered wards (e.g. ဓနုဖြူ, သာကေတ, လှိုင်သာယာ, ဒဂုံ), recognize the number: e.g. '၁၁ ရပ်ကွက်' (Ward 11).
-   - Alphabetical Wards (အက္ခရာ ရပ်ကွက်): E.g., က ရပ်ကွက်, ခ ရပ်ကွက်, ဈ ရပ်ကွက်, ဘ ရပ်ကွက်, မ ရပ်ကွက်.
-     * Certain towns (e.g., တောင်ငူ, မော်လမြိုင်, ပြည်, ပုသိမ်) use Burmese alphabet letters. When an alphabetical ward is genuinely indicated (e.g., 'ဘ ရပ်ကွက်', '(ဘ) ရပ်ကွက်', 'ဈ ရပ်ကွက်'), preserve the letter faithfully.
-   - Named Wards (အမည်ပေး ရပ်ကွက်): E.g., ဈေးရပ်ကွက်, မင်္ဂလာရပ်ကွက်, ရွာသစ်ရပ်ကွက်, သီရိရပ်ကွက်. Preserve compound named wards accurately.
-2. Myanmar Township & City Validation:
-   - Validate against real, legitimate Myanmar townships and cities.
-   - Disambiguate common visual confusions in rounded Burmese script:
-     * 'ဓ' (Dha) vs 'စ' (Sa) vs 'မ' (Ma): E.g., 'ဓနုဖြူ' (Danubyu Township in Ayeyarwady), NOT 'စနုဖြူ' or 'မနုဖြူ' or 'စခုဖြူ'.
-     * '၁' (Burmese numeral 1) vs 'ဝ' (letter Wa) vs '၀' (numeral 0).
-   - Validate genuine townships such as 'ဓနုဖြူ', 'ရေနံချောင်း', 'ချောက်', 'မိုးကုတ်', 'သာကေတ', 'ဒလ', 'မြောက်ဒဂုံ', 'လှိုင်သာယာ', etc.
-3. Delivery Remarks / Notes Filtering:
-   - ONLY include specific logistics constraints or customer delivery requests (e.g., "ကျောင်းဖွင့်ရက်မှပို့ပါ", "မနက်ပိုင်းပဲဆက်ပါ", "ရုံးချိန်ပို့ပေးပါ", "မပို့ခင်ဖုန်းဆက်ပါ", "ကားဂိတ်ချိန်းပါ").
-   - CRITICAL: NEVER extract payment methods (e.g., "COD", "Cod ရယူမည်", "Cod ရလား", "ငွေလွှဲ"), order intent (e.g., "တစုံယူမယ်နော်", "မှာမယ်နော်"), or conversational greetings into delivery notes.
-   - If no specific logistics constraints are present, leave delivery_notes as empty string ("").
+1. Myanmar Customer Name OCR & Character Distinction:
+   - Carefully disambiguate visually similar Burmese characters in names:
+     * 'ကြယ်' (Kya + ya-yit + ya-pet + asat = Star) vs 'ကြွယ်' (Kya + ya-yit + wa-swe = Wealthy):
+       In customer names, recognize standard beloved name patterns: 'ကြယ်စင်' (Kyei Sin = Star/Constellation), 'ကြယ်စင်မိုး', 'ကြယ်စင်မိုးဦး', 'ကြယ်စင်သန့်'. Do NOT transcribe 'ကြယ်' as 'ကြွယ်'.
+     * 'စ' (Sa-lone) vs 'ဇ' (Za-gwe):
+       'စ' has a smooth continuous rounded crescent with an open top-right. 'ဇ' has a two-tiered notched middle loop.
+       In names like 'ကြယ်စင်', the syllable is 'စင်' with 'စ', NOT 'ဇင်' with 'ဇ'. Transcribe 'ကြယ်စင်' faithfully.
+     * Syllable Preservation:
+       Preserve legitimate name syllables ('ခင်', 'ဝင်း', 'အေး', 'ဖြူ', 'နွယ်', 'မိုး', 'ထွေး', 'ဆွေ', 'ကြည်', 'ဦး', 'စင်', 'မင်း').
+       Example: Customer bubble 'ကြယ်စင်မိုးဦး' -> 'ကြယ်စင်မိုးဦး'.
+     * Honorifics & Greetings:
+       Preserve genuine honorifics ('ကို', 'မ', 'မောင်', 'ဒေါ်', 'ဦး', 'Dr.'). Strip greetings ('မင်္ဂလာပါ', 'အမရေ', 'အစ်မ', 'အကို', 'ညီမလေး', 'Name:', 'Customer Name:'). Never cut into genuine name syllables.
 
-Your extraction goals:
-1. Customer Name:
-   - Extract the real person's complete name.
-   - Preserve genuine name honorifics if present (e.g., "ကို", "မ", "မောင်", "ဒေါ်", "ဦး", "Dr.").
-   - CRITICAL: Never truncate legitimate Burmese name syllables (e.g., "ခင်", "ဝင်း", "အေး", "ဖြူ", "နွယ်", "မိုး", "ထွေး", "ဆွေ", "ကြည်"). For example, "မအိမ့်မှူးခင်" must be preserved as "မအိမ့်မှူးခင်", NOT "မအိမ့်မှူး". "ခင်" is a standard name syllable, not a polite particle.
-   - Strip conversational vocatives & greetings (e.g., "မင်္ဂလာပါ", "အမရေ", "အစ်မ", "အကို", "ညီမလေး", "Name:", "Acc Name:", "Customer Name:").
-   - Only strip polite particles when they are standalone sentence endings (e.g., "ပါရှင့်", "ပါခင်ဗျာ", "ပါဗျ", "ပါနော်", "ပါ့မယ်", "ရှင့်", "ကတော့"). Never cut into the person's actual name. Example: "ကိုဝင်းဇော်ခင်ဗျာ" -> "ကိုဝင်းဇော်", but "မအိမ့်မှူးခင်" -> "မအိမ့်မှူးခင်".
-   - Never mistake ordered items (e.g. "T-shirt 2 ထည်", "Lipstick", "Dress M size", "တစုံယူမယ်နော်") for the customer name.
+2. Myanmar Ward (ရပ်ကွက်) & Township Geocoding Disambiguation:
+   - Validate against real, legitimate Myanmar townships and registered wards:
+     * 'အရိုးကုန်း' vs 'အရုံးကုန်း':
+       In Tarmwe Township (တာမွေမြို့နယ်, Yangon), the official registered ward is 'အရိုးကုန်း ရပ်ကွက်' (Ayoe Kone Ward). There is NO ward named 'အရုံးကုန်း' in Tarmwe. Note the vowel combination: 'ိ' + 'ု' ('ရိုး' as in အရိုးကုန်း), NOT 'ု' + 'ံ' ('ရုံး').
+     * Famous Yangon wards:
+       - တာမွေ: အရိုးကုန်း, မလွှကုန်း, ကျောက်မြောင်း, နတ်မောက်, ပုသိမ်ညွန့်, မေတ္တာညွန့်.
+       - စမ်းချောင်း: လင်းလွန်းတောင်, လင်းလွန်းမြောက်, ရှင်စောပု, မုန့်လက်ဆောင်းကုန်း, ဝေဠုဝန်.
+       - ဗဟန်း: ဆရာစံ, ရွှေတောင်ကြား, နတ်မောက်.
+       - လှိုင်: ၁ ရပ်ကွက် to ၁၆ ရပ်ကွက်.
+     * Numbered Wards: E.g., ၁၀ ရပ်ကွက်, ၁၁ ရပ်ကွက်, ၁၂ ရပ်ကွက်, ၁၆ ရပ်ကွက်. Look closely at loops; do not collapse '၁၁' into '၁'.
+     * Alphabetical Wards: E.g., က ရပ်ကွက်, ခ ရပ်ကွက်, ဈ ရပ်ကွက်, ဘ ရပ်ကွက် in towns like တောင်ငူ, မော်လမြိုင်, ပြည်, ပုသိမ်.
+     * Towns: 'ဓနုဖြူ', 'ရေနံချောင်း', 'ချောက်', 'မိုးကုတ်', 'သာကေတ', 'ဒလ', 'မြောက်ဒဂုံ', 'လှိုင်သာယာ'.
+     * Street & House numbers: E.g., 'အမှတ် ၈ ဦးလွန်းလမ်း' -> 'အမှတ် ၈၊ ဦးလွန်းလမ်း' (No. 8, U Loon Street).
 
-2. Customer Phone:
-   - Extract Myanmar phone numbers.
-   - Normalize Burmese digits (၀-၉) to standard English digits (0-9).
-   - Format cleanly as standard Myanmar phone format (e.g., "09XXXXXXXXX").
-   - If there are multiple phone numbers, extract all of them separated by a comma (e.g., "09772775937, 09776573573").
-   - If a 2nd phone number is missing 09 (e.g. "09772775937 / 776573573"), restore the full 09 prefix.
-
-3. Delivery Address:
-   - Extract full address including city, township, street name, house/building number, ward (ရပ်ကွက်), landmarks, school/office buildings, hostels/halls (ဆောင်), and Highway Express gates (ကားဂိတ် / အဝေးပြေးဂိတ်).
-   - If message components are delimited by slashes (/), commas, or newlines, extract all address components cleanly.
-   - Format with neat Burmese commas (၊) or spaces between components for readability.
-   - Example: "၁၁ရပ်ကွက် ဓနုဖြူမြို့" -> "၁၁ ရပ်ကွက်၊ ဓနုဖြူမြို့".
+3. Delivery Address & Notes Formatting (CRITICAL DELIVERY APP CONVENTIONS):
+   In Myanmar e-commerce logistics, delivery apps (Ninja Van, BeeXprss, Royal Express) have only ONE phone number field and print the Address field on the parcel's waybill sticker:
+   - Primary Phone Number:
+     Put the single primary phone in "customer_phone" (e.g. "09266712266").
+   - Secondary / Additional Phone Numbers:
+     If the customer has more than one phone number, append secondary phone numbers to the END of "address" inside parentheses: e.g. "(09776573573)".
+   - Courier / Delivery Rider Instructions:
+     Any constraint intended for the delivery driver or specific delivery days/times MUST be appended to the END of "address" inside parentheses:
+     * Call before delivery: "(မပို့ခင်ဖုန်းဆက်ပါ)" or "(call before deliver)"
+     * Specific day or time: "(ရုံးချိန်တွင်းပို့ပါ)", "(ကျောင်းဖွင့်ရက်မှပို့ပါ)", "(တနင်္လာနေ့မှပို့ပါ)", "(စနေ တနင်္ဂနွေမှပို့ပါ)", "(မနက်ပိုင်းပို့ပါ)", "(ညနေပိုင်းပို့ပါ)", "(ရုံးဖွင့်ရက်ပို့ပါ)"
+     * Transit / Bus terminal: "(ကားဂိတ်ပို့ပါ)", "(ဂိတ်ချိန်းပါ)"
+   - Delivery Notes ("delivery_notes"):
+     STRICTLY reserved for internal shop operations, seller reminders, warehouse holds, or customer financial balances:
+     * Examples: "add after 2 weeks", "နောက် ၂ ပတ်မှ ပို့ပါ", "4000 remains", "ကျန်ငွေ ၄၀၀၀".
+     * CRITICAL: NEVER put courier delivery instructions (e.g. call before deliver, specific delivery day) in "delivery_notes" — they belong at the end of "address" with (...).
+     * If there are no internal shop remarks, leave "delivery_notes" as empty string ("").
 PROMPT;
     }
 
@@ -436,7 +471,8 @@ Return ONLY a valid JSON object without markdown code blocks (no ```json fences)
   "customer_name": "...",
   "customer_phone": "...",
   "address": "...",
-  "delivery_notes": ""
+  "delivery_notes": "",
+  "paid_amount": 0
 }
 PROMPT;
     }
@@ -534,36 +570,130 @@ PROMPT;
     }
 
     /**
-     * Clean payment notes from delivery notes.
+     * Post-process and normalize recipient phone, address, and delivery notes according to Myanmar delivery app conventions.
+     *
+     * 1. Primary phone number stays in customer_phone.
+     * 2. Secondary phone numbers are appended to address in parentheses: (09XXXXXXXXX).
+     * 3. Delivery rider instructions (call before deliver, deliver on specific days/times) are appended to address in parentheses: (မပို့ခင်ဖုန်းဆက်ပါ).
+     * 4. Internal shop notes (e.g. "add after 2 weeks", "4000 remains", order holds) remain in delivery_notes.
+     * 5. Conversational greetings and seller messages (e.g. "မင်မင် deli လေးအပ်ပေးလိုက်ပါမယ်နော်") are removed.
+     *
+     * @return array{customer_phone: string, address: string, delivery_notes: string}
      */
-    public function cleanDeliveryNotes(string $notes): string
+    public function formatAddressAndNotes(string $rawPhone, string $rawAddress, string $rawNotes): array
     {
-        $notes = trim($notes);
-        if (empty($notes)) {
-            return '';
-        }
+        $rawPhone = $this->normalizeDigits($rawPhone);
+        $rawNotes = trim($rawNotes);
+        $address = trim($rawAddress);
 
-        $lines = preg_split('/\r\n|\r|\n/', $notes);
-        if (! is_array($lines)) {
-            return '';
-        }
-
-        $filtered = [];
-        $paymentKeywords = 'cod|ငွေလွှဲ|prepaid|paid|advance|deposit|စရန်|kpay|wave';
-
-        foreach ($lines as $line) {
-            $trimmed = trim($line);
-            if (empty($trimmed)) {
-                continue;
+        // 1. Phone extraction and normalization
+        preg_match_all('/(?:\+?95\s*9|0\s*9)[\d\s\-\.]*/', $rawPhone, $matches);
+        $cleanPhones = [];
+        if (! empty($matches[0])) {
+            foreach ($matches[0] as $p) {
+                $c = preg_replace('/[^\d]/', '', (string) $p);
+                if (str_starts_with($c, '959')) {
+                    $c = '09'.substr($c, 3);
+                } elseif (! str_starts_with($c, '09') && str_starts_with($c, '9')) {
+                    $c = '0'.$c;
+                }
+                if (! empty($c) && ! in_array($c, $cleanPhones, true)) {
+                    $cleanPhones[] = $c;
+                }
             }
-
-            if (preg_match('/^\s*(?:'.$paymentKeywords.')\b/iu', $trimmed)) {
-                continue;
-            }
-
-            $filtered[] = $trimmed;
         }
 
-        return implode("\n", $filtered);
+        $primaryPhone = $cleanPhones[0] ?? $rawPhone;
+        $secondaryPhones = array_slice($cleanPhones, 1);
+
+        foreach ($secondaryPhones as $sp) {
+            if (! str_contains($address, $sp)) {
+                $address .= ' ('.$sp.')';
+            }
+        }
+
+        // 2. Classify rider instructions vs internal notes
+        $riderPatterns = [
+            '/(?:မပို့ခင်|မပို့မီ|မရောက်ခင်)?\s*ဖုန်း(?:ကြို)?ဆက်(?:ပါ|ပေးပါ)?/iu',
+            '/(?:ရုံးချိန်|ကျောင်းချိန်|ရုံးဖွင့်ရက်|ကျောင်းဖွင့်ရက်|စနေ|တနင်္ဂနွေ|တနင်္လာ|အင်္ဂါ|ဗုဒ္ဓဟူး|ကြာသပတေး|သောကြာ|မနက်ပိုင်း|ညနေပိုင်း)(?:အတွင်း|တွင်း|မှ)?\s*ပို့(?:ပေး)?ပါ?/iu',
+            '/call\s+before\s+(?:deliver|delivery)/iu',
+            '/deliver\s+(?:on|at)\s+[^\n,.]+/iu',
+            '/(?:ကားဂိတ်|အဝေးပြေးဂိတ်|ဂိတ်)(?:ပို့|ချိန်း)(?:ပေး)?ပါ/iu',
+        ];
+
+        $conversationalPatterns = [
+            '/(?:မင်မင်|admin|shop).*?(?:အပ်ပေး|ပို့ပေး|ဆက်သွယ်|ပေးလိုက်ပါမယ်)/iu',
+            '/^(?:ဟုတ်ကဲ့ပါရှင့်|ဟုတ်ကဲ့ပါခင်ဗျာ|ဟုတ်ကဲ့ပါ|ဟုတ်ကဲ့|ဟုတ်ပါတယ်ဗျ|ဟုတ်ပါတယ်|ကျေးဇူးတင်ပါတယ်|ကျေးဇူးပါ)/iu',
+        ];
+
+        $riderNotes = [];
+        $internalNotes = [];
+
+        if (! empty($rawNotes)) {
+            $lines = preg_split('/(?:\r?\n|၊)+/', $rawNotes);
+            if (is_array($lines)) {
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (empty($line)) {
+                        continue;
+                    }
+
+                    $isConv = false;
+                    foreach ($conversationalPatterns as $cp) {
+                        if (preg_match($cp, $line)) {
+                            $isConv = true;
+                            break;
+                        }
+                    }
+                    if ($isConv) {
+                        continue;
+                    }
+
+                    // Check payment keywords (COD, prepaid, advance, etc.)
+                    $paymentKeywords = 'cod|ငွေလွှဲ|prepaid|paid|advance|deposit|စရန်|kpay|wave';
+                    if (preg_match('/^\s*(?:'.$paymentKeywords.')/iu', $line)) {
+                        continue;
+                    }
+
+                    $isRider = false;
+                    foreach ($riderPatterns as $rp) {
+                        if (preg_match($rp, $line)) {
+                            $riderNotes[] = $line;
+                            $isRider = true;
+                            break;
+                        }
+                    }
+
+                    if (! $isRider) {
+                        $internalNotes[] = $line;
+                    }
+                }
+            }
+        }
+
+        foreach ($riderNotes as $rn) {
+            if (! str_contains($address, $rn)) {
+                $address .= ' ('.$rn.')';
+            }
+        }
+
+        // Also wrap unparenthesized rider notes directly in address if present
+        foreach ($riderPatterns as $rp) {
+            if (preg_match($rp, $address, $m)) {
+                $matchedStr = $m[0];
+                if (! preg_match('/\([^\)]*'.preg_quote($matchedStr, '/').'[^\)]*\)/u', $address)) {
+                    $address = str_replace($matchedStr, '('.trim($matchedStr).')', $address);
+                }
+            }
+        }
+
+        $address = (string) preg_replace('/\s+/', ' ', trim($address));
+        $deliveryNotes = implode(', ', $internalNotes);
+
+        return [
+            'customer_phone' => $primaryPhone,
+            'address' => $address,
+            'delivery_notes' => $deliveryNotes,
+        ];
     }
 }

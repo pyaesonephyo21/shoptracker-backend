@@ -20,6 +20,7 @@ class SalesOrder extends Model
     protected static $recordEvents = [];
 
     protected $casts = [
+        'order_number' => 'integer',
         'is_deli_prepaid' => 'boolean',
         'created_at' => 'datetime',
         // Cast decimals to ensure math accuracy in PHP
@@ -30,6 +31,19 @@ class SalesOrder extends Model
         'extra_fee' => 'float',
         'paid_amount' => 'float',
     ];
+
+    protected static function booted(): void
+    {
+        static::creating(function (SalesOrder $order) {
+            if (empty($order->order_number) && ! empty($order->shop_id)) {
+                $max = static::withoutGlobalScopes()
+                    ->where('shop_id', $order->shop_id)
+                    ->lockForUpdate()
+                    ->max('order_number');
+                $order->order_number = ($max ?? 0) + 1;
+            }
+        });
+    }
 
     public function items()
     {
@@ -120,11 +134,15 @@ class SalesOrder extends Model
                     ->whereRaw('sales_order_payments.id = (select max(id) from sales_order_payments as sop where sop.sales_order_id = sales_orders.id)');
             });
         })->when($filters['search'] ?? null, function ($query, $search) {
-            $query->where(function ($q) use ($search) {
+            $trimmedSearch = ltrim(trim((string) $search), '#');
+            $query->where(function ($q) use ($search, $trimmedSearch) {
                 $q->where('customer_name', 'like', "%{$search}%")
                     ->orWhere('customer_phone', 'like', "%{$search}%")
                     ->orWhere('delivery_address', 'like', "%{$search}%")
                     ->orWhere('id', 'like', "%{$search}%");
+                if (is_numeric($trimmedSearch)) {
+                    $q->orWhere('order_number', (int) $trimmedSearch);
+                }
             });
         })->when($filters['start_date'] ?? null, function ($query, $startDate) {
             $query->whereDate('created_at', '>=', $startDate);

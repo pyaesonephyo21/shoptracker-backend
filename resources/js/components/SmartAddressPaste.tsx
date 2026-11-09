@@ -21,6 +21,7 @@ interface SmartAddressPasteProps {
         customer_phone: string;
         delivery_address: string;
         delivery_notes?: string;
+        paid_amount?: number;
     }) => void;
     className?: string;
 }
@@ -272,6 +273,7 @@ export default function SmartAddressPaste({ onApply, className = '' }: SmartAddr
                     customer_phone: aiData.customer_phone || '',
                     address: aiData.delivery_address || aiData.address || '',
                     delivery_notes: aiData.delivery_notes || '',
+                    paid_amount: aiData.paid_amount ? Number(aiData.paid_amount) : undefined,
                     confidence: 'high'
                 });
                 setAiSource('ai');
@@ -303,7 +305,8 @@ export default function SmartAddressPaste({ onApply, className = '' }: SmartAddr
             customer_name: parsedData.customer_name,
             customer_phone: parsedData.customer_phone,
             delivery_address: parsedData.address,
-            delivery_notes: parsedData.delivery_notes
+            delivery_notes: parsedData.delivery_notes,
+            paid_amount: parsedData.paid_amount,
         });
 
         setAppliedToast(true);

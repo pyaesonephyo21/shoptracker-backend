@@ -174,8 +174,8 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
     );
 
     return (
-        <AppLayout title={`Order #${order.id}`} backUrl="/sales">
-            <Head title={`Order #${order.id}`} />
+        <AppLayout title={`Order #${order.order_number ?? order.id}`} backUrl="/sales">
+            <Head title={`Order #${order.order_number ?? order.id}`} />
 
             <div className="flex flex-col max-w-4xl mx-auto w-full pb-20">
 
@@ -198,7 +198,7 @@ export default function SalesDetail({ order }: { order: SalesOrder }) {
                         </button>
                         <div>
                             <div className="flex items-center gap-2">
-                                <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Order #{order.id}</h1>
+                                <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Order #{order.order_number ?? order.id}</h1>
                                 {order.is_preorder && (
                                     <span className="px-2 py-1 bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400 text-[10px] font-black uppercase tracking-widest rounded-md">
                                         PREORDER

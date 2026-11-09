@@ -43,6 +43,7 @@ class SalesOrderController extends Controller
             // Map the data structure to what SalesList.tsx expects
             return [
                 'id' => $order->id,
+                'order_number' => $order->order_number ?? $order->id,
                 'status' => $order->status,
                 'is_preorder' => (bool) $order->is_preorder,
                 'is_cod' => (bool) $order->is_cod,
@@ -123,6 +124,7 @@ class SalesOrderController extends Controller
         // Map to what SalesDetail.tsx expects
         $order = [
             'id' => $orderModel->id,
+            'order_number' => $orderModel->order_number ?? $orderModel->id,
             'status' => $orderModel->status,
             'is_preorder' => (bool) $orderModel->is_preorder,
             'date' => $orderModel->created_at->format('Y-m-d'),
@@ -221,6 +223,7 @@ class SalesOrderController extends Controller
         return Inertia::render('Sales/FulfillOrder', [
             'order' => [
                 'id' => $order->id,
+                'order_number' => $order->order_number ?? $order->id,
                 'financials' => [
                     'paid_amount' => (float) $order->paid_amount,
                     'overcharge' => (float) $order->overcharge,

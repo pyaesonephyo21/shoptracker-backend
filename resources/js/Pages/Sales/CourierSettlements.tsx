@@ -7,6 +7,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 
 interface UnsettledOrder {
     id: number;
+    order_number?: number;
     date: string;
     customer_name: string;
     net_revenue: number;
@@ -136,7 +137,7 @@ export default function CourierSettlements({ couriers, paymentMethods, unsettled
                                                             onCheckedChange={(checked) => handleSelectOrder(order.id, checked as boolean)}
                                                         />
                                                     </td>
-                                                    <td className="px-4 py-3 font-bold">#{order.id}</td>
+                                                    <td className="px-4 py-3 font-bold">#{order.order_number ?? order.id}</td>
                                                     <td className="px-4 py-3 text-zinc-500">{order.date}</td>
                                                     <td className="px-4 py-3">{order.customer_name || 'Walk-in'}</td>
                                                     <td className="px-4 py-3 font-black text-right text-orange-600 dark:text-orange-500">

@@ -8,6 +8,7 @@ export interface ParsedCustomerInfo {
     customer_phone: string;
     address: string;
     delivery_notes?: string;
+    paid_amount?: number;
     confidence: 'high' | 'medium' | 'low';
 }
 
@@ -64,11 +65,26 @@ const PHONE_LABEL_REGEX = /^(?:phone(?:\s*number)?|ph(?:\s*no)?|mobile|contact|�
 // Address label prefixes
 const ADDRESS_LABEL_REGEX = /^(?:address|addr|delivery\s*address|location|လိပ်စာ|လိပ်စာကတော့|လိပ်စာက|လိပ်စာလေးက|ပို့ပေးရမည့်လိပ်စာ|ပို့ရမည့်လိပ်စာ|ပို့ရန်လိပ်စာ|နေရာ)[\s\-\:\=]+/i;
 
-// Delivery remarks indicators
+// Courier delivery instructions that must be placed in address with parentheses for waybill printing
+const RIDER_INDICATORS = [
+    'မပို့ခင်ဖုန်းဆက်', 'မပို့မီဖုန်းဆက်', 'မရောက်ခင်ဖုန်းဆက်', 'ဖုန်းကြိုဆက်', 'ကြိုဆက်',
+    'ရုံးချိန်', 'ကျောင်းချိန်', 'ရုံးဖွင့်ရက်', 'ကျောင်းဖွင့်ရက်',
+    'စနေ', 'တနင်္ဂနွေ', 'တနင်္လာ', 'အင်္ဂါ', 'ဗုဒ္ဓဟူး', 'ကြာသပတေး', 'သောကြာ',
+    'မနက်ပိုင်း', 'ညနေပိုင်း', 'အမြန်ပို့', 'ကားဂိတ်', 'အဝေးပြေးဂိတ်', 'ဂိတ်ချိန်း',
+    'call before'
+];
+
+// Conversational seller messages or greetings to ignore
+const CONVERSATIONAL_IGNORES = [
+    'မင်မင်', 'admin', 'အပ်ပေးလိုက်ပါမယ်', 'အပ်ပေးပါမယ်', 'ပို့ပေးလိုက်ပါမယ်',
+    'ဟုတ်ပါတယ်ဗျ', 'ဟုတ်ပါတယ်', 'ကျေးဇူးတင်ပါတယ်', 'ကျေးဇူးပါ', 'ဟုတ်ကဲ့'
+];
+
+// Delivery remarks indicators (internal shop notes or general remarks)
 const REMARK_INDICATORS = [
     'ပို့ပေးပါ', 'ပို့ပါ', 'ဖွင့်ရက်', 'ပိတ်ရက်', 'ရုံးဖွင့်ရက်', 'ကျောင်းဖွင့်ရက်', 'ရုံးချိန်', 'ကျောင်းချိန်',
     'မနက်ပိုင်း', 'ညနေပိုင်း', 'ဖုန်းကြိုဆက်', 'ကြိုဆက်', 'အမြန်ပို့', 'အမြန်', 'မပို့ခင်ဖုန်းဆက်', 'မနက်ဖြန်ပို့',
-    'ကားခ', 'တန်ဆာခ', 'ငွေရှင်းပြီး', 'ငွေလွှဲပြီး', 'kpay', 'cod', 'ရှင်းပြီး'
+    'ကားခ', 'တန်ဆာခ', 'ငွေရှင်းပြီး', 'ငွေလွှဲပြီး', 'kpay', 'cod', 'ရှင်းပြီး', 'remains', 'ကျန်ငွေ', 'add after'
 ];
 
 /**
@@ -95,9 +111,11 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
     let extractedPhone = '';
     let extractedName = '';
     const addressLines: string[] = [];
-    const remarkLines: string[] = [];
+    const internalRemarkLines: string[] = [];
+    const riderLines: string[] = [];
+    const secondaryPhones: string[] = [];
 
-    // 2. Extract Phone Number
+    // 2. Extract Phone Number(s)
     // Myanmar format: 09XXXXXXXXX, +959XXXXXXXXX, 09-XXXXXXXX, etc.
     const phoneRegex = /(?:\+?95\s*9|0\s*9)[\s\-\.]*(\d[\s\-\.]*){7,9}\b/g;
     const phoneMatches = [...normalized.matchAll(phoneRegex)];
@@ -116,7 +134,30 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
                 cleanedPhones.push(cleanedPhone);
             }
         }
-        extractedPhone = cleanedPhones.join(', ');
+        extractedPhone = cleanedPhones[0] || '';
+        if (cleanedPhones.length > 1) {
+            secondaryPhones.push(...cleanedPhones.slice(1));
+        }
+    }
+
+    // Extract prepaid amount if present
+    let paidAmount: number | undefined = undefined;
+    const prepaidKeywords = 'prepaid|paid|advance|deposit|စရန်ငွေ|စရန်|ငွေကြိုလွှဲ|ကြိုလွှဲ|ကြိုရှင်း|ရှင်းပြီး';
+    const prepaidRegex1 = new RegExp(`(?:${prepaidKeywords})\\s*[-:=]?\\s*(\\d+(?:[,\\.]\\d+)*)\\s*(ks|kyats?|ကျပ်|k)?(?!\\d)`, 'i');
+    const prepaidRegex2 = new RegExp(`(\\d+(?:[,\\.]\\d+)*)\\s*(ks|kyats?|ကျပ်|k)?\\s*[-:=]?\\s*(?:${prepaidKeywords})`, 'i');
+
+    const m1 = normalized.match(prepaidRegex1);
+    const m2 = normalized.match(prepaidRegex2);
+    const targetMatch = m1 || m2;
+    if (targetMatch) {
+        let val = parseFloat(targetMatch[1].replace(/,/g, ''));
+        const unit = targetMatch[2]?.toLowerCase();
+        if (unit === 'k') {
+            val *= 1000;
+        }
+        if (!isNaN(val) && val > 0) {
+            paidAmount = val;
+        }
     }
 
     // 3. Process line by line or slash-delimited segments
@@ -147,6 +188,11 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
         let cleanedLine = cleanTextValue(lineWithoutPhone);
         if (!cleanedLine) continue;
 
+        // Skip conversational greetings or seller phrases
+        if (CONVERSATIONAL_IGNORES.some(kw => cleanedLine.includes(kw))) {
+            continue;
+        }
+
         // Check for Explicit Name Label
         if (NAME_LABEL_REGEX.test(cleanedLine)) {
             const nameVal = cleanedLine.replace(NAME_LABEL_REGEX, '');
@@ -171,10 +217,17 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
             continue;
         }
 
-        // Check for Delivery Remarks / Instructions
+        // Check for Rider Instructions (Call before deliver, deliver days) -> put in address
+        const isRider = RIDER_INDICATORS.some(kw => cleanedLine.includes(kw));
+        if (isRider && !cleanedLine.includes('လမ်း') && !cleanedLine.includes('ရပ်ကွက်')) {
+            riderLines.push(cleanTextValue(cleanedLine));
+            continue;
+        }
+
+        // Check for Internal Remarks (add after 2 weeks, 4000 remains, etc.)
         const isRemark = REMARK_INDICATORS.some(kw => cleanedLine.includes(kw));
         if (isRemark && !cleanedLine.includes('လမ်း') && !cleanedLine.includes('မြို့နယ်')) {
-            remarkLines.push(cleanTextValue(cleanedLine));
+            internalRemarkLines.push(cleanTextValue(cleanedLine));
             continue;
         }
 
@@ -210,9 +263,31 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
         }
     }
 
-    // 5. Build final address
+    // 5. Build final address with secondary phones & rider instructions enclosed in ()
     let finalAddress = addressLines.join(' ').replace(/\s+/g, ' ').trim();
     finalAddress = cleanTextValue(finalAddress);
+
+    for (const sp of secondaryPhones) {
+        if (!finalAddress.includes(sp)) {
+            finalAddress += ` (${sp})`;
+        }
+    }
+
+    for (const rl of riderLines) {
+        if (!finalAddress.includes(rl)) {
+            finalAddress += ` (${rl})`;
+        }
+    }
+
+    // Wrap unparenthesized rider indicators in address if present
+    for (const kw of RIDER_INDICATORS) {
+        const regex = new RegExp(`(?<!\\()\\s*(${kw}[^၊,\\s\\(\\)]*)\\s*(?!\\))`, 'gu');
+        if (regex.test(finalAddress)) {
+            finalAddress = finalAddress.replace(regex, ' ($1)');
+        }
+    }
+
+    finalAddress = finalAddress.replace(/\s+/g, ' ').trim();
 
     if (extractedName) {
         extractedName = cleanTextValue(extractedName);
@@ -227,7 +302,8 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
         customer_name: extractedName,
         customer_phone: extractedPhone,
         address: finalAddress,
-        delivery_notes: remarkLines.join(', '),
+        delivery_notes: internalRemarkLines.join(', '),
+        paid_amount: paidAmount,
         confidence
     };
 }

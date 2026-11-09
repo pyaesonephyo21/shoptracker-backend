@@ -447,7 +447,7 @@ export default function SalesList({
                                             </span>
                                         </div>
                                         <span className="text-[10px] sm:text-[11px] text-zinc-400 dark:text-zinc-500 whitespace-nowrap mt-1">
-                                            #{item.id} • {item.date}
+                                            #{item.order_number ?? item.id} • {item.date}
                                         </span>
                                     </div>
                                 </div>

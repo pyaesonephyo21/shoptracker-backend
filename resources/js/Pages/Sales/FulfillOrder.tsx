@@ -54,8 +54,8 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
     };
 
     return (
-        <AppLayout title={`Fulfill Order #${order.id}`} backUrl={`/sales/${order.id}`} hideBottomNav>
-            <Head title={`Fulfill Order #${order.id}`} />
+        <AppLayout title={`Fulfill Order #${order.order_number ?? order.id}`} backUrl={`/sales/${order.id}`} hideBottomNav>
+            <Head title={`Fulfill Order #${order.order_number ?? order.id}`} />
 
             <div className="flex flex-col max-w-2xl mx-auto w-full px-4 sm:px-0 pb-20">
                 <div className="border-b border-zinc-100 dark:border-zinc-800 pb-4 mb-8 flex justify-between items-center">
@@ -70,7 +70,7 @@ export default function FulfillOrder({ order, couriers = [] }: { order: SalesOrd
                         </button>
                         <div>
                             <h1 className="text-2xl font-black text-black dark:text-white tracking-tight">Arrange Delivery</h1>
-                            <p className="text-sm font-medium text-zinc-500">Order #{order.id}</p>
+                            <p className="text-sm font-medium text-zinc-500">Order #{order.order_number ?? order.id}</p>
                         </div>
                     </div>
                 </div>

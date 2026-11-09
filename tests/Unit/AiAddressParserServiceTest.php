@@ -40,7 +40,7 @@ class AiAddressParserServiceTest extends TestCase
         Config::set('services.gemini.api_key', 'test-key');
 
         Http::fake([
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent*' => Http::response([
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent*' => Http::response([
                 'candidates' => [
                     [
                         'content' => [
@@ -49,7 +49,7 @@ class AiAddressParserServiceTest extends TestCase
                                     'customer_name' => 'မအိမ့်မှူးခင်',
                                     'customer_phone' => '09772775937',
                                     'address' => 'ရန်ကုန်၊ သာကေတ',
-                                    'delivery_notes' => 'ရုံးချိန်အတွင်းပို့ပါ',
+                                    'delivery_notes' => "ရုံးချိန်အတွင်းပို့ပါ\n4000 remains",
                                 ])],
                             ],
                         ],
@@ -65,8 +65,8 @@ class AiAddressParserServiceTest extends TestCase
         $this->assertTrue($result['success']);
         $this->assertSame('မအိမ့်မှူးခင်', $result['data']['customer_name']);
         $this->assertSame('09772775937', $result['data']['customer_phone']);
-        $this->assertSame('ရန်ကုန်၊ သာကေတ', $result['data']['delivery_address']);
-        $this->assertSame('ရုံးချိန်အတွင်းပို့ပါ', $result['data']['delivery_notes']);
+        $this->assertSame('ရန်ကုန်၊ သာကေတ (ရုံးချိန်အတွင်းပို့ပါ)', $result['data']['delivery_address']);
+        $this->assertSame('4000 remains', $result['data']['delivery_notes']);
 
         Http::assertSent(function ($request) {
             $parts = $request->data()['contents'][0]['parts'];
@@ -76,15 +76,15 @@ class AiAddressParserServiceTest extends TestCase
         });
     }
 
-    public function test_service_falls_back_to_gemini_35_flash_lite_on_primary_timeout(): void
+    public function test_service_falls_back_to_gemini_35_flash_on_primary_timeout(): void
     {
         Config::set('services.gemini.api_key', 'test-key');
 
         Http::fake([
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent*' => function () {
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent*' => function () {
                 throw new ConnectionException('cURL error 28: Operation timed out after 12000 milliseconds');
             },
-            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent*' => Http::response([
+            'https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent*' => Http::response([
                 'candidates' => [
                     [
                         'content' => [
@@ -142,7 +142,42 @@ class AiAddressParserServiceTest extends TestCase
         $this->assertTrue($result['success']);
         $this->assertSame('ဒေါ်အေးအေး', $result['data']['customer_name']);
         $this->assertSame('09987654321', $result['data']['customer_phone']);
-        $this->assertSame('နေပြည်တော်', $result['data']['delivery_address']);
-        $this->assertSame('ဂိတ်ချိန်းပါ', $result['data']['delivery_notes']);
+        $this->assertSame('နေပြည်တော် (ဂိတ်ချိန်းပါ)', $result['data']['delivery_address']);
+        $this->assertSame('', $result['data']['delivery_notes']);
+    }
+
+    public function test_service_appends_secondary_phones_and_rider_instructions_to_address_in_parentheses(): void
+    {
+        Config::set('services.gemini.api_key', 'test-gemini-key');
+
+        Http::fake([
+            'https://generativelanguage.googleapis.com/*' => Http::response([
+                'candidates' => [
+                    [
+                        'content' => [
+                            'parts' => [
+                                ['text' => json_encode([
+                                    'customer_name' => 'ကြယ်စင်မိုးဦး',
+                                    'customer_phone' => '09266712266, 09776573573',
+                                    'address' => 'အမှတ် ၈၊ ဦးလွန်းလမ်း၊ အရိုးကုန်း ရပ်ကွက်၊ တာမွေ',
+                                    'delivery_notes' => "မပို့ခင်ဖုန်းဆက်ပါ\nadd after 2 weeks\n4000 remains\nမင်မင် deli လေးအပ်ပေးလိုက်ပါမယ်နော်",
+                                    'paid_amount' => 12000,
+                                ])],
+                            ],
+                        ],
+                    ],
+                ],
+            ], 200),
+        ]);
+
+        $service = new AiAddressParserService;
+        $result = $service->parse('ကြယ်စင်မိုးဦး 09266712266');
+
+        $this->assertTrue($result['success']);
+        $this->assertSame('ကြယ်စင်မိုးဦး', $result['data']['customer_name']);
+        $this->assertSame('09266712266', $result['data']['customer_phone']);
+        $this->assertSame('အမှတ် ၈၊ ဦးလွန်းလမ်း၊ အရိုးကုန်း ရပ်ကွက်၊ တာမွေ (09776573573) (မပို့ခင်ဖုန်းဆက်ပါ)', $result['data']['delivery_address']);
+        $this->assertSame('add after 2 weeks, 4000 remains', $result['data']['delivery_notes']);
+        $this->assertSame(12000.0, $result['data']['paid_amount']);
     }
 }

@@ -328,4 +328,102 @@ class SalesOrderServiceTest extends TestCase
         $this->assertSame(0, $batch1->remaining_quantity);
         $this->assertSame(6, $variant->stock_quantity);
     }
+
+    public function test_sequential_order_numbers_are_scoped_per_shop_independently(): void
+    {
+        $shopA = Shop::create(['name' => 'Shop Alpha']);
+        $shopB = Shop::create(['name' => 'Shop Beta']);
+
+        $userA = User::factory()->create(['shop_id' => $shopA->id]);
+        $userB = User::factory()->create(['shop_id' => $shopB->id]);
+
+        $productA = Product::create([
+            'shop_id' => $shopA->id,
+            'name' => 'Product A',
+            'type' => 'local',
+            'base_cost' => 1000,
+            'retail_price' => 2000,
+        ]);
+        $variantA = ProductVariant::create([
+            'product_id' => $productA->id,
+            'sku' => 'VAR-A',
+            'stock_quantity' => 100,
+            'retail_price' => 2000,
+        ]);
+        ProductBatch::create([
+            'shop_id' => $shopA->id,
+            'product_variant_id' => $variantA->id,
+            'initial_quantity' => 100,
+            'remaining_quantity' => 100,
+            'unit_cost' => 1000,
+            'retail_price' => 2000,
+        ]);
+
+        $productB = Product::create([
+            'shop_id' => $shopB->id,
+            'name' => 'Product B',
+            'type' => 'local',
+            'base_cost' => 1000,
+            'retail_price' => 2000,
+        ]);
+        $variantB = ProductVariant::create([
+            'product_id' => $productB->id,
+            'sku' => 'VAR-B',
+            'stock_quantity' => 100,
+            'retail_price' => 2000,
+        ]);
+        ProductBatch::create([
+            'shop_id' => $shopB->id,
+            'product_variant_id' => $variantB->id,
+            'initial_quantity' => 100,
+            'remaining_quantity' => 100,
+            'unit_cost' => 1000,
+            'retail_price' => 2000,
+        ]);
+
+        $service = new SalesOrderService;
+
+        // Shop A Order #1
+        $this->actingAs($userA);
+        $orderA1 = $service->createOrder(
+            ['customer_name' => 'Customer A1'],
+            [['product_variant_id' => $variantA->id, 'quantity' => 1]]
+        );
+        $this->assertSame(1, $orderA1->order_number);
+
+        // Shop A Order #2
+        $orderA2 = $service->createOrder(
+            ['customer_name' => 'Customer A2'],
+            [['product_variant_id' => $variantA->id, 'quantity' => 1]]
+        );
+        $this->assertSame(2, $orderA2->order_number);
+
+        // Switch to Shop B -> Order #1
+        $this->actingAs($userB);
+        $orderB1 = $service->createOrder(
+            ['customer_name' => 'Customer B1'],
+            [['product_variant_id' => $variantB->id, 'quantity' => 1]]
+        );
+        $this->assertSame(1, $orderB1->order_number);
+
+        // Shop B Order #2
+        $orderB2 = $service->createOrder(
+            ['customer_name' => 'Customer B2'],
+            [['product_variant_id' => $variantB->id, 'quantity' => 1]]
+        );
+        $this->assertSame(2, $orderB2->order_number);
+
+        // Switch back to Shop A -> Order #3
+        $this->actingAs($userA);
+        $orderA3 = $service->createOrder(
+            ['customer_name' => 'Customer A3'],
+            [['product_variant_id' => $variantA->id, 'quantity' => 1]]
+        );
+        $this->assertSame(3, $orderA3->order_number);
+
+        // Verify global IDs continue to increment, but per-shop sequence is independent
+        $this->assertNotSame($orderA1->id, $orderB1->id);
+        $this->assertSame(1, $orderA1->order_number);
+        $this->assertSame(1, $orderB1->order_number);
+    }
 }

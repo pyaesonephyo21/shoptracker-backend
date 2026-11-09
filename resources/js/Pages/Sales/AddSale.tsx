@@ -283,11 +283,12 @@ export default function AddSale({ products = [], couriers = [] }: { products: Pr
 
                         {/* Smart Address Paste */}
                         <SmartAddressPaste
-                            onApply={({ customer_name, customer_phone, delivery_address, delivery_notes }) => {
+                            onApply={({ customer_name, customer_phone, delivery_address, delivery_notes, paid_amount }) => {
                                 if (customer_name) setData('customer_name', customer_name);
                                 if (customer_phone) setData('customer_phone', customer_phone);
                                 if (delivery_address) setData('delivery_address', delivery_address);
                                 if (delivery_notes) setData('note', delivery_notes);
+                                if (paid_amount && paid_amount > 0) setData('paid_amount', String(paid_amount));
                             }}
                         />
 

@@ -291,8 +291,28 @@ export function parseMyanmarAddress(rawInput: string): ParsedCustomerInfo {
         }
     }
 
-    // 6. Auto-resolve Mandalay township for cross-street addresses
+    // 6. Fix common OCR typo: [Letter]ညလမ်း -> [Letter] ၃ လမ်း (e.g. ခညလမ်း -> ခ ၃ လမ်း)
+    finalAddress = finalAddress.replace(/([က-အ])\s*ည\s*လမ်း/gu, '$1 ၃ လမ်း');
+
+    // 7. Auto-resolve Mandalay township for cross-street addresses
     finalAddress = resolveMandalayTownship(finalAddress);
+
+    // 8. Language-based delimiter normalization:
+    const isBurmese = /[\u1000-\u109F]/.test(finalAddress);
+    if (isBurmese) {
+        // For Burmese addresses, convert all delimiters to Myanmar comma (၊ )
+        finalAddress = finalAddress.replace(/[,၊]+/gu, '၊');
+        finalAddress = finalAddress.replace(/\s*၊\s*/gu, '၊ ');
+        finalAddress = finalAddress.replace(/\s*၊\s*(\([^\)]+\))/gu, ' $1');
+        finalAddress = finalAddress.replace(/[\s၊,]+$/gu, '');
+    } else {
+        // For English addresses, enforce English comma (, )
+        finalAddress = finalAddress.replace(/[,၊]+/gu, ',');
+        finalAddress = finalAddress.replace(/\s*,\s*/gu, ', ');
+        finalAddress = finalAddress.replace(/\s*,\s*(\([^\)]+\))/gu, ' $1');
+        finalAddress = finalAddress.replace(/[\s,]+$/gu, '');
+    }
+
     finalAddress = finalAddress.replace(/\s+/g, ' ').trim();
 
     if (extractedName) {

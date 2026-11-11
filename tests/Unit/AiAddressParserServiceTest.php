@@ -184,15 +184,33 @@ class AiAddressParserServiceTest extends TestCase
     public function test_format_address_and_notes_normalizes_delimiters_and_spacing(): void
     {
         $service = new AiAddressParserService;
-        $formatted = $service->formatAddressAndNotes(
+
+        // Burmese address uses Myanmar comma (၊ )
+        $formattedBurmese = $service->formatAddressAndNotes(
             '09402419805, 09776573573',
             'ရန်ကုန်, မြောက်ဥက္ကလာပ, ဘုမ္မာ ၁၃ လမ်း,',
             "မပို့ခင်ဖုန်းဆက်ပါ\nကျန်ငွေ ၄၀၀၀"
         );
 
-        $this->assertSame('09402419805', $formatted['customer_phone']);
-        $this->assertSame('ရန်ကုန်, မြောက်ဥက္ကလာပ, ဘုမ္မာ ၁၃ လမ်း (09776573573) (မပို့ခင်ဖုန်းဆက်ပါ)', $formatted['address']);
-        $this->assertSame('ကျန်ငွေ ၄၀၀၀', $formatted['delivery_notes']);
+        $this->assertSame('09402419805', $formattedBurmese['customer_phone']);
+        $this->assertSame('ရန်ကုန်၊ မြောက်ဥက္ကလာပ၊ ဘုမ္မာ ၁၃ လမ်း (09776573573) (မပို့ခင်ဖုန်းဆက်ပါ)', $formattedBurmese['address']);
+        $this->assertSame('ကျန်ငွေ ၄၀၀၀', $formattedBurmese['delivery_notes']);
+
+        // Fixes OCR typo (ခညလမ်း -> ခ ၃ လမ်း) and enforces Myanmar comma (၊ )
+        $formattedTypo = $service->formatAddressAndNotes(
+            '09123456789',
+            'ရန်ကုန်, အင်းစိန်, ခညလမ်း, အမှတ် ၄၆',
+            ''
+        );
+        $this->assertSame('ရန်ကုန်၊ အင်းစိန်၊ ခ ၃ လမ်း၊ အမှတ် ၄၆', $formattedTypo['address']);
+
+        // English address uses English comma (, )
+        $formattedEnglish = $service->formatAddressAndNotes(
+            '09123456789',
+            'No. 46, Kha 3rd Street, Insein, Yangon',
+            'call before deliver'
+        );
+        $this->assertSame('No. 46, Kha 3rd Street, Insein, Yangon (call before deliver)', $formattedEnglish['address']);
     }
 
     public function test_resolve_mandalay_township_for_grid_addresses(): void

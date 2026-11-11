@@ -449,14 +449,29 @@ CRITICAL OCR & GEOGRAPHY ACCURACY GUIDELINES FOR BURMESE SCRIPT:
    - 'ဉ္ဇ' (stacked za under nya):
      * 'ဝေဇယန္တာ' (Wayzayanta road in South Okkalapa / Thingangyun).
 
-3. Myanmar Digits & Street Number Preservation:
-   - In Myanmar townships, streets are heavily numbered using Burmese numerals: '၁, ၂, ၃, ၄, ၅, ၆, ၇, ၈, ၉, ၁၀, ၁၁, ၁၂, ၁၃, ၁၄, ၁၅ ... ၁၀၀+ လမ်း'.
-   - When an address contains a street series with a number (e.g. 'ဘုမ္မာ၁၃လမ်း' or 'ဘုမ္မာ ၁၃ လမ်း' = Bhomma 13th Street), NEVER drop the number to just 'ဘုမ္မာလမ်း' or 'နန္ဒာလမ်း'. Always preserve the full numbered street: 'ဘုမ္မာ ၁၃ လမ်း'!
-   - NEVER drop, ignore, or squash Burmese numerals before 'လမ်း'.
+3. Myanmar Digits, Alphabetical Street Series & House Number Precision:
+   - Digits in Street Numbers:
+     In Myanmar townships, streets are heavily numbered using Burmese numerals: '၁, ၂, ၃, ၄, ၅, ၆, ၇, ၈, ၉, ၁၀, ၁၁, ၁၂, ၁၃, ၁၄, ၁၅ ... ၁၀၀+ လမ်း'.
+     * When an address contains a street series with a number (e.g. 'ဘုမ္မာ၁၃လမ်း' or 'ဘုမ္မာ ၁၃ လမ်း' = Bhomma 13th Street), NEVER drop the number to just 'ဘုမ္မာလမ်း' or 'နန္ဒာလမ်း'. Always preserve the full numbered street: 'ဘုမ္မာ ၁၃ လမ်း'!
+     * NEVER drop, ignore, or squash Burmese numerals before 'လမ်း'.
+   - Alphabetical Wards & Street Series (အက္ခရာ လမ်းစဉ်များ):
+     In townships like Insein (အင်းစိန်), North Okkalapa (မြောက်ဥက္ကလာပ), Thingangyun, Dagon, etc., streets and wards are designated by single Burmese alphabet letters followed by a street number:
+     * Examples: 'က ၁ လမ်း', 'က ၂ လမ်း', 'ခ ၁ လမ်း', 'ခ ၂ လမ်း', 'ခ ၃ လမ်း', 'ခ ၄ လမ်း', 'ဂ ၁ လမ်း', 'ဈ ၁ လမ်း'.
+     * CRITICAL: '၃' (Burmese numeral 3) vs 'ည' (letter Nya):
+       When an alphabet letter (such as 'ခ') is followed by a curved glyph before 'လမ်း' (e.g. 'ခ၃လမ်း'), it is the numeral '၃' (3), representing 'ခ ၃ လမ်း' (Kha 3rd Street).
+       NEVER transcribe this as 'ခညလမ်း' (there is no street named 'ခည')! Always transcribe both the alphabet letter and the numeral: 'ခ ၃ လမ်း'.
+     * NEVER drop the alphabet letter (e.g. do NOT reduce 'ခ ၃ လမ်း' to just '၃ လမ်း').
+   - Multi-Digit House Numbers (အိမ်အမှတ်):
+     House numbers in Myanmar frequently consist of multiple digits (e.g. 'အမှတ် ၄၆', 'အမှတ် ၁၂၈', 'အမှတ် ၅၅', 'အမှတ် ၄/B'):
+     * In unspaced text like 'အမှတ်၄၆အင်းစိန်', carefully read all digits after 'အမှတ်': 'အမှတ် ၄၆' (No. 46), followed by the township 'အင်းစိန်'.
+     * NEVER truncate or drop digits from house numbers (e.g., do NOT turn 'အမှတ် ၄၆' into 'အမှတ် ၄').
 
 4. Authoritative Myanmar Postal & Urban Geography Directory:
    Always cross-check extracted text against real, legitimate Myanmar administrative divisions:
    - Yangon Municipal Townships (၃၃ မြို့နယ်):
+     * အင်းစိန် (Insein):
+       - Alphabetical Street Series: က, ခ, ဂ, ဃ, င, စ, ဆ, ဇ, ဈ, ည (ဥပမာ: ခ ၁ လမ်း, ခ ၂ လမ်း, ခ ၃ လမ်း).
+       - Wards: နံ့သာကုန်း, ရွာမ, စဉ့်ငူ, သုခ, အောင်ဆန်း, ကမ်းနား.
      * မြောက်ဥက္ကလာပ (North Okkalapa):
        - Wards: က, ခ, ဂ, ဃ, င, စ, ဆ, ဇ, ဈ, ည, ဋ, ဌ, ဍ, ဎ, ဏ, တ, ထ ရပ်ကွက်.
        - Street Series: ဘုမ္မာ (၁ မှ ၂၀) လမ်းများ, နန္ဒာ (၁ မှ ၁၆) လမ်းများ, ကံ့ကော် (၁ မှ ၁၀) လမ်းများ, သုဓမ္မာလမ်း, မေဓာဝီလမ်း, ခေမာသီလမ်း, ဝေဘာဂီလမ်း, ပဒုမ္မာလမ်း, သုမင်္ဂလာလမ်း, တကောင်းလမ်း, ရွှေပေါက္ကံလမ်း.
@@ -506,9 +521,12 @@ CRITICAL OCR & GEOGRAPHY ACCURACY GUIDELINES FOR BURMESE SCRIPT:
    In Myanmar e-commerce logistics, delivery apps (Ninja Van, BeeXprss, Royal Express) have only ONE phone number field and print the Address field on the parcel's waybill sticker:
    - Primary Phone Number:
      Put the single primary phone in "customer_phone" (e.g. "09266712266").
-   - Address Segmentation:
-     Separate address elements cleanly with commas or Myanmar commas: "[City], [Township], [Ward], [Street], [House/Room]".
-     Example: "ရန်ကုန်, မြောက်ဥက္ကလာပ, ဘုမ္မာ ၁၃ လမ်း" or "အမှတ် ၈၊ ဦးလွန်းလမ်း၊ အရိုးကုန်းရပ်ကွက်၊ တာမွေမြို့နယ်".
+   - Address Delimiters by Language (CRITICAL):
+     * If the address is in Burmese, ALWAYS use the Myanmar comma '၊ ' (U+104A followed by space) between address components:
+       Example: "အမှတ် ၄၆၊ ခ ၃ လမ်း၊ အင်းစိန်၊ ရန်ကုန်" or "ရန်ကုန်၊ အင်းစိန်၊ ခ ၃ လမ်း၊ အမှတ် ၄၆".
+       NEVER use English commas ',' for Burmese addresses!
+     * If the address is in English, use English commas ', ':
+       Example: "No. 46, Kha 3rd Street, Insein, Yangon".
    - Secondary / Additional Phone Numbers:
      If the customer has more than one phone number, append secondary phone numbers to the END of "address" inside parentheses: e.g. "(09776573573)".
    - Courier / Delivery Rider Instructions:
@@ -752,12 +770,28 @@ PROMPT;
             }
         }
 
+        // Fix common OCR typo: [Letter]ညလမ်း -> [Letter] ၃ လမ်း (e.g. ခညလမ်း -> ခ ၃ လမ်း)
+        $address = (string) preg_replace('/([က-အ])\s*ည\s*လမ်း/u', '$1 ၃ လမ်း', $address);
+
         // Automatically resolve Mandalay township if cross streets are given without a township
         $address = $this->resolveMandalayTownship($address);
 
-        // Clean up punctuation and spacing around parentheses and delimiters
-        $address = (string) preg_replace('/\s*([,၊])\s*/u', '$1 ', $address);
-        $address = (string) preg_replace('/\s*[,၊]\s*(\([^\)]+\))/u', ' $1', $address);
+        // Language-based delimiter normalization:
+        $isBurmese = (bool) preg_match('/[\x{1000}-\x{109F}]/u', $address);
+        if ($isBurmese) {
+            // For Burmese addresses, convert all delimiters to Myanmar comma (၊ )
+            $address = (string) preg_replace('/[,၊]+/u', '၊', $address);
+            $address = (string) preg_replace('/\s*၊\s*/u', '၊ ', $address);
+            $address = (string) preg_replace('/\s*၊\s*(\([^\)]+\))/u', ' $1', $address);
+            $address = (string) preg_replace('/[\s၊,]+$/u', '', $address);
+        } else {
+            // For English addresses, enforce English comma (, )
+            $address = (string) preg_replace('/[,၊]+/u', ',', $address);
+            $address = (string) preg_replace('/\s*,\s*/u', ', ', $address);
+            $address = (string) preg_replace('/\s*,\s*(\([^\)]+\))/u', ' $1', $address);
+            $address = (string) preg_replace('/[\s,]+$/u', '', $address);
+        }
+
         $address = (string) preg_replace('/\s+/', ' ', trim($address));
         $deliveryNotes = implode(', ', $internalNotes);
 
